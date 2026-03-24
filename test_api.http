@@ -1,0 +1,116 @@
+# Container Management API Testing
+# Use this file to test all API endpoints
+
+### 1. Get all ports
+GET http://localhost:5000/api/ports
+
+### 2. Get all statuses
+GET http://localhost:5000/api/statuses
+
+### 3. Create test containers for Manila Port
+POST http://localhost:5000/api/containers
+Content-Type: application/json
+
+{
+  "statusId": 1,
+  "type": "20ft Standard",
+  "containerDesc": "Standard shipping container for general cargo",
+  "currentPortId": 1
+}
+
+### 4. Create another container
+POST http://localhost:5000/api/containers
+Content-Type: application/json
+
+{
+  "statusId": 2,
+  "type": "40ft High Cube",
+  "containerDesc": "High cube container for oversized cargo",
+  "currentPortId": 1
+}
+
+### 5. Create third container
+POST http://localhost:5000/api/containers
+Content-Type: application/json
+
+{
+  "statusId": 1,
+  "type": "20ft Refrigerated",
+  "containerDesc": "Refrigerated container for perishable goods",
+  "currentPortId": 1
+}
+
+### 6. Get containers for Manila Port (should show 3 containers)
+GET http://localhost:5000/api/containers/port/1
+
+### 7. Get Manila Port yards
+GET http://localhost:5000/api/yards/port/1
+
+### 8. Get blocks for Manila Yard 1
+GET http://localhost:5000/api/blocks/yard/1
+
+### 9. Get bays for Block 1
+GET http://localhost:5000/api/bays/block/1
+
+### 10. Get rows for Bay A
+GET http://localhost:5000/api/rows/bay/1
+
+### 11. Get slots for Row 1
+GET http://localhost:5000/api/slots/row/1
+
+### 12. Move container CON-1 to Block 1, Bay A, Row 1, Tier 1
+PUT http://localhost:5000/api/containers/1/location
+Content-Type: application/json
+
+{
+  "yardId": 1,
+  "blockId": 1,
+  "bayId": 1,
+  "rowId": 1,
+  "tier": 1
+}
+
+### 13. Move container CON-2 to Block 1, Bay A, Row 1, Tier 2 (should work - FILO)
+PUT http://localhost:5000/api/containers/2/location
+Content-Type: application/json
+
+{
+  "yardId": 1,
+  "blockId": 1,
+  "bayId": 1,
+  "rowId": 1,
+  "tier": 2
+}
+
+### 14. Try to move CON-3 to Tier 4 (should fail - FILO violation)
+PUT http://localhost:5000/api/containers/3/location
+Content-Type: application/json
+
+{
+  "yardId": 1,
+  "blockId": 1,
+  "bayId": 1,
+  "rowId": 1,
+  "tier": 4
+}
+
+### 15. Move CON-3 to Tier 3 (should work)
+PUT http://localhost:5000/api/containers/3/location
+Content-Type: application/json
+
+{
+  "yardId": 1,
+  "blockId": 1,
+  "bayId": 1,
+  "rowId": 1,
+  "tier": 3
+}
+
+### 16. Search for container by number
+GET http://localhost:5000/api/containers/search/CON-1
+
+### 17. Get container location hierarchy
+GET http://localhost:5000/api/containers/1/location-hierarchy
+
+### 18. Get all containers again (should show updated locations)
+GET http://localhost:5000/api/containers/port/1

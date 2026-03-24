@@ -1,0 +1,13 @@
+# Flutter/Dart
+.dart_tool/
+.idea/
+.vscode/
+build/
+*.exe
+*.dll
+
+# .NET / C#
+bin/
+obj/
+*.user
+appsettings.Development.json

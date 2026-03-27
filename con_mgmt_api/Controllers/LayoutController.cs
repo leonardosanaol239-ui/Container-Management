@@ -42,6 +42,10 @@ public class LayoutController : ControllerBase
         return NoContent();
     }
 
+    [HttpGet("blocks/{id}/debug-containers")]
+    public async Task<IActionResult> DebugBlockContainers(int id) =>
+        Ok(await _layout.GetBlockContainersDebugAsync(id));
+
     [HttpPost("blocks/{id}/bays")]
     public async Task<IActionResult> AddBay(int id)
     {

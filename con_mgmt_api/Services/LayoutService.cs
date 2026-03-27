@@ -74,23 +74,76 @@ public class LayoutService : ILayoutService
 
     public async Task<bool> DeleteBlockAsync(int blockId)
     {
-        var hasContainers = await _ctx.Containers
-            .AnyAsync(c => c.BlockId == blockId && c.LocationStatusId != 2);
+        var bayIds = await _ctx.Bays
+            .Where(b => b.BlockId == blockId)
+            .Select(b => b.BayId)
+            .ToListAsync();
+
+        var rowIds = await _ctx.Rows
+            .Where(r => bayIds.Contains(r.BayId))
+            .Select(r => r.RowId)
+            .ToListAsync();
+
+        // Block deletion if any container is actively sitting in a slot in this block
+        var hasContainers = rowIds.Any() && await _ctx.Containers
+            .AnyAsync(c => c.RowId != null && rowIds.Contains(c.RowId.Value) && c.LocationStatusId != 2);
         if (hasContainers) return false;
 
-        var bays = await _ctx.Bays.Where(b => b.BlockId == blockId).ToListAsync();
-        foreach (var bay in bays)
+        // Step 1: clear all container FK references to this block's rows/bays and save first
+        // so FK constraints don't fire when we delete rows/bays below
+        var allRowIds = rowIds.ToHashSet();
+        var referencedContainers = await _ctx.Containers
+            .Where(c => c.BlockId == blockId
+                     || (c.BayId != null && bayIds.Contains(c.BayId.Value))
+                     || (c.RowId != null && allRowIds.Contains(c.RowId.Value)))
+            .ToListAsync();
+        foreach (var c in referencedContainers)
         {
-            var rows = await _ctx.Rows.Where(r => r.BayId == bay.BayId).ToListAsync();
-            _ctx.Rows.RemoveRange(rows);
+            c.BlockId = null;
+            c.BayId   = null;
+            c.RowId   = null;
+            c.Tier    = null;
         }
+        await _ctx.SaveChangesAsync(); // commit FK cleanup before deleting rows
+
+        // Step 2: delete rows first, then bays, then block (respect FK order)
+        var rows = await _ctx.Rows.Where(r => bayIds.Contains(r.BayId)).ToListAsync();
+        _ctx.Rows.RemoveRange(rows);
+        await _ctx.SaveChangesAsync();
+
+        var bays = await _ctx.Bays.Where(b => b.BlockId == blockId).ToListAsync();
         _ctx.Bays.RemoveRange(bays);
+        await _ctx.SaveChangesAsync();
 
         var block = await _ctx.Blocks.FindAsync(blockId);
         if (block != null) _ctx.Blocks.Remove(block);
-
         await _ctx.SaveChangesAsync();
         return true;
+    }
+
+    public async Task<object> GetBlockContainersDebugAsync(int blockId)
+    {
+        var bayIds = await _ctx.Bays
+            .Where(b => b.BlockId == blockId)
+            .Select(b => b.BayId)
+            .ToListAsync();
+
+        var rowIds = await _ctx.Rows
+            .Where(r => bayIds.Contains(r.BayId))
+            .Select(r => r.RowId)
+            .ToListAsync();
+
+        var byBlockId = await _ctx.Containers
+            .Where(c => c.BlockId == blockId)
+            .Select(c => new { c.ContainerId, c.ContainerNumber, c.BlockId, c.BayId, c.RowId, c.LocationStatusId })
+            .ToListAsync();
+
+        var byRowId = await _ctx.Containers
+            .Where(c => c.RowId != null && rowIds.Contains(c.RowId.Value))
+            .Select(c => new { c.ContainerId, c.ContainerNumber, c.BlockId, c.BayId, c.RowId, c.LocationStatusId })
+            .ToListAsync();
+
+        return new { bayIds, rowIds, byBlockId, byRowId };
     }
 
     public async Task<Block?> AddBayAsync(int blockId)

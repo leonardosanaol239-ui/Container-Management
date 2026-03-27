@@ -24,6 +24,7 @@ public interface ILayoutService
     Task<Block> CreateBlockAsync(CreateBlockRequest req);
     Task<Block?> UpdateBlockPositionAsync(int blockId, double posX, double posY);
     Task<bool> DeleteBlockAsync(int blockId);
+    Task<object> GetBlockContainersDebugAsync(int blockId);
     Task<Block?> AddBayAsync(int blockId);
     Task<bool> RemoveBayAsync(int blockId);
     Task<Row?> UpdateRowAsync(int rowId, UpdateSlotRequest req);

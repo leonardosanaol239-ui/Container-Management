@@ -31,12 +31,17 @@ public class GlobalExceptionMiddleware
     {
         context.Response.ContentType = "application/json";
 
+        // Build full exception chain for debugging
+        var details = exception.Message;
+        var inner = exception.InnerException;
+        while (inner != null) { details += " | INNER: " + inner.Message; inner = inner.InnerException; }
+
         var response = new
         {
             error = new
             {
                 message = "An error occurred while processing your request",
-                details = exception.Message
+                details
             }
         };
 
@@ -44,25 +49,11 @@ public class GlobalExceptionMiddleware
         {
             case ArgumentException:
                 context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                response = new
-                {
-                    error = new
-                    {
-                        message = "Invalid request",
-                        details = exception.Message
-                    }
-                };
+                response = new { error = new { message = "Invalid request", details } };
                 break;
             case InvalidOperationException:
                 context.Response.StatusCode = (int)HttpStatusCode.Conflict;
-                response = new
-                {
-                    error = new
-                    {
-                        message = "Operation conflict",
-                        details = exception.Message
-                    }
-                };
+                response = new { error = new { message = "Operation conflict", details } };
                 break;
             default:
                 context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;

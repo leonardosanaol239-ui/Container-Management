@@ -13,6 +13,7 @@ import '../widgets/container_holding_area.dart';
 const double kContainerHeight = 8.0;
 const double k20ftWidth = 20.0;
 const double k40ftWidth = 40.0;
+const double kYardBorderPx = 16.0; // thick yard boundary border
 
 class YardScreen extends StatefulWidget {
   final Yard yard;
@@ -66,7 +67,7 @@ class _YardScreenState extends State<YardScreen>
     super.initState();
     _blinkCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 350),
     );
     _loadAll();
   }
@@ -111,10 +112,6 @@ class _YardScreenState extends State<YardScreen>
       for (final list in byRow.values) {
         list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
       }
-      final newOffsets = <int, Offset>{};
-      for (final b in blocks) {
-        newOffsets[b.blockId] = Offset(b.posX ?? 10, b.posY ?? 10);
-      }
       setState(() {
         _blocks = blocks;
         _baysByBlock = baysByBlock;
@@ -125,8 +122,12 @@ class _YardScreenState extends State<YardScreen>
         _sizes = sizes;
         _orientations = orientations;
         _loading = false;
-        for (final e in newOffsets.entries) {
-          _blockOffsets.putIfAbsent(e.key, () => e.value);
+        // Always sync offsets from DB so saved positions are reflected
+        for (final b in blocks) {
+          _blockOffsets[b.blockId] = Offset(
+            (b.posX ?? 10).toDouble(),
+            (b.posY ?? 10).toDouble(),
+          );
         }
       });
     } catch (e) {
@@ -224,7 +225,17 @@ class _YardScreenState extends State<YardScreen>
 
   Future<void> _saveLayout() async {
     setState(() => _saving = true);
-    await Future.delayed(const Duration(milliseconds: 200));
+    try {
+      // Persist all current block positions to the backend
+      await Future.wait(
+        _blocks.map((b) {
+          final pos =
+              _blockOffsets[b.blockId] ??
+              Offset((b.posX ?? 10).toDouble(), (b.posY ?? 10).toDouble());
+          return _api.updateBlockPosition(b.blockId, pos.dx, pos.dy);
+        }),
+      );
+    } catch (_) {}
     setState(() {
       _saving = false;
       _editMode = false;
@@ -408,8 +419,6 @@ class _YardScreenState extends State<YardScreen>
                           children: [
                             _buildToolbar(),
                             const SizedBox(height: 8),
-                            if (_editMode) _buildEditToolbar(),
-                            if (_editMode) const SizedBox(height: 8),
                             Expanded(child: _buildCanvas()),
                           ],
                         ),
@@ -425,6 +434,12 @@ class _YardScreenState extends State<YardScreen>
                       containers: _containersByRow[_tierPopupRowId!] ?? [],
                       onClose: _closeTierPopup,
                     ),
+                  ),
+                if (_foundContainer != null)
+                  Positioned(
+                    top: 44,
+                    right: 0,
+                    child: _buildSearchResultCard(),
                   ),
                 if (_showMoveOutList && _movedOutContainers.isNotEmpty)
                   Positioned(
@@ -498,102 +513,8 @@ class _YardScreenState extends State<YardScreen>
             onPressed: _toggleEditMode,
             child: const Text('Cancel', style: TextStyle(color: Colors.red)),
           ),
-        ],
-        const SizedBox(width: 12),
-        DragTarget<ContainerModel>(
-          onWillAcceptWithDetails: (d) => !d.data.isMovedOut,
-          onAcceptWithDetails: (d) => _showMoveOutDialog(d.data),
-          builder: (ctx, candidates, _) => GestureDetector(
-            onTap: () => setState(() => _showMoveOutList = !_showMoveOutList),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: candidates.isNotEmpty
-                    ? Colors.red[700]
-                    : Colors.red[600],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.local_shipping,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Move Out${_movedOutContainers.isNotEmpty ? " (${_movedOutContainers.length})" : ""}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.black),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchCtrl,
-                    decoration: const InputDecoration(
-                      hintText: 'Search container number',
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12),
-                      isDense: true,
-                    ),
-                    onSubmitted: (_) => _searchContainer(),
-                  ),
-                ),
-                if (_searchCtrl.text.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    onPressed: _clearSearch,
-                  ),
-                ElevatedButton(
-                  onPressed: _searchContainer,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber,
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  child: const Text(
-                    'Locate',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEditToolbar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.amber[50],
-        border: Border.all(color: Colors.amber),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
+          const SizedBox(width: 8),
+          // Edit tools inline
           ElevatedButton.icon(
             onPressed: _showAddBlockDialog,
             icon: const Icon(Icons.add, size: 16),
@@ -604,10 +525,10 @@ class _YardScreenState extends State<YardScreen>
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(6),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           _ToolbarDropdown<int>(
             label: 'Orientation',
             value: _selectedOrientationId,
@@ -629,7 +550,7 @@ class _YardScreenState extends State<YardScreen>
                 _applyOrientationChange(_selectedSlotId!, v);
             },
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           _ToolbarDropdown<int>(
             label: 'Cell Size',
             value: _selectedSizeId,
@@ -651,7 +572,7 @@ class _YardScreenState extends State<YardScreen>
                 _applySizeChange(_selectedSlotId!, v);
             },
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           _ToolbarDropdown<String>(
             label: 'Slot Edit',
             value: _selectedSlotEdit,
@@ -672,12 +593,13 @@ class _YardScreenState extends State<YardScreen>
             },
           ),
           const Spacer(),
-          if (_selectedSlotId != null)
+          if (_selectedSlotId != null) ...[
             Text(
               'Row #$_selectedSlotId selected',
               style: const TextStyle(fontSize: 11, color: Colors.grey),
             ),
-          const SizedBox(width: 10),
+            const SizedBox(width: 8),
+          ],
           OutlinedButton.icon(
             onPressed: _selectedSlotId != null
                 ? () async {
@@ -705,13 +627,326 @@ class _YardScreenState extends State<YardScreen>
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(6),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+          ),
+        ] else ...[
+          const SizedBox(width: 12),
+          DragTarget<ContainerModel>(
+            onWillAcceptWithDetails: (d) => !d.data.isMovedOut,
+            onAcceptWithDetails: (d) => _showMoveOutDialog(d.data),
+            builder: (ctx, candidates, _) => GestureDetector(
+              onTap: () => setState(() => _showMoveOutList = !_showMoveOutList),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: candidates.isNotEmpty
+                      ? Colors.red[700]
+                      : Colors.red[600],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.local_shipping,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Move Out${_movedOutContainers.isNotEmpty ? " (${_movedOutContainers.length})" : ""}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.black),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchCtrl,
+                      decoration: const InputDecoration(
+                        hintText: 'Search container number',
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                        isDense: true,
+                      ),
+                      onSubmitted: (_) => _searchContainer(),
+                    ),
+                  ),
+                  if (_searchCtrl.text.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: _clearSearch,
+                    ),
+                  ElevatedButton(
+                    onPressed: _searchContainer,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amber,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    child: const Text(
+                      'Locate',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  Widget _buildSearchResultCard() {
+    final c = _foundContainer!;
+    String blockLabel = '-', bayLabel = '-', rowLabel = '-';
+    for (final block in _blocks) {
+      for (final bay in (_baysByBlock[block.blockId] ?? [])) {
+        for (final row in (_rowsByBay[bay.bayId] ?? [])) {
+          if (row.rowId == c.rowId) {
+            blockLabel = block.blockName ?? 'Block ${block.blockNumber}';
+            bayLabel = bay.bayNumber;
+            rowLabel = row.rowNumber.toString();
+          }
+        }
+      }
+    }
+    return Material(
+      elevation: 10,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 220,
+        padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E2E),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        c.containerNumber,
+                        style: const TextStyle(
+                          color: Colors.amber,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const Text(
+                        'Location',
+                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _clearSearch,
+                  child: const Icon(
+                    Icons.close,
+                    color: Colors.redAccent,
+                    size: 15,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            _locRow('Block:', blockLabel),
+            _locRow('Bay:', bayLabel),
+            _locRow('Row:', rowLabel),
+            _locRow('Tier:', '${c.tier ?? '-'}'),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _showContainerDetailsDialog(c),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                child: const Text(
+                  'View Con. Details',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _locRow(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 2),
+    child: RichText(
+      text: TextSpan(
+        style: const TextStyle(fontSize: 12),
+        children: [
+          TextSpan(
+            text: '$label ',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          TextSpan(
+            text: value,
+            style: const TextStyle(color: Colors.white70),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  void _showContainerDetailsDialog(ContainerModel c) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: const Color(0xFF1E1E2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 80),
+        child: SizedBox(
+          width: 340,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'CONTAINER DETAILS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(Icons.close, color: Colors.redAccent),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.amber,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    c.containerNumber,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _detailRow(
+                  'Container Status:',
+                  c.statusId == 1 ? 'Laden' : 'Empty',
+                ),
+                _detailRow('Type:', c.type ?? '-'),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: const Text(
+                    'Container Desc:',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    c.containerDesc ?? '-',
+                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          value,
+          style: const TextStyle(color: Colors.white60, fontSize: 13),
+        ),
+      ],
+    ),
+  );
 
   Widget _buildCanvas() {
     final yardW = (widget.yard.yardWidth ?? 300).toDouble();
@@ -724,96 +959,56 @@ class _YardScreenState extends State<YardScreen>
         final availH = constraints.maxHeight == double.infinity
             ? 500.0
             : constraints.maxHeight;
-        // Uniform scale: fit entire yard in viewport, preserve real-world proportions
+        // Fit yard to viewport once; lock after that to prevent jumps
         final fitScale = (availW / yardW) < (availH / yardH)
             ? (availW / yardW)
             : (availH / yardH);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && (_scale - fitScale).abs() > 0.01)
-            setState(() => _scale = fitScale);
-        });
+        if (_scale == 3.0) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _scale = fitScale);
+          });
+        }
         final cw = yardW * _scale;
         final ch = yardH * _scale;
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
+        // Fixed frame — InteractiveViewer zooms/pans only inside it
+        return Container(
+          width: availW,
+          height: availH,
+          decoration: BoxDecoration(
             color: Colors.grey[200],
-            child: InteractiveViewer(
-              minScale: 0.3,
-              maxScale: 6.0,
-              panEnabled: !_editMode,
-              child: SizedBox(
-                width: cw,
-                height: ch,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          border: Border.all(color: Colors.grey, width: 1),
-                        ),
-                        child: CustomPaint(painter: _YardGridPainter()),
-                      ),
-                    ),
-                    ..._blocks.map((b) => _buildPositionedBlock(b)),
-                    if (_foundContainer != null &&
-                        _foundContainer!.rowId != null)
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: _SearchResultCard(
-                          container: _foundContainer!,
-                          blocks: _blocks,
-                          baysByBlock: _baysByBlock,
-                          rowsByBay: _rowsByBay,
-                          onClose: _clearSearch,
-                        ),
-                      ),
-                  ],
+            border: Border.all(color: Colors.grey.shade400, width: 1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          clipBehavior: Clip.hardEdge,
+          child: InteractiveViewer(
+            minScale: 0.3,
+            maxScale: 6.0,
+            panEnabled: true,
+            constrained: false,
+            boundaryMargin: EdgeInsets.symmetric(
+              horizontal: availW * 0.4,
+              vertical: availH * 0.4,
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: cw,
+                  height: ch,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    border: Border.all(color: Colors.grey, width: 1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: CustomPaint(painter: _YardGridPainter()),
                 ),
-              ),
+                ..._blocks.map((b) => _buildPositionedBlock(b)),
+              ],
             ),
           ),
         );
       },
     );
-  }
-
-  // Returns pixel size (width, height) of a block based on its bays/rows
-
-  Size _getBlockSize(Block block) {
-    final bays = _baysByBlock[block.blockId] ?? [];
-
-    final isVert = block.isVertical;
-
-    final is40 = block.is40ft;
-
-    final cellW = (is40 ? k40ftWidth : k20ftWidth) * _scaleX;
-
-    final cellH = kContainerHeight * _scaleY;
-
-    final slotW = isVert ? cellH : cellW;
-
-    final slotH = isVert ? cellW : cellH;
-
-    // header height ~20px
-
-    const headerH = 20.0;
-
-    int maxRows = 0;
-
-    for (final bay in bays) {
-      final rows = _rowsByBay[bay.bayId] ?? [];
-
-      if (rows.length > maxRows) maxRows = rows.length;
-    }
-
-    final blockW = bays.isEmpty ? slotW : bays.length * slotW;
-
-    final blockH = headerH + (maxRows == 0 ? slotH : maxRows * slotH);
-
-    return Size(blockW, blockH);
   }
 
   // Returns true if two rects overlap (with 2px tolerance)
@@ -859,16 +1054,16 @@ class _YardScreenState extends State<YardScreen>
   }
 
   Offset _clampBlock(Block block, Offset pos) {
-    final sz = _getBlockSize(block);
-
     final yardWft = (widget.yard.yardWidth ?? 300).toDouble();
     final yardHft = (widget.yard.yardHeight ?? 170).toDouble();
-    final szFt = Size(sz.width / _scale, sz.height / _scale);
-    final x = pos.dx.clamp(0.0, (yardWft - szFt.width).clamp(0.0, yardWft));
-
-    final y = pos.dy.clamp(0.0, (yardHft - szFt.height).clamp(0.0, yardHft));
-
-    return Offset(x, y);
+    final slotsRect = _getSlotsRect(block, pos);
+    double dx = pos.dx;
+    double dy = pos.dy;
+    if (slotsRect.left < 0) dx += -slotsRect.left;
+    if (slotsRect.top < 0) dy += -slotsRect.top;
+    if (slotsRect.right > yardWft) dx -= slotsRect.right - yardWft;
+    if (slotsRect.bottom > yardHft) dy -= slotsRect.bottom - yardHft;
+    return Offset(dx, dy);
   }
 
   Widget _buildPositionedBlock(Block block) {
@@ -929,13 +1124,11 @@ class _YardScreenState extends State<YardScreen>
                 await _api.deleteBlock(block.blockId);
                 setState(() => _selectedSlotId = null);
                 await _loadAll();
-              } catch (_) {
+              } catch (e) {
                 if (mounted)
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Cannot delete: block has containers'),
-                    ),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('Cannot delete: $e')));
               }
             }
           : null,
@@ -1255,13 +1448,29 @@ class _BlockWidget extends StatelessWidget {
                     vertical: 3,
                   ),
                   color: headerBg,
-                  child: Text(
-                    blockLabel,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: borderColor,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        blockLabel,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: borderColor,
+                        ),
+                      ),
+                      if (editMode) ...[
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: onDeleteBlock,
+                          child: const Icon(
+                            Icons.delete_forever,
+                            size: 14,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
@@ -1377,13 +1586,29 @@ class _BlockWidget extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
               color: headerBg,
-              child: Text(
-                blockLabel,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: borderColor,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    blockLabel,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: borderColor,
+                    ),
+                  ),
+                  if (editMode) ...[
+                    const SizedBox(width: 4),
+                    GestureDetector(
+                      onTap: onDeleteBlock,
+                      child: const Icon(
+                        Icons.delete_forever,
+                        size: 14,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
             // Bottom row: row +/- on left
@@ -1495,7 +1720,11 @@ class _SlotCell extends StatelessWidget {
           final highlight = candidates.isNotEmpty;
 
           final bgColor = topContainer == null
-              ? (highlight ? Colors.green.shade100 : Colors.white)
+              ? (highlight
+                    ? Colors.green.shade100
+                    : isHighlighted
+                    ? Colors.yellow.shade200
+                    : Colors.white)
               : (topContainer.statusId == 1
                     ? Colors.amber.shade300
                     : Colors.red.shade300);
@@ -1628,7 +1857,34 @@ class _SlotCell extends StatelessWidget {
             );
           }
 
-          return cellContent;
+          return isHighlighted
+              ? AnimatedBuilder(
+                  animation: blinkCtrl,
+                  builder: (_, __) {
+                    final t = blinkCtrl.value;
+                    // Pulse between a bright yellow-green and deep orange border
+                    final pulseColor = Color.lerp(
+                      const Color(0xFFFFEB3B), // bright yellow
+                      const Color(0xFFFF5722), // deep orange-red
+                      t,
+                    )!;
+                    final glowColor = pulseColor.withAlpha((180 * t).round());
+                    return Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: pulseColor, width: 2.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: glowColor,
+                            blurRadius: 8 * t,
+                            spreadRadius: 2 * t,
+                          ),
+                        ],
+                      ),
+                      child: cellContent,
+                    );
+                  },
+                )
+              : cellContent;
         },
       ),
     );
@@ -2150,94 +2406,5 @@ class _MoveOutDialogState extends State<_MoveOutDialog> {
     setState(() => _loading = true);
     await widget.onConfirm(_truckId!, _boundCtrl.text.trim());
     if (mounted) Navigator.pop(context);
-  }
-}
-
-// -- Search Result Card --------------------------------------------------------
-class _SearchResultCard extends StatelessWidget {
-  final ContainerModel container;
-  final List<Block> blocks;
-  final Map<int, List<Bay>> baysByBlock;
-  final Map<int, List<RowModel>> rowsByBay;
-  final VoidCallback onClose;
-  const _SearchResultCard({
-    required this.container,
-    required this.blocks,
-    required this.baysByBlock,
-    required this.rowsByBay,
-    required this.onClose,
-  });
-
-  String _locationLabel() {
-    if (container.rowId == null) return 'Holding Area';
-    for (final block in blocks) {
-      for (final bay in (baysByBlock[block.blockId] ?? [])) {
-        for (final row in (rowsByBay[bay.bayId] ?? [])) {
-          if (row.rowId == container.rowId) {
-            final lbl = block.blockName ?? 'Block ${block.blockNumber}';
-            return '$lbl � Bay ${bay.bayNumber} � Row ${row.rowNumber} � Tier ${container.tier ?? '-'}';
-          }
-        }
-      }
-    }
-    return 'Unknown location';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 8,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        width: 240,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A2E),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.amber, width: 1.5),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Found',
-                  style: TextStyle(
-                    color: Colors.amber,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-                GestureDetector(
-                  onTap: onClose,
-                  child: const Icon(
-                    Icons.close,
-                    color: Colors.white54,
-                    size: 16,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              container.containerNumber,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              _locationLabel(),
-              style: const TextStyle(color: Colors.white70, fontSize: 11),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

@@ -2033,138 +2033,225 @@ class _AddBlockDialogState extends State<_AddBlockDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        width: 360,
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Add Block',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-            const Divider(),
-            _field('Block Name', _nameCtrl, hint: 'e.g. Block A'),
-            _field('Number of Bays', _baysCtrl, hint: '2', numeric: true),
-            _field('Number of Rows', _rowsCtrl, hint: '4', numeric: true),
-            _field('Maximum Stack', _stackCtrl, hint: '5', numeric: true),
-            const SizedBox(height: 8),
-            const Text(
-              'Block Orientation:',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            const SizedBox(height: 4),
-            DropdownButton<int>(
-              value: _orientId,
-              isExpanded: true,
-              hint: const Text('Select orientation'),
-              items: widget.orientations
-                  .map(
-                    (o) => DropdownMenuItem(
-                      value: o.orientationId,
-                      child: Text(o.orientationDesc),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() => _orientId = v),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Container Size:',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            const SizedBox(height: 4),
-            DropdownButton<int>(
-              value: _sizeId,
-              isExpanded: true,
-              hint: const Text('Select size'),
-              items: widget.sizes
-                  .map(
-                    (s) => DropdownMenuItem(
-                      value: s.sizeId,
-                      child: Text(s.sizeDesc),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() => _sizeId = v),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        width: 340,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Add Block',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                   ),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                child: _loading
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text(
-                        'Create Block',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.close, size: 18),
+                  ),
+                ],
               ),
-            ),
-          ],
+              const Divider(height: 14),
+              // 2-column grid for numeric fields
+              Row(
+                children: [
+                  Expanded(
+                    child: _compactField(
+                      'Block Name',
+                      _nameCtrl,
+                      hint: 'e.g. Block A',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: _compactField(
+                      'Bays',
+                      _baysCtrl,
+                      hint: '2',
+                      numeric: true,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _compactField(
+                      'Rows',
+                      _rowsCtrl,
+                      hint: '4',
+                      numeric: true,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _compactField(
+                      'Max Stack',
+                      _stackCtrl,
+                      hint: '5',
+                      numeric: true,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Orientation',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        DropdownButtonFormField<int>(
+                          value: _orientId,
+                          isDense: true,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 6,
+                            ),
+                            border: OutlineInputBorder(),
+                          ),
+                          hint: const Text(
+                            'Select',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          items: widget.orientations
+                              .map(
+                                (o) => DropdownMenuItem(
+                                  value: o.orientationId,
+                                  child: Text(
+                                    o.orientationDesc,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) => setState(() => _orientId = v),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Size',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        DropdownButtonFormField<int>(
+                          value: _sizeId,
+                          isDense: true,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 6,
+                            ),
+                            border: OutlineInputBorder(),
+                          ),
+                          hint: const Text(
+                            'Select',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          items: widget.sizes
+                              .map(
+                                (s) => DropdownMenuItem(
+                                  value: s.sizeId,
+                                  child: Text(
+                                    s.sizeDesc,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) => setState(() => _sizeId = v),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          height: 16,
+                          width: 16,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Create Block',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _field(
+  Widget _compactField(
     String label,
     TextEditingController ctrl, {
     String? hint,
     bool numeric = false,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-          ),
-          const SizedBox(height: 4),
-          TextField(
-            controller: ctrl,
-            keyboardType: numeric ? TextInputType.number : TextInputType.text,
-            decoration: InputDecoration(
-              hintText: hint,
-              border: const OutlineInputBorder(),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 8,
-              ),
-              isDense: true,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 2),
+        TextField(
+          controller: ctrl,
+          keyboardType: numeric ? TextInputType.number : TextInputType.text,
+          decoration: InputDecoration(
+            hintText: hint,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 6,
             ),
+            border: const OutlineInputBorder(),
           ),
-        ],
-      ),
+          style: const TextStyle(fontSize: 12),
+        ),
+      ],
     );
   }
 

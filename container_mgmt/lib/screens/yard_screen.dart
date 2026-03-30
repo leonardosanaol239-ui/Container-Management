@@ -243,6 +243,95 @@ class _YardScreenState extends State<YardScreen>
     });
   }
 
+  void _showYardStats() {
+    final inYard = _containers
+        .where((c) => c.rowId != null && !c.isMovedOut)
+        .toList();
+    final laden = inYard.where((c) => c.statusId == 1).length;
+    final empty = inYard.where((c) => c.statusId != 1).length;
+    final ft20 = inYard
+        .where((c) => c.type != null && c.type!.toLowerCase().contains('20'))
+        .length;
+    final ft40 = inYard
+        .where((c) => c.type != null && c.type!.toLowerCase().contains('40'))
+        .length;
+
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'YARD STATS',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${widget.portName}  ›  Yard ${widget.yard.yardNumber}',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
+              const Divider(height: 24),
+              _statRow('Number of Blocks', '${_blocks.length}'),
+              _statRow('Containers in Yard', '${inYard.length}'),
+              const SizedBox(height: 8),
+              _statRow('Laden', '$laden', color: Colors.amber.shade700),
+              _statRow('Empty', '$empty', color: Colors.red.shade400),
+              const SizedBox(height: 8),
+              _statRow('20ft', '$ft20', color: Colors.blue.shade600),
+              _statRow('40ft', '$ft40', color: Colors.teal.shade600),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statRow(String label, String value, {Color? color}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+          decoration: BoxDecoration(
+            color: (color ?? Colors.grey.shade700).withAlpha(20),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color ?? Colors.grey.shade400),
+          ),
+          child: Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: color ?? Colors.grey.shade800,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
   void _showAddBlockDialog() {
     showDialog(
       context: context,
@@ -509,11 +598,6 @@ class _YardScreenState extends State<YardScreen>
         ),
         if (_editMode) ...[
           const SizedBox(width: 8),
-          TextButton(
-            onPressed: _toggleEditMode,
-            child: const Text('Cancel', style: TextStyle(color: Colors.red)),
-          ),
-          const SizedBox(width: 8),
           // Edit tools inline
           ElevatedButton.icon(
             onPressed: _showAddBlockDialog,
@@ -631,6 +715,20 @@ class _YardScreenState extends State<YardScreen>
             ),
           ),
         ] else ...[
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed: _showYardStats,
+            icon: const Icon(Icons.bar_chart, size: 16),
+            label: const Text('Yard Stats'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
           const SizedBox(width: 12),
           DragTarget<ContainerModel>(
             onWillAcceptWithDetails: (d) => !d.data.isMovedOut,

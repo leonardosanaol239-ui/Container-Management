@@ -9,16 +9,25 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _HeroHeader(),
-            _StatsSection(),
-            _QuickActionsSection(context: context),
-            _FooterStrip(),
-          ],
-        ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Scrollbar(
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _HeroHeader(),
+                    _StatsSection(),
+                    _QuickActionsSection(context: context),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          _FooterStrip(),
+        ],
       ),
     );
   }
@@ -43,38 +52,32 @@ class _HeroHeader extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  child: Image.asset(
-                    'assets/gothong_logo.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
+              Image.asset(
+                'assets/gothong_logo.png',
+                height: 40,
+                fit: BoxFit.contain,
               ),
-              const SizedBox(height: 24),
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.green,
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: const Text(
-                    'CONTAINER MANAGEMENT SYSTEM',
-                    style: TextStyle(
-                      color: AppColors.yellow,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13,
-                      letterSpacing: 1.5,
-                    ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.green,
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Text(
+                  'CONTAINER MANAGEMENT SYSTEM',
+                  style: TextStyle(
+                    color: AppColors.yellow,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 11,
+                    letterSpacing: 1.2,
                   ),
                 ),
               ),
@@ -374,7 +377,6 @@ class _FooterStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(top: 24),
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
       decoration: const BoxDecoration(color: AppColors.yellow),
       child: Row(

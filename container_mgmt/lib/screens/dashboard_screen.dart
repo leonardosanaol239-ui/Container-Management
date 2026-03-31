@@ -13,13 +13,9 @@ class DashboardScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ─── Hero Header with Logo ───────────────────────────────────
             _HeroHeader(),
-            // ─── Stats Bar ───────────────────────────────────────────────
             _StatsSection(),
-            // ─── Quick Actions ────────────────────────────────────────────
             _QuickActionsSection(context: context),
-            // ─── Footer brand strip ───────────────────────────────────────
             _FooterStrip(),
           ],
         ),
@@ -28,9 +24,7 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Hero Header
-// ─────────────────────────────────────────────────────────────────────────────
 class _HeroHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -53,7 +47,6 @@ class _HeroHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Logo
               Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
@@ -64,10 +57,12 @@ class _HeroHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              // Tagline
               Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.green,
                     borderRadius: BorderRadius.circular(30),
@@ -91,9 +86,7 @@ class _HeroHeader extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Stats Section
-// ─────────────────────────────────────────────────────────────────────────────
 class _StatsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -219,7 +212,7 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 11,
                 color: AppColors.textGrey,
                 fontWeight: FontWeight.w600,
@@ -233,9 +226,7 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Quick Actions Section
-// ─────────────────────────────────────────────────────────────────────────────
 class _QuickActionsSection extends StatelessWidget {
   final BuildContext context;
   const _QuickActionsSection({required this.context});
@@ -270,7 +261,6 @@ class _QuickActionsSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          // Primary action button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -300,7 +290,6 @@ class _QuickActionsSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          // Secondary row of info cards
           Row(
             children: [
               _InfoTile(
@@ -379,25 +368,21 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Footer Strip
-// ─────────────────────────────────────────────────────────────────────────────
 class _FooterStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 24),
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-      decoration: BoxDecoration(
-        color: AppColors.yellow,
-        borderRadius: BorderRadius.circular(12),
-      ),
+      decoration: const BoxDecoration(color: AppColors.yellow),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.shield_rounded, color: AppColors.green, size: 18),
           const SizedBox(width: 8),
-          Text(
+          const Text(
             'Gothong Southern  ·  Container Management System',
             style: TextStyle(
               color: AppColors.textDark,

@@ -119,76 +119,86 @@ class _PortSelectionDialogState extends State<PortSelectionDialog> {
               ),
             ),
             // Port list
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                children: _ports.map((p) {
-                  final isSelected = _selected == p['portId'];
-                  return GestureDetector(
-                    onTap: () => setState(() => _selected = p['portId'] as int),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.yellow.withOpacity(0.15)
-                            : const Color(0xFFF8F8F8),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppColors.yellow
-                              : Colors.transparent,
-                          width: 2,
+            SizedBox(
+              height: 360,
+              child: Scrollbar(
+                thumbVisibility: true,
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  itemCount: _ports.length,
+                  itemBuilder: (context, index) {
+                    final p = _ports[index];
+                    final isSelected = _selected == p['portId'];
+                    return GestureDetector(
+                      onTap: () =>
+                          setState(() => _selected = p['portId'] as int),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
                         ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.green
-                                  : AppColors.textGrey.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              p['icon'] as IconData,
-                              color: isSelected
-                                  ? AppColors.yellow
-                                  : AppColors.textGrey,
-                              size: 16,
-                            ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.yellow.withOpacity(0.15)
+                              : const Color(0xFFF8F8F8),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.yellow
+                                : Colors.transparent,
+                            width: 2,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              p['name'] as String,
-                              style: TextStyle(
-                                fontWeight: isSelected
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
-                                fontSize: 14,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
                                 color: isSelected
-                                    ? AppColors.textDark
+                                    ? AppColors.green
+                                    : AppColors.textGrey.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                p['icon'] as IconData,
+                                color: isSelected
+                                    ? AppColors.yellow
                                     : AppColors.textGrey,
+                                size: 16,
                               ),
                             ),
-                          ),
-                          if (isSelected)
-                            const Icon(
-                              Icons.check_circle_rounded,
-                              color: AppColors.green,
-                              size: 20,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                p['name'] as String,
+                                style: TextStyle(
+                                  fontWeight: isSelected
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                  fontSize: 14,
+                                  color: isSelected
+                                      ? AppColors.textDark
+                                      : AppColors.textGrey,
+                                ),
+                              ),
                             ),
-                        ],
+                            if (isSelected)
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                color: AppColors.green,
+                                size: 20,
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                }).toList(),
+                    );
+                  },
+                ),
               ),
             ),
             // Confirm button

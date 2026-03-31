@@ -3,6 +3,7 @@ import '../services/api_service.dart';
 import '../models/container_model.dart';
 import '../models/yard.dart';
 import '../widgets/container_holding_area.dart';
+import '../theme/app_theme.dart';
 import 'yard_screen.dart';
 
 class PortManagementScreen extends StatefulWidget {
@@ -63,17 +64,52 @@ class _PortManagementScreenState extends State<PortManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.yellow,
+        foregroundColor: AppColors.textDark,
         elevation: 0,
-        title: Text(
-          '${widget.portName} CONTAINER MANAGEMENT',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.pop(context),
         ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.portName,
+              style: const TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                color: AppColors.textDark,
+              ),
+            ),
+            const Text(
+              'Container Management',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 11,
+                color: AppColors.green,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _loadAll,
+            tooltip: 'Refresh',
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: AppColors.yellow,
+                strokeWidth: 3,
+              ),
+            )
           : Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -84,29 +120,91 @@ class _PortManagementScreenState extends State<PortManagementScreen> {
                     containers: _containers,
                     onRefresh: _loadAll,
                   ),
-                  const SizedBox(width: 24),
+                  const SizedBox(width: 20),
                   Expanded(
-                    child: _yards.isEmpty
-                        ? const Center(child: Text('No yards found'))
-                        : GridView.builder(
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 3,
-                                  crossAxisSpacing: 16,
-                                  mainAxisSpacing: 16,
-                                  childAspectRatio: 1.1,
-                                ),
-                            itemCount: _yards.length,
-                            itemBuilder: (ctx, i) {
-                              final yard = _yards[i];
-                              return _YardCard(
-                                yard: yard,
-                                onTap: yard.hasLayout
-                                    ? () => _openYard(yard)
-                                    : null,
-                              );
-                            },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Section header
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.green,
+                            borderRadius: BorderRadius.circular(10),
                           ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.warehouse_rounded,
+                                  color: AppColors.yellow, size: 20),
+                              const SizedBox(width: 10),
+                              const Text(
+                                'YARDS',
+                                style: TextStyle(
+                                  color: AppColors.yellow,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 14,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.yellow,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  '${_yards.length}',
+                                  style: const TextStyle(
+                                    color: AppColors.textDark,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Expanded(
+                          child: _yards.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.warehouse_outlined,
+                                          size: 64,
+                                          color: AppColors.yellow.withOpacity(0.4)),
+                                      const SizedBox(height: 12),
+                                      const Text('No yards found',
+                                          style: TextStyle(color: AppColors.textGrey)),
+                                    ],
+                                  ),
+                                )
+                              : GridView.builder(
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    crossAxisSpacing: 14,
+                                    mainAxisSpacing: 14,
+                                    childAspectRatio: 1.1,
+                                  ),
+                                  itemCount: _yards.length,
+                                  itemBuilder: (ctx, i) {
+                                    final yard = _yards[i];
+                                    return _YardCard(
+                                      yard: yard,
+                                      onTap: yard.hasLayout
+                                          ? () => _openYard(yard)
+                                          : null,
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -125,17 +223,35 @@ class _YardCard extends StatelessWidget {
     final enabled = onTap != null;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           border: Border.all(
-            color: enabled ? Colors.black : Colors.grey[400]!,
+            color: enabled ? AppColors.yellow : AppColors.textGrey.withOpacity(0.3),
             width: 2,
           ),
-          borderRadius: BorderRadius.circular(12),
-          color: enabled ? Colors.white : Colors.grey[100],
+          borderRadius: BorderRadius.circular(14),
+          color: enabled ? AppColors.white : const Color(0xFFF5F5F5),
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: AppColors.yellow.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
         child: Column(
           children: [
+            // Top accent bar
+            Container(
+              height: 5,
+              decoration: BoxDecoration(
+                color: enabled ? AppColors.yellow : Colors.grey[300],
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+            ),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(8),
@@ -145,33 +261,41 @@ class _YardCard extends StatelessWidget {
                         size: Size.infinite,
                       )
                     : Center(
-                        child: Icon(
-                          Icons.lock_outline,
-                          color: Colors.grey[400],
-                          size: 32,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.lock_outline_rounded,
+                                color: Colors.grey[400], size: 28),
+                            const SizedBox(height: 4),
+                            Text(
+                              'No layout',
+                              style: TextStyle(
+                                  fontSize: 9, color: Colors.grey[400]),
+                            ),
+                          ],
                         ),
                       ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: enabled ? AppColors.yellow : Colors.grey[200],
+                borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(12)),
+              ),
               child: Text(
                 'YARD ${yard.yardNumber}',
+                textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: enabled ? Colors.black : Colors.grey[500],
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  color: enabled ? AppColors.textDark : AppColors.textGrey,
+                  letterSpacing: 0.5,
                 ),
               ),
             ),
-            if (!enabled)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'No layout set',
-                  style: TextStyle(fontSize: 10, color: Colors.grey[400]),
-                ),
-              ),
           ],
         ),
       ),
@@ -183,27 +307,31 @@ class _MiniYardPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.grey[400]!
+      ..color = AppColors.green.withOpacity(0.5)
       ..strokeWidth = 0.8
       ..style = PaintingStyle.stroke;
+
+    final fillPaint = Paint()
+      ..color = AppColors.yellow.withOpacity(0.08)
+      ..style = PaintingStyle.fill;
 
     double cellW = size.width / 8;
     double cellH = size.height / 6;
 
     for (int row = 0; row < 2; row++) {
       for (int col = 0; col < 7; col++) {
-        canvas.drawRect(
-          Rect.fromLTWH(col * cellW, row * cellH, cellW - 1, cellH - 1),
-          paint,
-        );
+        final rect = Rect.fromLTWH(
+            col * cellW, row * cellH, cellW - 1, cellH - 1);
+        canvas.drawRect(rect, fillPaint);
+        canvas.drawRect(rect, paint);
       }
     }
     for (int row = 3; row < 6; row++) {
       for (int col = 0; col < 7; col++) {
-        canvas.drawRect(
-          Rect.fromLTWH(col * cellW, row * cellH, cellW - 1, cellH - 1),
-          paint,
-        );
+        final rect = Rect.fromLTWH(
+            col * cellW, row * cellH, cellW - 1, cellH - 1);
+        canvas.drawRect(rect, fillPaint);
+        canvas.drawRect(rect, paint);
       }
     }
   }

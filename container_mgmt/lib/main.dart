@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/dashboard_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(const ContainerMgmtApp());
@@ -11,12 +12,9 @@ class ContainerMgmtApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Container Management',
+      title: 'Gothong Southern Container Management',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.theme,
       home: const DashboardScreen(),
     );
   }

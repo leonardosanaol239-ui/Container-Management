@@ -32,6 +32,7 @@ class YardScreen extends StatefulWidget {
 class _YardScreenState extends State<YardScreen>
     with SingleTickerProviderStateMixin {
   final _api = ApiService();
+  late Yard _yard;
   List<Block> _blocks = [];
   Map<int, List<Bay>> _baysByBlock = {};
   Map<int, List<RowModel>> _rowsByBay = {};
@@ -56,8 +57,8 @@ class _YardScreenState extends State<YardScreen>
   int? _highlightedRowId;
   bool _showMoveOutList = false;
   double _scale = 3.0;
-  double get _canvasW => (widget.yard.yardWidth ?? 300) * _scale;
-  double get _canvasH => (widget.yard.yardHeight ?? 170) * _scale;
+  double get _canvasW => (_yard.yardWidth ?? 300) * _scale;
+  double get _canvasH => (_yard.yardHeight ?? 170) * _scale;
   double get _scaleX => _scale;
   double get _scaleY => _scale;
   late AnimationController _blinkCtrl;
@@ -65,6 +66,7 @@ class _YardScreenState extends State<YardScreen>
   @override
   void initState() {
     super.initState();
+    _yard = widget.yard;
     _blinkCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 350),
@@ -88,12 +90,14 @@ class _YardScreenState extends State<YardScreen>
         _api.getMovedOutContainers(widget.portId),
         _api.getSizes(),
         _api.getOrientations(),
+        _api.getYardById(widget.yard.yardId),
       ]);
       final blocks = results[0] as List<Block>;
       final containers = results[1] as List<ContainerModel>;
       final movedOut = results[2] as List<ContainerModel>;
       final sizes = results[3] as List<SizeModel>;
       final orientations = results[4] as List<OrientationModel>;
+      final freshYard = results[5] as Yard?;
       final Map<int, List<Bay>> baysByBlock = {};
       final Map<int, List<RowModel>> rowsByBay = {};
       for (final block in blocks) {
@@ -113,7 +117,9 @@ class _YardScreenState extends State<YardScreen>
         list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
       }
       setState(() {
+        if (freshYard != null) _yard = freshYard;
         _blocks = blocks;
+        debugPrint('Yard imagePath: ${_yard.imagePath}');
         _baysByBlock = baysByBlock;
         _rowsByBay = rowsByBay;
         _containersByRow = byRow;
@@ -1047,8 +1053,8 @@ class _YardScreenState extends State<YardScreen>
   );
 
   Widget _buildCanvas() {
-    final yardW = (widget.yard.yardWidth ?? 300).toDouble();
-    final yardH = (widget.yard.yardHeight ?? 170).toDouble();
+    final yardW = (_yard.yardWidth ?? 300).toDouble();
+    final yardH = (_yard.yardHeight ?? 170).toDouble();
     return LayoutBuilder(
       builder: (ctx, constraints) {
         final availW = constraints.maxWidth == double.infinity
@@ -1094,9 +1100,17 @@ class _YardScreenState extends State<YardScreen>
                   width: cw,
                   height: ch,
                   decoration: BoxDecoration(
-                    color: Colors.grey[300],
+                    color: _yard.imagePath != null ? null : Colors.grey[300],
                     border: Border.all(color: Colors.grey, width: 1),
                     borderRadius: BorderRadius.circular(8),
+                    image: _yard.imagePath != null
+                        ? DecorationImage(
+                            image: NetworkImage(
+                              '${ApiService.baseUrl.replaceAll('/api', '')}${_yard.imagePath}',
+                            ),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                   ),
                   child: CustomPaint(painter: _YardGridPainter()),
                 ),
@@ -1152,8 +1166,8 @@ class _YardScreenState extends State<YardScreen>
   }
 
   Offset _clampBlock(Block block, Offset pos) {
-    final yardWft = (widget.yard.yardWidth ?? 300).toDouble();
-    final yardHft = (widget.yard.yardHeight ?? 170).toDouble();
+    final yardWft = (_yard.yardWidth ?? 300).toDouble();
+    final yardHft = (_yard.yardHeight ?? 170).toDouble();
     final slotsRect = _getSlotsRect(block, pos);
     double dx = pos.dx;
     double dy = pos.dy;
@@ -1380,7 +1394,7 @@ class _YardGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.grey.shade400
+      ..color = Colors.white.withAlpha(60)
       ..strokeWidth = 0.5;
     for (double x = 0; x < size.width; x += 50) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
@@ -1447,11 +1461,9 @@ class _BlockWidget extends StatelessWidget {
     final slotW = isVert ? cellH : cellW;
     final slotH = isVert ? cellW : cellH;
 
-    final borderColor = isVert
-        ? Colors.teal.shade700
-        : Colors.blueGrey.shade700;
-    final bgColor = isVert ? Colors.teal.shade50 : Colors.blueGrey.shade50;
-    final headerBg = isVert ? Colors.teal.shade100 : Colors.blueGrey.shade100;
+    final borderColor = Colors.white;
+    final bgColor = Colors.transparent;
+    final headerBg = Colors.transparent;
     final blockLabel = block.blockName ?? 'Block ${block.blockNumber}';
 
     Widget slotCell(RowModel row) => _SlotCell(
@@ -1795,7 +1807,7 @@ class _SlotCell extends StatelessWidget {
         ? Colors.yellow
         : isHighlighted
         ? Colors.orange
-        : Colors.grey.shade400;
+        : Colors.white;
 
     return GestureDetector(
       onTapUp: editMode
@@ -1819,10 +1831,10 @@ class _SlotCell extends StatelessWidget {
 
           final bgColor = topContainer == null
               ? (highlight
-                    ? Colors.green.shade100
+                    ? Colors.green.withAlpha(60)
                     : isHighlighted
-                    ? Colors.yellow.shade200
-                    : Colors.white)
+                    ? Colors.yellow.withAlpha(80)
+                    : Colors.transparent)
               : (topContainer.statusId == 1
                     ? Colors.amber.shade300
                     : Colors.red.shade300);
@@ -1847,9 +1859,9 @@ class _SlotCell extends StatelessWidget {
                     child: Text(
                       '${row.rowNumber}',
 
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 8,
-                        color: Colors.grey.shade500,
+                        color: Colors.white70,
                       ),
                     ),
                   )

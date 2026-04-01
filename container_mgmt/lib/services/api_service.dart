@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import '../models/port.dart';
 import '../models/yard.dart';
 import '../models/block.dart';
@@ -25,6 +26,13 @@ class ApiService {
     final res = await http.get(Uri.parse('$baseUrl/Yards?portId=$portId'));
     _check(res);
     return (jsonDecode(res.body) as List).map((e) => Yard.fromJson(e)).toList();
+  }
+
+  Future<Yard?> getYardById(int yardId) async {
+    final res = await http.get(Uri.parse('$baseUrl/Yards/$yardId'));
+    if (res.statusCode == 404) return null;
+    _check(res);
+    return Yard.fromJson(jsonDecode(res.body));
   }
 
   // ── Blocks ──────────────────────────────────────────────
@@ -308,5 +316,26 @@ class ApiService {
   Future<void> deleteRow(int rowId) async {
     final res = await http.delete(Uri.parse('$baseUrl/Layout/rows/$rowId'));
     _check(res);
+  }
+
+  Future<String> uploadYardImage(
+    int yardId,
+    List<int> bytes,
+    String filename,
+  ) async {
+    final uri = Uri.parse('$baseUrl/Yards/$yardId/image');
+    final req = http.MultipartRequest('POST', uri)
+      ..files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: filename,
+          contentType: MediaType('image', filename.split('.').last),
+        ),
+      );
+    final streamed = await req.send();
+    final res = await http.Response.fromStream(streamed);
+    _check(res);
+    return (jsonDecode(res.body) as Map)['imagePath'] as String;
   }
 }

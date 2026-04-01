@@ -4,6 +4,7 @@ class Yard {
   final int portId;
   final double? yardWidth;
   final double? yardHeight;
+  final String? imagePath;
 
   Yard({
     required this.yardId,
@@ -11,6 +12,7 @@ class Yard {
     required this.portId,
     this.yardWidth,
     this.yardHeight,
+    this.imagePath,
   });
 
   bool get hasLayout => yardWidth != null && yardHeight != null;
@@ -21,5 +23,6 @@ class Yard {
     portId: json['portId'],
     yardWidth: (json['yardWidth'] as num?)?.toDouble(),
     yardHeight: (json['yardHeight'] as num?)?.toDouble(),
+    imagePath: json['imagePath'] as String?,
   );
 }

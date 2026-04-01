@@ -86,6 +86,13 @@ app.UseSwaggerUI(c =>
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseCors();
+var wwwrootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+Directory.CreateDirectory(wwwrootPath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(wwwrootPath),
+    RequestPath = ""
+});
 app.UseAuthorization();
 app.MapControllers();
 

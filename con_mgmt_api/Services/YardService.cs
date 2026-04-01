@@ -25,4 +25,12 @@ public class YardService : IYardService
         return await _context.Yards
             .FirstOrDefaultAsync(y => y.YardId == yardId);
     }
+
+    public async Task UpdateYardImageAsync(int yardId, string imagePath)
+    {
+        var yard = await _context.Yards.FindAsync(yardId);
+        if (yard == null) return;
+        yard.ImagePath = imagePath;
+        await _context.SaveChangesAsync();
+    }
 }

@@ -12,7 +12,7 @@ import '../models/orientation_model.dart';
 import '../models/truck.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.118.149:5000/api';
+  static const String baseUrl = 'http://192.168.118.132:5000/api';
 
   // ── Ports ────────────────────────────────────────────────
   Future<List<Port>> getPorts() async {
@@ -101,7 +101,7 @@ class ApiService {
 
   Future<ContainerModel> createContainer({
     required int statusId,
-    required String type,
+    required int containerSizeId,
     required String desc,
     required int portId,
   }) async {
@@ -110,7 +110,8 @@ class ApiService {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'statusId': statusId,
-        'type': type,
+        'type': containerSizeId == 1 ? '20ft' : '40ft',
+        'containerSizeId': containerSizeId,
         'containerDesc': desc,
         'currentPortId': portId,
       }),
@@ -259,6 +260,15 @@ class ApiService {
     );
     _check(res);
     return Block.fromJson(jsonDecode(res.body));
+  }
+
+  Future<void> updateBlockRotation(int blockId, double rotation) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/Layout/blocks/$blockId/rotation'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'rotation': rotation}),
+    );
+    _check(res);
   }
 
   Future<void> deleteBlock(int blockId) async {

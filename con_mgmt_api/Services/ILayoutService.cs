@@ -16,6 +16,7 @@ public record CreateBlockRequest(
 );
 
 public record UpdateBlockPositionRequest(double PosX, double PosY);
+public record UpdateBlockRotationRequest(double Rotation);
 
 public record UpdateSlotRequest(int? SizeId, int? OrientationId, int? MaxStack);
 
@@ -23,6 +24,7 @@ public interface ILayoutService
 {
     Task<Block> CreateBlockAsync(CreateBlockRequest req);
     Task<Block?> UpdateBlockPositionAsync(int blockId, double posX, double posY);
+    Task<Block?> UpdateBlockRotationAsync(int blockId, double rotation);
     Task<bool> DeleteBlockAsync(int blockId);
     Task<object> GetBlockContainersDebugAsync(int blockId);
     Task<Block?> AddBayAsync(int blockId);

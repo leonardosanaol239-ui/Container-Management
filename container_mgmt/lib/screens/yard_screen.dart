@@ -49,6 +49,7 @@ class _YardScreenState extends State<YardScreen>
   String? _selectedSlotEdit;
   int? _selectedSlotId;
   final Map<int, Offset> _blockOffsets = {};
+  final Map<int, double> _blockRotations = {}; // rotation in radians
   int? _tierPopupRowId;
   Offset? _tierPopupPosition;
   final _yardKey = GlobalKey();
@@ -134,6 +135,7 @@ class _YardScreenState extends State<YardScreen>
             (b.posX ?? 10).toDouble(),
             (b.posY ?? 10).toDouble(),
           );
+          _blockRotations[b.blockId] = b.rotation;
         }
       });
     } catch (e) {
@@ -177,6 +179,23 @@ class _YardScreenState extends State<YardScreen>
       if (targetRow != null) break;
     }
     if (existing.length >= (targetRow?.maxStack ?? 5)) return;
+    // Size match: container's sizeId must match the slot's sizeId
+    final slotSizeId = targetRow?.sizeId;
+    final containerSizeId = container.containerSizeId;
+    if (slotSizeId != null &&
+        containerSizeId != null &&
+        slotSizeId != containerSizeId) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Size mismatch: slot is ${slotSizeId == 1 ? "20ft" : "40ft"}, container is ${containerSizeId == 1 ? "20ft" : "40ft"}',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      return;
+    }
     int? blockId, bayId;
     for (final e in _rowsByBay.entries) {
       for (final r in e.value) {
@@ -232,15 +251,18 @@ class _YardScreenState extends State<YardScreen>
   Future<void> _saveLayout() async {
     setState(() => _saving = true);
     try {
-      // Persist all current block positions to the backend
-      await Future.wait(
-        _blocks.map((b) {
+      await Future.wait([
+        ..._blocks.map((b) {
           final pos =
               _blockOffsets[b.blockId] ??
               Offset((b.posX ?? 10).toDouble(), (b.posY ?? 10).toDouble());
           return _api.updateBlockPosition(b.blockId, pos.dx, pos.dy);
         }),
-      );
+        ..._blocks.map((b) {
+          final rot = _blockRotations[b.blockId] ?? b.rotation;
+          return _api.updateBlockRotation(b.blockId, rot);
+        }),
+      ]);
     } catch (_) {}
     setState(() {
       _saving = false;
@@ -254,13 +276,9 @@ class _YardScreenState extends State<YardScreen>
         .where((c) => c.rowId != null && !c.isMovedOut)
         .toList();
     final laden = inYard.where((c) => c.statusId == 1).length;
-    final empty = inYard.where((c) => c.statusId != 1).length;
-    final ft20 = inYard
-        .where((c) => c.type != null && c.type!.toLowerCase().contains('20'))
-        .length;
-    final ft40 = inYard
-        .where((c) => c.type != null && c.type!.toLowerCase().contains('40'))
-        .length;
+    final empty = inYard.where((c) => c.statusId == 2).length;
+    final ft20 = inYard.where((c) => c.containerSizeId == 1).length;
+    final ft40 = inYard.where((c) => c.containerSizeId == 2).length;
 
     showDialog(
       context: context,
@@ -306,6 +324,19 @@ class _YardScreenState extends State<YardScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showTransferDialog(ContainerModel container) {
+    showDialog(
+      context: context,
+      builder: (_) => _TransferDialog(
+        container: container,
+        portId: widget.portId,
+        currentYardId: _yard.yardId,
+        api: _api,
+        onTransferred: _loadAll,
       ),
     );
   }
@@ -737,6 +768,37 @@ class _YardScreenState extends State<YardScreen>
           ),
           const SizedBox(width: 12),
           DragTarget<ContainerModel>(
+            onWillAcceptWithDetails: (d) =>
+                !d.data.isMovedOut && d.data.rowId != null,
+            onAcceptWithDetails: (d) => _showTransferDialog(d.data),
+            builder: (ctx, candidates, _) => AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: candidates.isNotEmpty
+                    ? Colors.blue[700]
+                    : Colors.blue[600],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.swap_horiz, color: Colors.white, size: 18),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Transfer',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          DragTarget<ContainerModel>(
             onWillAcceptWithDetails: (d) => !d.data.isMovedOut,
             onAcceptWithDetails: (d) => _showMoveOutDialog(d.data),
             builder: (ctx, candidates, _) => GestureDetector(
@@ -1068,9 +1130,8 @@ class _YardScreenState extends State<YardScreen>
             ? (availW / yardW)
             : (availH / yardH);
         if (_scale == 3.0) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) setState(() => _scale = fitScale);
-          });
+          // Set immediately so all child widgets use the correct scale on first frame
+          _scale = fitScale;
         }
         final cw = yardW * _scale;
         final ch = yardH * _scale;
@@ -1140,9 +1201,8 @@ class _YardScreenState extends State<YardScreen>
     final bays = _baysByBlock[block.blockId] ?? [];
     final isVert = block.isVertical;
     final is40 = block.is40ft;
-    // slot dimensions in feet
-    final slotLong = (is40 ? k40ftWidth : k20ftWidth); // 20 or 40 ft
-    final slotShort = kContainerHeight; // 8 ft
+    final slotLong = (is40 ? k40ftWidth : k20ftWidth);
+    final slotShort = kContainerHeight;
     final slotW = isVert ? slotShort : slotLong;
     final slotH = isVert ? slotLong : slotShort;
     int maxRows = 0;
@@ -1150,19 +1210,27 @@ class _YardScreenState extends State<YardScreen>
       final rows = _rowsByBay[bay.bayId] ?? [];
       if (rows.length > maxRows) maxRows = rows.length;
     }
-    final slotsW = bays.isEmpty ? slotW : bays.length * slotW;
-    final slotsH = maxRows == 0 ? slotH : maxRows * slotH;
-    // Header offsets in feet (convert fixed px to ft).
-    // Horizontal block: bay-label row is 14px tall at top; slot area starts below it.
-    // Vertical block:   block-name label (RotatedBox) sits to the left ~20px wide;
-    //                   bay labels (14px) are on the RIGHT of each row so don't shift origin.
-    const bayLabelPx = 14.0;
-    final bayLabelFt = bayLabelPx / _scale;
-    const blockNamePx = 20.0;
-    final blockNameFt = blockNamePx / _scale;
-    final left = isVert ? posInFt.dx + blockNameFt : posInFt.dx;
-    final top = isVert ? posInFt.dy : posInFt.dy + bayLabelFt;
-    return Rect.fromLTWH(left, top, slotsW, slotsH);
+    final numBays = bays.length;
+    // Vertical block: bays stack vertically, rows stack horizontally
+    // Horizontal block: bays stack horizontally, rows stack vertically
+    final totalW = isVert
+        ? (maxRows == 0 ? slotW : maxRows * slotW) +
+              (maxRows > 1 ? (maxRows - 1) * 1.0 : 0)
+        : (numBays == 0 ? slotW : numBays * slotW) +
+              (numBays > 1 ? (numBays - 1) * 2.5 : 0);
+    final totalH = isVert
+        ? (numBays == 0 ? slotH : numBays * slotH) +
+              (numBays > 1 ? (numBays - 1) * 2.5 : 0)
+        : (maxRows == 0 ? slotH : maxRows * slotH) +
+              (maxRows > 1 ? (maxRows - 1) * 1.0 : 0);
+    // For vertical blocks the left column (buttons+name) is outside the slot grid.
+    // posInFt is the widget top-left; slot grid starts after the left column (~40px).
+    // For horizontal blocks the bay-label row (14px) is above the slots.
+    const leftColPx = 40.0; // approx width of vertical block's left column
+    final left = isVert ? posInFt.dx + leftColPx / _scale : posInFt.dx;
+    // Labels/buttons are allowed outside yard — clamp only on raw posInFt.dy
+    final top = posInFt.dy;
+    return Rect.fromLTWH(left, top, totalW, totalH);
   }
 
   Offset _clampBlock(Block block, Offset pos) {
@@ -1171,6 +1239,8 @@ class _YardScreenState extends State<YardScreen>
     final slotsRect = _getSlotsRect(block, pos);
     double dx = pos.dx;
     double dy = pos.dy;
+    // Only prevent slots from going past the top/left edges.
+    // Bottom/right: allow blocks to reach the yard edge freely.
     if (slotsRect.left < 0) dx += -slotsRect.left;
     if (slotsRect.top < 0) dy += -slotsRect.top;
     if (slotsRect.right > yardWft) dx -= slotsRect.right - yardWft;
@@ -1184,6 +1254,7 @@ class _YardScreenState extends State<YardScreen>
         _blockOffsets[block.blockId] ??
         Offset((block.posX ?? 10).toDouble(), (block.posY ?? 10).toDouble());
     final offset = Offset(offsetFt.dx * _scale, offsetFt.dy * _scale);
+    final rotation = _blockRotations[block.blockId] ?? block.rotation;
 
     final bw = _BlockWidget(
       block: block,
@@ -1281,23 +1352,23 @@ class _YardScreenState extends State<YardScreen>
     );
 
     if (!_editMode)
-      return Positioned(left: offset.dx, top: offset.dy, child: bw);
+      return Positioned(
+        left: offset.dx,
+        top: offset.dy,
+        child: Transform.rotate(angle: rotation, child: bw),
+      );
 
     return Positioned(
       left: offset.dx,
       top: offset.dy,
-
       child: GestureDetector(
         onPanUpdate: (d) {
           setState(() {
             final cur = _blockOffsets[block.blockId] ?? offsetFt;
-
-            // delta is pixels, convert to feet
             final proposed = Offset(
               cur.dx + d.delta.dx / _scale,
               cur.dy + d.delta.dy / _scale,
             );
-
             _blockOffsets[block.blockId] = _clampBlock(block, proposed);
           });
         },
@@ -1346,7 +1417,38 @@ class _YardScreenState extends State<YardScreen>
           } catch (_) {}
         },
 
-        child: bw,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Transform.rotate(angle: rotation, child: bw),
+            // Rotate button — top right corner
+            Positioned(
+              top: -10,
+              right: -10,
+              child: GestureDetector(
+                onTap: () {
+                  const step = 45 * 3.14159265 / 180; // 45 degrees in radians
+                  final cur = _blockRotations[block.blockId] ?? block.rotation;
+                  final next = (cur + step) % (2 * 3.14159265);
+                  setState(() => _blockRotations[block.blockId] = next);
+                },
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: const BoxDecoration(
+                    color: Colors.deepPurple,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.rotate_right,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1488,13 +1590,18 @@ class _BlockWidget extends StatelessWidget {
       // - Bay +/- at BOTTOM-RIGHT (adds/removes a bay row at the bottom)
 
       // Each bay = one horizontal row of slot cells + bay label on right
+      final bayGapH = 2.5 * scaleY; // 2.5ft gap between bays
+      final rowGapW = 1.0 * scaleX; // 1ft gap between rows
       final bayRows = bays.map((bay) {
         // reversed so row 1 is rightmost (closest to bay label)
         final rows = (rowsByBay[bay.bayId] ?? []).reversed.toList();
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ...rows.map((row) => slotCell(row)),
+            for (int i = 0; i < rows.length; i++) ...[
+              if (i > 0) SizedBox(width: rowGapW),
+              slotCell(rows[i]),
+            ],
             // Bay label on the right
             Container(
               width: 14,
@@ -1516,40 +1623,43 @@ class _BlockWidget extends StatelessWidget {
         );
       }).toList();
 
-      return Column(
+      // Interleave bay gap between bay rows
+      final bayRowsWithGaps = <Widget>[];
+      for (int i = 0; i < bayRows.length; i++) {
+        if (i > 0) bayRowsWithGaps.add(SizedBox(height: bayGapH));
+        bayRowsWithGaps.add(bayRows[i]);
+      }
+
+      return Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // TOP-LEFT: row +/- buttons
-          if (editMode)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+          // LEFT SIDE: row +/- on top, block name below (both outside the block)
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (editMode) ...[
                 GestureDetector(
                   onTap: onAddRow,
                   child: const Icon(
                     Icons.add_circle,
-                    size: 18,
+                    size: 20,
                     color: Colors.green,
                   ),
                 ),
-                const SizedBox(width: 2),
+                const SizedBox(height: 2),
                 GestureDetector(
                   onTap: onRemoveRow,
                   child: const Icon(
                     Icons.remove_circle,
-                    size: 18,
+                    size: 20,
                     color: Colors.orange,
                   ),
                 ),
+                const SizedBox(height: 4),
               ],
-            ),
-          // Middle: block name on left + bays grid
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Block name rotated on the left
+              // Block name rotated, sticking out on the left
               RotatedBox(
                 quarterTurns: 3,
                 child: Container(
@@ -1557,7 +1667,10 @@ class _BlockWidget extends StatelessWidget {
                     horizontal: 6,
                     vertical: 3,
                   ),
-                  color: headerBg,
+                  decoration: BoxDecoration(
+                    color: Colors.teal.shade100,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1566,7 +1679,7 @@ class _BlockWidget extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
-                          color: borderColor,
+                          color: Colors.teal.shade700,
                         ),
                       ),
                       if (editMode) ...[
@@ -1584,7 +1697,12 @@ class _BlockWidget extends StatelessWidget {
                   ),
                 ),
               ),
-              // Bays grid
+            ],
+          ),
+          // Bays grid + bay +/- below
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Container(
                 decoration: BoxDecoration(
                   color: bgColor,
@@ -1593,40 +1711,40 @@ class _BlockWidget extends StatelessWidget {
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: bayRows,
+                  children: bayRowsWithGaps,
                 ),
               ),
+              if (editMode)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: onAddBay,
+                      child: const Icon(
+                        Icons.add_circle,
+                        size: 20,
+                        color: Colors.green,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    GestureDetector(
+                      onTap: onRemoveBay,
+                      child: const Icon(
+                        Icons.remove_circle,
+                        size: 20,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
-          // BOTTOM-RIGHT: bay +/- buttons
-          if (editMode)
-            Row(
-              mainAxisSize: MainAxisSize.max,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                GestureDetector(
-                  onTap: onAddBay,
-                  child: const Icon(
-                    Icons.add_circle,
-                    size: 18,
-                    color: Colors.green,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                GestureDetector(
-                  onTap: onRemoveBay,
-                  child: const Icon(
-                    Icons.remove_circle,
-                    size: 18,
-                    color: Colors.orange,
-                  ),
-                ),
-              ],
-            ),
         ],
       );
     } else {
       // HORIZONTAL: bay labels above each column, block name at bottom, +/- top-right
+      final bayGapW = 2.5 * scaleX; // 2.5ft gap between bays
+      final rowGapH = 1.0 * scaleY; // 1ft gap between rows
       final cols = bays.map((bay) {
         final rows = rowsByBay[bay.bayId] ?? [];
         return Column(
@@ -1647,106 +1765,127 @@ class _BlockWidget extends StatelessWidget {
                 ),
               ),
             ),
-            ...rows.map((row) => slotCell(row)),
+            for (int i = 0; i < rows.length; i++) ...[
+              if (i > 0) SizedBox(height: rowGapH),
+              slotCell(rows[i]),
+            ],
           ],
         );
       }).toList();
 
+      // Interleave bay gap between columns
+      final colsWithGaps = <Widget>[];
+      for (int i = 0; i < cols.length; i++) {
+        if (i > 0) colsWithGaps.add(SizedBox(width: bayGapW));
+        colsWithGaps.add(cols[i]);
+      }
+
       // HORIZONTAL layout:
-      // - Bay +/- buttons at TOP-RIGHT
-      // - Bay labels + slots
-      // - Block name at bottom
-      // - Row +/- buttons at BOTTOM-LEFT
-      return Container(
+      // - Bay +/- on the RIGHT side (stacked vertically, outside border)
+      // - Row +/- on the BOTTOM LEFT (outside border)
+      final blockWidget = Container(
         decoration: BoxDecoration(
           color: bgColor,
           border: Border.all(color: borderColor, width: 1.5),
           borderRadius: BorderRadius.circular(4),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Top row: bay +/- on right
-            if (editMode)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  GestureDetector(
-                    onTap: onAddBay,
-                    child: const Icon(
-                      Icons.add_circle,
-                      size: 18,
-                      color: Colors.green,
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                  GestureDetector(
-                    onTap: onRemoveBay,
-                    child: const Icon(
-                      Icons.remove_circle,
-                      size: 18,
-                      color: Colors.orange,
-                    ),
-                  ),
-                ],
-              ),
-            // Columns with bay labels + slots
-            Row(mainAxisSize: MainAxisSize.min, children: cols),
-            // Block name at bottom
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              color: headerBg,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    blockLabel,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: borderColor,
-                    ),
-                  ),
-                  if (editMode) ...[
-                    const SizedBox(width: 4),
+        child: Row(mainAxisSize: MainAxisSize.min, children: colsWithGaps),
+      );
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Block + bay buttons on right
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              blockWidget,
+              if (editMode) ...[
+                const SizedBox(width: 4),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     GestureDetector(
-                      onTap: onDeleteBlock,
+                      onTap: onAddBay,
                       child: const Icon(
-                        Icons.delete_forever,
-                        size: 14,
-                        color: Colors.red,
+                        Icons.add_circle,
+                        size: 20,
+                        color: Colors.green,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    GestureDetector(
+                      onTap: onRemoveBay,
+                      child: const Icon(
+                        Icons.remove_circle,
+                        size: 20,
+                        color: Colors.orange,
                       ),
                     ),
                   ],
-                ],
-              ),
+                ),
+              ],
+            ],
+          ),
+          // Block name — highlighted label sticking out below the block
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.blueGrey.shade100,
+              borderRadius: BorderRadius.circular(4),
             ),
-            // Bottom row: row +/- on left
-            if (editMode)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  GestureDetector(
-                    onTap: onAddRow,
-                    child: const Icon(
-                      Icons.add_circle,
-                      size: 18,
-                      color: Colors.green,
-                    ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  blockLabel,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blueGrey.shade700,
                   ),
-                  const SizedBox(width: 2),
+                ),
+                if (editMode) ...[
+                  const SizedBox(width: 4),
                   GestureDetector(
-                    onTap: onRemoveRow,
+                    onTap: onDeleteBlock,
                     child: const Icon(
-                      Icons.remove_circle,
-                      size: 18,
-                      color: Colors.orange,
+                      Icons.delete_forever,
+                      size: 14,
+                      color: Colors.red,
                     ),
                   ),
                 ],
-              ),
-          ],
-        ),
+              ],
+            ),
+          ),
+          // Row +/- below block on the left
+          if (editMode)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: onAddRow,
+                  child: const Icon(
+                    Icons.add_circle,
+                    size: 20,
+                    color: Colors.green,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                GestureDetector(
+                  onTap: onRemoveRow,
+                  child: const Icon(
+                    Icons.remove_circle,
+                    size: 20,
+                    color: Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+        ],
       );
     }
   }
@@ -1820,7 +1959,13 @@ class _SlotCell extends StatelessWidget {
 
       child: DragTarget<ContainerModel>(
         onWillAcceptWithDetails: (d) =>
-            !editMode && !d.data.isMovedOut && inYard.length < maxT,
+            !editMode &&
+            !d.data.isMovedOut &&
+            inYard.length < maxT &&
+            // Size match: if both slot and container have a sizeId, they must match
+            (row.sizeId == null ||
+                d.data.containerSizeId == null ||
+                row.sizeId == d.data.containerSizeId),
 
         onAcceptWithDetails: (d) {
           onDrop?.call(d.data);
@@ -2604,4 +2749,286 @@ class _MoveOutDialogState extends State<_MoveOutDialog> {
     await widget.onConfirm(_truckId!, _boundCtrl.text.trim());
     if (mounted) Navigator.pop(context);
   }
+}
+
+// -- Transfer Dialog -------------------------------------------------------
+class _TransferDialog extends StatefulWidget {
+  final ContainerModel container;
+  final int portId;
+  final int currentYardId;
+  final ApiService api;
+  final VoidCallback onTransferred;
+  const _TransferDialog({
+    required this.container,
+    required this.portId,
+    required this.currentYardId,
+    required this.api,
+    required this.onTransferred,
+  });
+  @override
+  State<_TransferDialog> createState() => _TransferDialogState();
+}
+
+class _TransferDialogState extends State<_TransferDialog> {
+  List<Yard> _yards = [];
+  List<Block> _blocks = [];
+  List<Bay> _bays = [];
+  List<RowModel> _rows = [];
+
+  Yard? _selYard;
+  Block? _selBlock;
+  Bay? _selBay;
+  RowModel? _selRow;
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadYards();
+  }
+
+  Future<void> _loadYards() async {
+    final yards = await widget.api.getYards(widget.portId);
+    setState(() {
+      _yards = yards
+          .where((y) => y.yardId != widget.currentYardId && y.hasLayout)
+          .toList();
+      _loading = false;
+    });
+  }
+
+  Future<void> _onYardSelected(Yard yard) async {
+    setState(() {
+      _selYard = yard;
+      _selBlock = null;
+      _selBay = null;
+      _selRow = null;
+      _blocks = [];
+      _bays = [];
+      _rows = [];
+    });
+    final blocks = await widget.api.getBlocks(yard.yardId);
+    setState(() => _blocks = blocks);
+  }
+
+  Future<void> _onBlockSelected(Block block) async {
+    setState(() {
+      _selBlock = block;
+      _selBay = null;
+      _selRow = null;
+      _bays = [];
+      _rows = [];
+    });
+    final bays = await widget.api.getBays(block.blockId);
+    setState(() => _bays = bays);
+  }
+
+  Future<void> _onBaySelected(Bay bay) async {
+    setState(() {
+      _selBay = bay;
+      _selRow = null;
+      _rows = [];
+    });
+    final rows = await widget.api.getRows(bay.bayId);
+    setState(() => _rows = rows.where((r) => !r.isDeleted).toList());
+  }
+
+  Future<void> _confirm() async {
+    if (_selYard == null ||
+        _selBlock == null ||
+        _selBay == null ||
+        _selRow == null)
+      return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      // Find next available tier in target row
+      final existing = await widget.api.getContainersByLocation(
+        yardId: _selYard!.yardId,
+        blockId: _selBlock!.blockId,
+        bayId: _selBay!.bayId,
+        rowId: _selRow!.rowId,
+      );
+      final nextTier = existing.length + 1;
+      if (nextTier > _selRow!.maxStack) throw Exception('Target slot is full');
+      await widget.api.moveContainer(
+        containerId: widget.container.containerId,
+        yardId: _selYard!.yardId,
+        blockId: _selBlock!.blockId,
+        bayId: _selBay!.bayId,
+        rowId: _selRow!.rowId,
+        tier: nextTier,
+      );
+      widget.onTransferred();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _saving = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: SizedBox(
+        width: 360,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Transfer Container',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: const Icon(Icons.close, size: 18),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.container.containerNumber,
+                      style: const TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Divider(height: 20),
+                    _label('Select Yard'),
+                    _drop<Yard>(
+                      value: _selYard,
+                      items: _yards,
+                      display: (y) => 'Yard ${y.yardNumber}',
+                      onChanged: (y) {
+                        if (y != null) _onYardSelected(y);
+                      },
+                    ),
+                    if (_blocks.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      _label('Select Block'),
+                      _drop<Block>(
+                        value: _selBlock,
+                        items: _blocks,
+                        display: (b) => b.blockName ?? 'Block ${b.blockNumber}',
+                        onChanged: (b) {
+                          if (b != null) _onBlockSelected(b);
+                        },
+                      ),
+                    ],
+                    if (_bays.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      _label('Select Bay'),
+                      _drop<Bay>(
+                        value: _selBay,
+                        items: _bays,
+                        display: (b) => 'Bay ${b.bayNumber}',
+                        onChanged: (b) {
+                          if (b != null) _onBaySelected(b);
+                        },
+                      ),
+                    ],
+                    if (_rows.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      _label('Select Row'),
+                      _drop<RowModel>(
+                        value: _selRow,
+                        items: _rows,
+                        display: (r) => 'Row ${r.rowNumber}',
+                        onChanged: (r) => setState(() => _selRow = r),
+                      ),
+                    ],
+                    if (_error != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _error!,
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: (_selRow != null && !_saving)
+                            ? _confirm
+                            : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: _saving
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Confirm Transfer',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _label(String t) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Text(
+      t,
+      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+    ),
+  );
+
+  Widget _drop<T>({
+    required T? value,
+    required List<T> items,
+    required String Function(T) display,
+    required ValueChanged<T?> onChanged,
+  }) => DropdownButtonFormField<T>(
+    value: value,
+    isDense: true,
+    decoration: const InputDecoration(
+      isDense: true,
+      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      border: OutlineInputBorder(),
+    ),
+    hint: const Text('Select', style: TextStyle(fontSize: 12)),
+    items: items
+        .map(
+          (i) => DropdownMenuItem(
+            value: i,
+            child: Text(display(i), style: const TextStyle(fontSize: 12)),
+          ),
+        )
+        .toList(),
+    onChanged: onChanged,
+  );
 }

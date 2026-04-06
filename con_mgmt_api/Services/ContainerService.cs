@@ -52,6 +52,7 @@ public class ContainerService : IContainerService
             Type = createDto.Type,
             ContainerDesc = createDto.ContainerDesc,
             CurrentPortId = createDto.CurrentPortId,
+            ContainerSizeId = createDto.ContainerSizeId,
             CreatedDate = DateTime.UtcNow
         };
 
@@ -174,6 +175,15 @@ public class ContainerService : IContainerService
             if (row == null)
             {
                 throw new ArgumentException("Invalid RowId for the specified Bay");
+            }
+
+            // Size match: container's ContainerSizeId must match the slot's SizeId
+            if (row.SizeId.HasValue && container.ContainerSizeId.HasValue
+                && row.SizeId != container.ContainerSizeId)
+            {
+                var slotSize = row.SizeId == 1 ? "20ft" : "40ft";
+                var conSize  = container.ContainerSizeId == 1 ? "20ft" : "40ft";
+                throw new ArgumentException($"Size mismatch: slot is {slotSize}, container is {conSize}");
             }
 
             // Validate tier range using row's MaxStack

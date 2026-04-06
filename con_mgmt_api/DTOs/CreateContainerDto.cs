@@ -7,11 +7,12 @@ public class CreateContainerDto
     [Required]
     public int StatusId { get; set; }
 
-    [Required]
-    public string Type { get; set; } = string.Empty;
+    public string? Type { get; set; }
 
     public string? ContainerDesc { get; set; }
 
     [Required]
     public int CurrentPortId { get; set; }
+
+    public int? ContainerSizeId { get; set; }
 }

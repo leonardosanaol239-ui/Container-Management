@@ -30,4 +30,5 @@ public class Block
     public int? SizeId { get; set; }
     public double? PosX { get; set; }
     public double? PosY { get; set; }
+    public double Rotation { get; set; } = 0;
 }

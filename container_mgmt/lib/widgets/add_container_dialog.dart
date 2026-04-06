@@ -12,24 +12,19 @@ class AddContainerDialog extends StatefulWidget {
 
 class _AddContainerDialogState extends State<AddContainerDialog> {
   final _api = ApiService();
-  final _typeCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   int _statusId = 2; // default Empty
+  int _sizeId = 1; // default 20ft
   bool _loading = false;
   String? _error;
 
   @override
   void dispose() {
-    _typeCtrl.dispose();
     _descCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    if (_typeCtrl.text.trim().isEmpty) {
-      setState(() => _error = 'Container type is required');
-      return;
-    }
     setState(() {
       _loading = true;
       _error = null;
@@ -37,7 +32,7 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
     try {
       await _api.createContainer(
         statusId: _statusId,
-        type: _typeCtrl.text.trim(),
+        containerSizeId: _sizeId,
         desc: _descCtrl.text.trim(),
         portId: widget.portId,
       );
@@ -86,8 +81,11 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
                       color: AppColors.green,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.add_box_rounded,
-                        color: AppColors.yellow, size: 18),
+                    child: const Icon(
+                      Icons.add_box_rounded,
+                      color: AppColors.yellow,
+                      size: 18,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -122,8 +120,11 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
                         color: AppColors.textDark.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.close_rounded,
-                          color: AppColors.textDark, size: 18),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        color: AppColors.textDark,
+                        size: 18,
+                      ),
                     ),
                   ),
                 ],
@@ -137,8 +138,9 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
                 children: [
                   // Status selector
                   _FieldLabel(
-                      icon: Icons.radio_button_checked_rounded,
-                      label: 'Container Status'),
+                    icon: Icons.radio_button_checked_rounded,
+                    label: 'Container Status',
+                  ),
                   const SizedBox(height: 8),
                   // Status toggle buttons
                   Row(
@@ -161,29 +163,42 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
                   ),
                   const SizedBox(height: 18),
                   _FieldLabel(
-                      icon: Icons.category_rounded, label: 'Container Type'),
+                    icon: Icons.straighten_rounded,
+                    label: 'Container Size',
+                  ),
                   const SizedBox(height: 8),
-                  TextField(
-                    controller: _typeCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'e.g. 20FT, 40FT, 40HC',
-                      hintStyle:
-                          const TextStyle(color: AppColors.textGrey, fontSize: 13),
-                      prefixIcon: const Icon(Icons.straighten_rounded,
-                          color: AppColors.green, size: 18),
-                    ),
+                  Row(
+                    children: [
+                      _StatusButton(
+                        label: '20ft',
+                        selected: _sizeId == 1,
+                        color: AppColors.green,
+                        onTap: () => setState(() => _sizeId = 1),
+                      ),
+                      const SizedBox(width: 10),
+                      _StatusButton(
+                        label: '40ft',
+                        selected: _sizeId == 2,
+                        color: AppColors.green,
+                        onTap: () => setState(() => _sizeId = 2),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 18),
                   _FieldLabel(
-                      icon: Icons.notes_rounded, label: 'Container Description'),
+                    icon: Icons.notes_rounded,
+                    label: 'Container Description',
+                  ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _descCtrl,
                     maxLines: 3,
                     decoration: const InputDecoration(
                       hintText: 'Optional description…',
-                      hintStyle:
-                          TextStyle(color: AppColors.textGrey, fontSize: 13),
+                      hintStyle: TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 13,
+                      ),
                       alignLabelWithHint: true,
                     ),
                   ),
@@ -191,23 +206,32 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
                     const SizedBox(height: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.red.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                            color: AppColors.red.withOpacity(0.4), width: 1),
+                          color: AppColors.red.withOpacity(0.4),
+                          width: 1,
+                        ),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.error_outline_rounded,
-                              color: AppColors.red, size: 16),
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: AppColors.red,
+                            size: 16,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               _error!,
                               style: const TextStyle(
-                                  color: AppColors.red, fontSize: 12),
+                                color: AppColors.red,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                         ],
@@ -224,13 +248,17 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
                               height: 18,
                               width: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: AppColors.white),
+                                strokeWidth: 2,
+                                color: AppColors.white,
+                              ),
                             )
                           : const Icon(Icons.add_rounded, size: 20),
                       label: Text(
                         _loading ? 'SAVING…' : 'ADD CONTAINER',
                         style: const TextStyle(
-                            fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.green,

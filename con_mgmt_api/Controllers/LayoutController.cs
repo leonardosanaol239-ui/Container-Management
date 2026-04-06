@@ -34,6 +34,14 @@ public class LayoutController : ControllerBase
         return Ok(block);
     }
 
+    [HttpPut("blocks/{id}/rotation")]
+    public async Task<IActionResult> UpdateBlockRotation(int id, [FromBody] UpdateBlockRotationRequest req)
+    {
+        var block = await _layout.UpdateBlockRotationAsync(id, req.Rotation);
+        if (block == null) return NotFound();
+        return Ok(block);
+    }
+
     [HttpDelete("blocks/{id}")]
     public async Task<IActionResult> DeleteBlock(int id)
     {

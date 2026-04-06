@@ -9,6 +9,7 @@ class Block {
   final int? sizeId;
   final double? posX;
   final double? posY;
+  final double rotation;
 
   Block({
     required this.blockId,
@@ -21,6 +22,7 @@ class Block {
     this.sizeId,
     this.posX,
     this.posY,
+    this.rotation = 0,
   });
 
   bool get isVertical => orientationId == 2;
@@ -37,9 +39,10 @@ class Block {
     sizeId: json['sizeId'],
     posX: (json['posX'] as num?)?.toDouble(),
     posY: (json['posY'] as num?)?.toDouble(),
+    rotation: (json['rotation'] as num?)?.toDouble() ?? 0,
   );
 
-  Block copyWith({double? posX, double? posY}) => Block(
+  Block copyWith({double? posX, double? posY, double? rotation}) => Block(
     blockId: blockId,
     blockNumber: blockNumber,
     blockDesc: blockDesc,
@@ -50,5 +53,6 @@ class Block {
     sizeId: sizeId,
     posX: posX ?? this.posX,
     posY: posY ?? this.posY,
+    rotation: rotation ?? this.rotation,
   );
 }

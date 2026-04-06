@@ -72,6 +72,15 @@ public class LayoutService : ILayoutService
         return block;
     }
 
+    public async Task<Block?> UpdateBlockRotationAsync(int blockId, double rotation)
+    {
+        var block = await _ctx.Blocks.FindAsync(blockId);
+        if (block == null) return null;
+        block.Rotation = rotation;
+        await _ctx.SaveChangesAsync();
+        return block;
+    }
+
     public async Task<bool> DeleteBlockAsync(int blockId)
     {
         var bayIds = await _ctx.Bays

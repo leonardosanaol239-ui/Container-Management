@@ -50,6 +50,7 @@ class _YardScreenState extends State<YardScreen>
   int? _selectedSlotId;
   final Map<int, Offset> _blockOffsets = {};
   final Map<int, double> _blockRotations = {}; // rotation in radians
+  final Map<int, GlobalKey> _blockKeys = {}; // for getting block center
   int? _tierPopupRowId;
   Offset? _tierPopupPosition;
   final _yardKey = GlobalKey();
@@ -1255,6 +1256,7 @@ class _YardScreenState extends State<YardScreen>
         Offset((block.posX ?? 10).toDouble(), (block.posY ?? 10).toDouble());
     final offset = Offset(offsetFt.dx * _scale, offsetFt.dy * _scale);
     final rotation = _blockRotations[block.blockId] ?? block.rotation;
+    final blockKey = _blockKeys.putIfAbsent(block.blockId, () => GlobalKey());
 
     final bw = _BlockWidget(
       block: block,
@@ -1349,6 +1351,43 @@ class _YardScreenState extends State<YardScreen>
               }
             }
           : null,
+      rotateHandle: _editMode
+          ? Listener(
+              onPointerMove: (e) {
+                final b =
+                    blockKey.currentContext?.findRenderObject() as RenderBox?;
+                if (b == null) return;
+                final center = b.localToGlobal(
+                  Offset(b.size.width / 2, b.size.height / 2),
+                );
+                final angle = (e.position - center).direction;
+                final prevAngle = (e.position - e.delta - center).direction;
+                setState(() {
+                  final cur = _blockRotations[block.blockId] ?? block.rotation;
+                  _blockRotations[block.blockId] = cur + (angle - prevAngle);
+                });
+              },
+              onPointerUp: (_) async {
+                final rot = _blockRotations[block.blockId] ?? block.rotation;
+                try {
+                  await _api.updateBlockRotation(block.blockId, rot);
+                } catch (_) {}
+              },
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: const BoxDecoration(
+                  color: Colors.deepPurple,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.rotate_right,
+                  color: Colors.white,
+                  size: 13,
+                ),
+              ),
+            )
+          : null,
     );
 
     if (!_editMode)
@@ -1357,96 +1396,77 @@ class _YardScreenState extends State<YardScreen>
         top: offset.dy,
         child: Transform.rotate(angle: rotation, child: bw),
       );
-
     return Positioned(
       left: offset.dx,
       top: offset.dy,
-      child: GestureDetector(
-        onPanUpdate: (d) {
-          setState(() {
-            final cur = _blockOffsets[block.blockId] ?? offsetFt;
-            final proposed = Offset(
-              cur.dx + d.delta.dx / _scale,
-              cur.dy + d.delta.dy / _scale,
-            );
-            _blockOffsets[block.blockId] = _clampBlock(block, proposed);
-          });
-        },
-
-        onPanEnd: (_) async {
-          final myPos = _blockOffsets[block.blockId]!;
-          // Check slots-only overlap with every other block
-          final myRect = _getSlotsRect(block, myPos);
-          bool overlaps = false;
-          // Deflate by 1px (in feet) so touching edges / header overlap is allowed;
-          // only actual cell area intersection is rejected.
-          final tolFt = 1.0 / _scale;
-          final myDeflated = myRect.deflate(tolFt);
-          for (final other in _blocks) {
-            if (other.blockId == block.blockId) continue;
-            final otherPos =
-                _blockOffsets[other.blockId] ??
-                Offset(
-                  (other.posX ?? 10).toDouble(),
-                  (other.posY ?? 10).toDouble(),
-                );
-            final otherDeflated = _getSlotsRect(other, otherPos).deflate(tolFt);
-            if (myDeflated.overlaps(otherDeflated)) {
-              overlaps = true;
-              break;
-            }
-          }
-          if (overlaps) {
-            setState(
-              () => _blockOffsets[block.blockId] = Offset(
-                (block.posX ?? 10).toDouble(),
-                (block.posY ?? 10).toDouble(),
-              ),
-            );
-            if (mounted)
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Slot areas cannot overlap'),
-                  duration: Duration(seconds: 1),
-                ),
-              );
-            return;
-          }
-          try {
-            await _api.updateBlockPosition(block.blockId, myPos.dx, myPos.dy);
-          } catch (_) {}
-        },
-
+      child: Transform.rotate(
+        angle: rotation,
         child: Stack(
+          key: blockKey,
           clipBehavior: Clip.none,
           children: [
-            Transform.rotate(angle: rotation, child: bw),
-            // Rotate button — top right corner
-            Positioned(
-              top: -10,
-              right: -10,
-              child: GestureDetector(
-                onTap: () {
-                  const step = 45 * 3.14159265 / 180; // 45 degrees in radians
-                  final cur = _blockRotations[block.blockId] ?? block.rotation;
-                  final next = (cur + step) % (2 * 3.14159265);
-                  setState(() => _blockRotations[block.blockId] = next);
-                },
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: const BoxDecoration(
-                    color: Colors.deepPurple,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.rotate_right,
-                    color: Colors.white,
-                    size: 14,
-                  ),
-                ),
-              ),
+            // Block with drag gesture
+            GestureDetector(
+              onPanUpdate: (d) {
+                setState(() {
+                  final cur = _blockOffsets[block.blockId] ?? offsetFt;
+                  final proposed = Offset(
+                    cur.dx + d.delta.dx / _scale,
+                    cur.dy + d.delta.dy / _scale,
+                  );
+                  _blockOffsets[block.blockId] = _clampBlock(block, proposed);
+                });
+              },
+              onPanEnd: (_) async {
+                final myPos = _blockOffsets[block.blockId]!;
+                final myRect = _getSlotsRect(block, myPos);
+                bool overlaps = false;
+                final tolFt = 1.0 / _scale;
+                final myDeflated = myRect.deflate(tolFt);
+                for (final other in _blocks) {
+                  if (other.blockId == block.blockId) continue;
+                  final otherPos =
+                      _blockOffsets[other.blockId] ??
+                      Offset(
+                        (other.posX ?? 10).toDouble(),
+                        (other.posY ?? 10).toDouble(),
+                      );
+                  final otherDeflated = _getSlotsRect(
+                    other,
+                    otherPos,
+                  ).deflate(tolFt);
+                  if (myDeflated.overlaps(otherDeflated)) {
+                    overlaps = true;
+                    break;
+                  }
+                }
+                if (overlaps) {
+                  setState(
+                    () => _blockOffsets[block.blockId] = Offset(
+                      (block.posX ?? 10).toDouble(),
+                      (block.posY ?? 10).toDouble(),
+                    ),
+                  );
+                  if (mounted)
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Slot areas cannot overlap'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  return;
+                }
+                try {
+                  await _api.updateBlockPosition(
+                    block.blockId,
+                    myPos.dx,
+                    myPos.dy,
+                  );
+                } catch (_) {}
+              },
+              child: bw,
             ),
+            // Rotate handle is now inside _BlockWidget's bay +/- column
           ],
         ),
       ),
@@ -1527,6 +1547,7 @@ class _BlockWidget extends StatelessWidget {
   final VoidCallback? onAddBay;
   final VoidCallback? onRemoveBay;
   final VoidCallback? onDeleteBlock;
+  final Widget? rotateHandle;
   final VoidCallback? onAddRow;
   final VoidCallback? onRemoveRow;
 
@@ -1547,6 +1568,7 @@ class _BlockWidget extends StatelessWidget {
     this.onAddBay,
     this.onRemoveBay,
     this.onDeleteBlock,
+    this.rotateHandle,
     this.onAddRow,
     this.onRemoveRow,
   });
@@ -1824,6 +1846,8 @@ class _BlockWidget extends StatelessWidget {
                         color: Colors.orange,
                       ),
                     ),
+                    const SizedBox(height: 2),
+                    if (rotateHandle != null) rotateHandle!,
                   ],
                 ),
               ],

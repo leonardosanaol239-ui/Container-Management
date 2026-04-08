@@ -12,7 +12,7 @@ import '../models/orientation_model.dart';
 import '../models/truck.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.1.238:5000/api';
+  static const String baseUrl = 'http://localhost:5000/api';
 
   // ── Ports ────────────────────────────────────────────────
   Future<List<Port>> getPorts() async {
@@ -26,6 +26,24 @@ class ApiService {
     final res = await http.get(Uri.parse('$baseUrl/Yards?portId=$portId'));
     _check(res);
     return (jsonDecode(res.body) as List).map((e) => Yard.fromJson(e)).toList();
+  }
+
+  Future<Yard> createYard(
+    int portId, {
+    double width = 300,
+    double height = 170,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/Yards'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'portId': portId,
+        'yardWidth': width,
+        'yardHeight': height,
+      }),
+    );
+    _check(res);
+    return Yard.fromJson(jsonDecode(res.body));
   }
 
   Future<Yard?> getYardById(int yardId) async {

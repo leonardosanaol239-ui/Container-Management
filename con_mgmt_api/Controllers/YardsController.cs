@@ -21,6 +21,15 @@ public class YardsController : ControllerBase
         return Ok(yards);
     }
 
+    [HttpPost]
+    public async Task<IActionResult> CreateYard([FromBody] CreateYardRequest request)
+    {
+        var yard = await _yardService.CreateYardAsync(request.PortId, request.YardWidth, request.YardHeight);
+        return Ok(yard);
+    }
+
+    public record CreateYardRequest(int PortId, double YardWidth, double YardHeight);
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetYardById(int id)
     {

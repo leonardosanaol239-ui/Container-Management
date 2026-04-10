@@ -28,6 +28,24 @@ class ApiService {
     return (jsonDecode(res.body) as List).map((e) => Yard.fromJson(e)).toList();
   }
 
+  Future<Yard> createYard(
+    int portId, {
+    double width = 300,
+    double height = 170,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/Yards'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'portId': portId,
+        'yardWidth': width,
+        'yardHeight': height,
+      }),
+    );
+    _check(res);
+    return Yard.fromJson(jsonDecode(res.body));
+  }
+
   Future<Yard?> getYardById(int yardId) async {
     final res = await http.get(Uri.parse('$baseUrl/Yards/$yardId'));
     if (res.statusCode == 404) return null;

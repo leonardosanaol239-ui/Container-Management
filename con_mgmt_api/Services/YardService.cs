@@ -33,4 +33,21 @@ public class YardService : IYardService
         yard.ImagePath = imagePath;
         await _context.SaveChangesAsync();
     }
+
+    public async Task<Yard> CreateYardAsync(int portId, double yardWidth, double yardHeight)
+    {
+        var nextNumber = await _context.Yards
+            .Where(y => y.PortId == portId)
+            .MaxAsync(y => (int?)y.YardNumber) ?? 0;
+        var yard = new Yard
+        {
+            PortId = portId,
+            YardNumber = nextNumber + 1,
+            YardWidth = yardWidth,
+            YardHeight = yardHeight,
+        };
+        _context.Yards.Add(yard);
+        await _context.SaveChangesAsync();
+        return yard;
+    }
 }

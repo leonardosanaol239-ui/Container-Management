@@ -47,8 +47,20 @@ class _PortManagementScreenState extends State<PortManagementScreen> {
     }
   }
 
+  Future<void> _addYard() async {
+    try {
+      await _api.createYard(widget.portId);
+      await _loadAll();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to create yard: $e')));
+      }
+    }
+  }
+
   void _openYard(Yard yard) {
-    if (!yard.hasLayout) return;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -128,15 +140,20 @@ class _PortManagementScreenState extends State<PortManagementScreen> {
                         // Section header
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.green,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.warehouse_rounded,
-                                  color: AppColors.yellow, size: 20),
+                              const Icon(
+                                Icons.warehouse_rounded,
+                                color: AppColors.yellow,
+                                size: 20,
+                              ),
                               const SizedBox(width: 10),
                               const Text(
                                 'YARDS',
@@ -148,9 +165,44 @@ class _PortManagementScreenState extends State<PortManagementScreen> {
                                 ),
                               ),
                               const Spacer(),
+                              GestureDetector(
+                                onTap: _addYard,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.yellow,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.add,
+                                        size: 14,
+                                        color: AppColors.textDark,
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'ADD YARD',
+                                        style: TextStyle(
+                                          color: AppColors.textDark,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColors.yellow,
                                   borderRadius: BorderRadius.circular(20),
@@ -174,31 +226,37 @@ class _PortManagementScreenState extends State<PortManagementScreen> {
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.warehouse_outlined,
-                                          size: 64,
-                                          color: AppColors.yellow.withOpacity(0.4)),
+                                      Icon(
+                                        Icons.warehouse_outlined,
+                                        size: 64,
+                                        color: AppColors.yellow.withOpacity(
+                                          0.4,
+                                        ),
+                                      ),
                                       const SizedBox(height: 12),
-                                      const Text('No yards found',
-                                          style: TextStyle(color: AppColors.textGrey)),
+                                      const Text(
+                                        'No yards found',
+                                        style: TextStyle(
+                                          color: AppColors.textGrey,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 )
                               : GridView.builder(
                                   gridDelegate:
                                       const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 3,
-                                    crossAxisSpacing: 14,
-                                    mainAxisSpacing: 14,
-                                    childAspectRatio: 1.1,
-                                  ),
+                                        crossAxisCount: 3,
+                                        crossAxisSpacing: 14,
+                                        mainAxisSpacing: 14,
+                                        childAspectRatio: 1.1,
+                                      ),
                                   itemCount: _yards.length,
                                   itemBuilder: (ctx, i) {
                                     final yard = _yards[i];
                                     return _YardCard(
                                       yard: yard,
-                                      onTap: yard.hasLayout
-                                          ? () => _openYard(yard)
-                                          : null,
+                                      onTap: () => _openYard(yard),
                                     );
                                   },
                                 ),
@@ -227,7 +285,9 @@ class _YardCard extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           border: Border.all(
-            color: enabled ? AppColors.yellow : AppColors.textGrey.withOpacity(0.3),
+            color: enabled
+                ? AppColors.yellow
+                : AppColors.textGrey.withOpacity(0.3),
             width: 2,
           ),
           borderRadius: BorderRadius.circular(14),
@@ -249,7 +309,9 @@ class _YardCard extends StatelessWidget {
               height: 5,
               decoration: BoxDecoration(
                 color: enabled ? AppColors.yellow : Colors.grey[300],
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
               ),
             ),
             Expanded(
@@ -264,13 +326,18 @@ class _YardCard extends StatelessWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.lock_outline_rounded,
-                                color: Colors.grey[400], size: 28),
+                            Icon(
+                              Icons.lock_outline_rounded,
+                              color: Colors.grey[400],
+                              size: 28,
+                            ),
                             const SizedBox(height: 4),
                             Text(
                               'No layout',
                               style: TextStyle(
-                                  fontSize: 9, color: Colors.grey[400]),
+                                fontSize: 9,
+                                color: Colors.grey[400],
+                              ),
                             ),
                           ],
                         ),
@@ -283,7 +350,8 @@ class _YardCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: enabled ? AppColors.yellow : Colors.grey[200],
                 borderRadius: const BorderRadius.vertical(
-                    bottom: Radius.circular(12)),
+                  bottom: Radius.circular(12),
+                ),
               ),
               child: Text(
                 'YARD ${yard.yardNumber}',
@@ -321,7 +389,11 @@ class _MiniYardPainter extends CustomPainter {
     for (int row = 0; row < 2; row++) {
       for (int col = 0; col < 7; col++) {
         final rect = Rect.fromLTWH(
-            col * cellW, row * cellH, cellW - 1, cellH - 1);
+          col * cellW,
+          row * cellH,
+          cellW - 1,
+          cellH - 1,
+        );
         canvas.drawRect(rect, fillPaint);
         canvas.drawRect(rect, paint);
       }
@@ -329,7 +401,11 @@ class _MiniYardPainter extends CustomPainter {
     for (int row = 3; row < 6; row++) {
       for (int col = 0; col < 7; col++) {
         final rect = Rect.fromLTWH(
-            col * cellW, row * cellH, cellW - 1, cellH - 1);
+          col * cellW,
+          row * cellH,
+          cellW - 1,
+          cellH - 1,
+        );
         canvas.drawRect(rect, fillPaint);
         canvas.drawRect(rect, paint);
       }

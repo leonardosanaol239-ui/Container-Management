@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/landing_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -15,7 +15,7 @@ class ContainerMgmtApp extends StatelessWidget {
       title: 'Gothong Southern Container Management',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
-      home: const DashboardScreen(),
+      home: const LandingScreen(),
     );
   }
 }

@@ -81,6 +81,53 @@ class _HeroHeader extends StatelessWidget {
                   ),
                 ),
               ),
+              const Spacer(),
+              const Text(
+                'Welcome, Admin',
+                style: TextStyle(
+                  color: AppColors.green,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(width: 16),
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const UserManagementScreen(),
+                  ),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.green,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.manage_accounts,
+                        color: AppColors.yellow,
+                        size: 16,
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'Users',
+                        style: TextStyle(
+                          color: AppColors.yellow,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -394,6 +441,231 @@ class _FooterStrip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── User Management ──────────────────────────────────────────────────────────
+
+class _User {
+  final String name;
+  final String code;
+  final String role;
+  _User({required this.name, required this.code, required this.role});
+}
+
+class UserManagementScreen extends StatefulWidget {
+  const UserManagementScreen({super.key});
+  @override
+  State<UserManagementScreen> createState() => _UserManagementScreenState();
+}
+
+class _UserManagementScreenState extends State<UserManagementScreen> {
+  final List<_User> _users = [
+    _User(name: 'Admin User', code: 'ADM001', role: 'Admin'),
+  ];
+
+  void _showAddDialog() {
+    final nameCtrl = TextEditingController();
+    final codeCtrl = TextEditingController();
+    String role = 'Admin';
+    showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          title: const Text(
+            'Add User',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: role,
+                decoration: const InputDecoration(
+                  labelText: 'Role',
+                  isDense: true,
+                ),
+                items: ['Admin', 'Port Manager', 'Driver']
+                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                    .toList(),
+                onChanged: (v) => setS(() => role = v!),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Full Name',
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: codeCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'User Code',
+                  isDense: true,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.green,
+                foregroundColor: AppColors.yellow,
+              ),
+              onPressed: () {
+                if (nameCtrl.text.trim().isEmpty ||
+                    codeCtrl.text.trim().isEmpty)
+                  return;
+                setState(
+                  () => _users.add(
+                    _User(
+                      name: nameCtrl.text.trim(),
+                      code: codeCtrl.text.trim(),
+                      role: role,
+                    ),
+                  ),
+                );
+                Navigator.pop(ctx);
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _roleColor(String role) {
+    switch (role) {
+      case 'Admin':
+        return AppColors.green;
+      case 'Port Manager':
+        return Colors.blue.shade700;
+      default:
+        return Colors.orange.shade700;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.surface,
+      appBar: AppBar(
+        title: const Text('User Management'),
+        backgroundColor: AppColors.yellow,
+        foregroundColor: AppColors.green,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_add),
+            tooltip: 'Add User',
+            onPressed: _showAddDialog,
+          ),
+        ],
+      ),
+      body: _users.isEmpty
+          ? const Center(
+              child: Text(
+                'No users yet.',
+                style: TextStyle(color: AppColors.textGrey),
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: _users.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (_, i) {
+                final u = _users[i];
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: _roleColor(u.role).withAlpha(30),
+                        child: Icon(Icons.person, color: _roleColor(u.role)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              u.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Text(
+                              'Code: ${u.code}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textGrey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _roleColor(u.role).withAlpha(20),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _roleColor(u.role).withAlpha(80),
+                          ),
+                        ),
+                        child: Text(
+                          u.role,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: _roleColor(u.role),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                        onPressed: () => setState(() => _users.removeAt(i)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddDialog,
+        backgroundColor: AppColors.green,
+        child: const Icon(Icons.person_add, color: AppColors.yellow),
       ),
     );
   }

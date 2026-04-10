@@ -1757,6 +1757,10 @@ class _BlockWidget extends StatelessWidget {
                         color: Colors.orange,
                       ),
                     ),
+                    if (rotateHandle != null) ...[
+                      const SizedBox(width: 2),
+                      rotateHandle!,
+                    ],
                   ],
                 ),
             ],

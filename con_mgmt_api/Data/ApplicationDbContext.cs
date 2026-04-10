@@ -21,6 +21,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<LocationStatus> LocationStatuses { get; set; } = null!;
     public DbSet<Size> Sizes { get; set; } = null!;
     public DbSet<Orientation> Orientations { get; set; } = null!;
+    public DbSet<User> Users { get; set; } = null!;
+    public DbSet<UserType> UserTypes { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

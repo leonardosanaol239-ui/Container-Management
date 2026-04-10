@@ -10,9 +10,12 @@ import '../models/container_model.dart';
 import '../models/size_model.dart';
 import '../models/orientation_model.dart';
 import '../models/truck.dart';
+import '../models/user_model.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.118.132:5000/api';
+  // When running the API locally on this machine use 192.168.118.161:5000
+  // When the API is deployed on the remote server use 192.168.118.132:5000
+  static const String baseUrl = 'http://192.168.118.161:5000/api';
 
   // ── Ports ────────────────────────────────────────────────
   Future<List<Port>> getPorts() async {
@@ -209,6 +212,55 @@ class ApiService {
     return (jsonDecode(res.body) as List)
         .map((e) => ContainerModel.fromJson(e))
         .toList();
+  }
+
+  // ── Users ────────────────────────────────────────────────
+  Future<List<UserModel>> getUsers() async {
+    final res = await http.get(Uri.parse('$baseUrl/Users'));
+    _check(res);
+    return (jsonDecode(res.body) as List)
+        .map((e) => UserModel.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<UserModel> createUser(UserModel user) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/Users'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(user.toJson()),
+    );
+    if (res.statusCode == 409) {
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      throw Exception(body['message'] ?? 'User code already taken');
+    }
+    _check(res);
+    return UserModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<UserModel> updateUser(UserModel user) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/Users/${user.userId}'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(user.toJson()),
+    );
+    if (res.statusCode == 409) {
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      throw Exception(body['message'] ?? 'User code already taken');
+    }
+    _check(res);
+    return UserModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  /// Soft-delete: sets StatusId = 5 (Deleted) instead of removing the row
+  Future<UserModel> deleteUser(int userId, UserModel user) async {
+    final softDeleted = user.copyWith(statusId: userStatusDeleted);
+    final res = await http.put(
+      Uri.parse('$baseUrl/Users/$userId'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(softDeleted.toJson()),
+    );
+    _check(res);
+    return UserModel.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
   void _check(http.Response res) {

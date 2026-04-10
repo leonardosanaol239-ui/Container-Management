@@ -35,6 +35,7 @@ builder.Services.AddScoped<IRowService, RowService>();
 builder.Services.AddScoped<IContainerService, ContainerService>();
 builder.Services.AddScoped<IStatusService, StatusService>();
 builder.Services.AddScoped<ILayoutService, LayoutService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 // Configure Database Connection - Flexible Local/Remote switching
 var useLocalDatabase = builder.Configuration.GetValue<bool>("DatabaseSettings:UseLocalDatabase");

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../models/session.dart';
 import '../theme/app_theme.dart';
 import '../widgets/port_selection_dialog.dart';
 import 'user_management_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+  final Session session;
+  const DashboardScreen({super.key, required this.session});
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +21,7 @@ class DashboardScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _HeroHeader(),
+                    _HeroHeader(session: session),
                     _StatsSection(),
                     _QuickActionsSection(context: context),
                   ],
@@ -34,8 +36,12 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-// Hero Header
+// ── Hero Header ──────────────────────────────────────────────────────────────
+
 class _HeroHeader extends StatelessWidget {
+  final Session session;
+  const _HeroHeader({required this.session});
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -83,52 +89,68 @@ class _HeroHeader extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              const Text(
-                'Welcome, Admin',
-                style: TextStyle(
-                  color: AppColors.green,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
+              // Welcome text
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Welcome, ${session.fullName}',
+                    style: const TextStyle(
+                      color: AppColors.green,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  Text(
+                    session.role,
+                    style: TextStyle(
+                      color: AppColors.green.withValues(alpha: 0.7),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 16),
-              GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const UserManagementScreen(),
+              // Users button — Admin only
+              if (session.isAdmin) ...[
+                const SizedBox(width: 16),
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const UserManagementScreen(),
+                    ),
                   ),
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.green,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.manage_accounts,
-                        color: AppColors.yellow,
-                        size: 16,
-                      ),
-                      SizedBox(width: 6),
-                      Text(
-                        'Users',
-                        style: TextStyle(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.green,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.manage_accounts,
                           color: AppColors.yellow,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
+                          size: 16,
                         ),
-                      ),
-                    ],
+                        SizedBox(width: 6),
+                        Text(
+                          'Users',
+                          style: TextStyle(
+                            color: AppColors.yellow,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
@@ -137,7 +159,8 @@ class _HeroHeader extends StatelessWidget {
   }
 }
 
-// Stats Section
+// ── Stats Section ────────────────────────────────────────────────────────────
+
 class _StatsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -230,10 +253,10 @@ class _StatCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: accent.withOpacity(0.25), width: 1.5),
+          border: Border.all(color: accent.withValues(alpha: 0.25), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: accent.withOpacity(0.12),
+              color: accent.withValues(alpha: 0.12),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -277,7 +300,8 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// Quick Actions Section
+// ── Quick Actions ────────────────────────────────────────────────────────────
+
 class _QuickActionsSection extends StatelessWidget {
   final BuildContext context;
   const _QuickActionsSection({required this.context});
@@ -336,7 +360,7 @@ class _QuickActionsSection extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 elevation: 4,
-                shadowColor: AppColors.green.withOpacity(0.4),
+                shadowColor: AppColors.green.withValues(alpha: 0.4),
               ),
             ),
           ),
@@ -374,7 +398,6 @@ class _InfoTile extends StatelessWidget {
   final String label;
   final Color color;
   final Color textColor;
-
   const _InfoTile({
     required this.icon,
     required this.label,
@@ -392,7 +415,7 @@ class _InfoTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.35),
+              color: color.withValues(alpha: 0.35),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -419,7 +442,8 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
-// Footer Strip
+// ── Footer ───────────────────────────────────────────────────────────────────
+
 class _FooterStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -427,12 +451,12 @@ class _FooterStrip extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
       decoration: const BoxDecoration(color: AppColors.yellow),
-      child: Row(
+      child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.shield_rounded, color: AppColors.green, size: 18),
-          const SizedBox(width: 8),
-          const Text(
+          Icon(Icons.shield_rounded, color: AppColors.green, size: 18),
+          SizedBox(width: 8),
+          Text(
             'Gothong Southern  ·  Container Management System',
             style: TextStyle(
               color: AppColors.textDark,

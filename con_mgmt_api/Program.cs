@@ -8,6 +8,33 @@ using Microsoft.OpenApi.Models;
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://0.0.0.0:5000");
 
+// Auto-kill any process already using port 5000 before we try to bind
+try
+{
+    var listeners = System.Net.NetworkInformation.IPGlobalProperties
+        .GetIPGlobalProperties().GetActiveTcpListeners();
+    if (listeners.Any(l => l.Port == 5000))
+    {
+        foreach (var proc in System.Diagnostics.Process.GetProcesses())
+        {
+            try
+            {
+                // Skip our own process
+                if (proc.Id == System.Environment.ProcessId) continue;
+                if (proc.ProcessName.Contains("ContainerManagement", StringComparison.OrdinalIgnoreCase) ||
+                    proc.ProcessName.Contains("dotnet", StringComparison.OrdinalIgnoreCase))
+                {
+                    proc.Kill(true);
+                    Console.WriteLine($"Killed previous instance: PID {proc.Id}");
+                    System.Threading.Thread.Sleep(500);
+                }
+            }
+            catch { /* ignore */ }
+        }
+    }
+}
+catch { /* ignore */ }
+
 // Add services to the container
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

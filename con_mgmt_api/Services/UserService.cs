@@ -18,9 +18,15 @@ public class UserService : IUserService
     public async Task<IEnumerable<UserDto>> GetAllUsersAsync()
     {
         var users = await _context.Users.ToListAsync();
-        var portIds = users.Where(u => u.PortId.HasValue).Select(u => u.PortId!.Value).Distinct().ToList();
+
+        // Collect all unique port IDs across all users
+        var allPortIds = users
+            .SelectMany(u => u.AssignedPortIds)
+            .Distinct()
+            .ToList();
+
         var ports = await _context.Ports
-            .Where(p => portIds.Contains(p.PortId))
+            .Where(p => allPortIds.Contains(p.PortId))
             .ToDictionaryAsync(p => p.PortId, p => p.PortDesc);
 
         return users.Select(u => ToDto(u, ports));
@@ -31,16 +37,12 @@ public class UserService : IUserService
         var user = await _context.Users.FindAsync(userId);
         if (user == null) return null;
 
-        string? portDesc = null;
-        if (user.PortId.HasValue)
-        {
-            var port = await _context.Ports.FindAsync(user.PortId.Value);
-            portDesc = port?.PortDesc;
-        }
+        var portIds = user.AssignedPortIds;
+        var ports = await _context.Ports
+            .Where(p => portIds.Contains(p.PortId))
+            .ToDictionaryAsync(p => p.PortId, p => p.PortDesc);
 
-        return ToDto(user, user.PortId.HasValue && portDesc != null
-            ? new Dictionary<int, string> { { user.PortId.Value, portDesc } }
-            : new Dictionary<int, string>());
+        return ToDto(user, ports);
     }
 
     public async Task<UserDto> CreateUserAsync(SaveUserDto dto)
@@ -58,15 +60,18 @@ public class UserService : IUserService
             FirstName     = dto.FirstName.Trim(),
             MiddleInitial = dto.MiddleInitial?.Trim() ?? string.Empty,
             LastName      = dto.LastName.Trim(),
-            // Hash the password with BCrypt (work factor 12)
             Password      = string.IsNullOrWhiteSpace(dto.Password)
                                 ? null
                                 : BCrypt.Net.BCrypt.HashPassword(dto.Password, workFactor: 12),
             ContactNo     = dto.ContactNo?.Trim() ?? string.Empty,
-            PortId        = dto.PortId,
             StatusId      = dto.StatusId,
             DateCreated   = DateTime.UtcNow,
         };
+
+        // Handle port assignment
+        var portIds = dto.PortIds?.Where(id => id > 0).Distinct().ToList()
+                      ?? (dto.PortId.HasValue ? new List<int> { dto.PortId.Value } : new List<int>());
+        user.SetPortIds(portIds);
 
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
@@ -79,11 +84,14 @@ public class UserService : IUserService
         var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.UserId == userId);
         if (user == null) return null;
 
-        // Enforce unique UserCode (excluding this user's own current code)
+        // Enforce unique UserCode (excluding this user)
         var codeTaken = await _context.Users
             .AnyAsync(u => u.UserCode.ToLower() == dto.UserCode.Trim().ToLower() && u.UserId != userId);
         if (codeTaken)
             throw new InvalidOperationException($"User code '{dto.UserCode.Trim()}' is already taken.");
+
+        var portIds = dto.PortIds?.Where(id => id > 0).Distinct().ToList()
+                      ?? (dto.PortId.HasValue ? new List<int> { dto.PortId.Value } : new List<int>());
 
         var updated = new User
         {
@@ -94,14 +102,13 @@ public class UserService : IUserService
             MiddleInitial = dto.MiddleInitial?.Trim() ?? string.Empty,
             LastName      = dto.LastName.Trim(),
             ContactNo     = dto.ContactNo?.Trim() ?? string.Empty,
-            PortId        = dto.PortId,
             StatusId      = dto.StatusId,
             DateCreated   = user.DateCreated,
-            // Keep existing hash unless a new password was provided
             Password      = string.IsNullOrWhiteSpace(dto.Password)
                                 ? user.Password
                                 : BCrypt.Net.BCrypt.HashPassword(dto.Password, workFactor: 12),
         };
+        updated.SetPortIds(portIds);
 
         _context.Users.Update(updated);
         await _context.SaveChangesAsync();
@@ -111,18 +118,29 @@ public class UserService : IUserService
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private static UserDto ToDto(User u, Dictionary<int, string> ports) => new()
+    private static UserDto ToDto(User u, Dictionary<int, string> ports)
     {
-        UserId        = u.UserId,
-        UserCode      = u.UserCode,
-        UserTypeId    = u.UserTypeId,
-        FirstName     = u.FirstName,
-        MiddleInitial = u.MiddleInitial,
-        LastName      = u.LastName,
-        ContactNo     = u.ContactNo,
-        DateCreated   = u.DateCreated,
-        PortId        = u.PortId,
-        PortDesc      = u.PortId.HasValue && ports.TryGetValue(u.PortId.Value, out var desc) ? desc : null,
-        StatusId      = u.StatusId,
-    };
+        var assignedIds = u.AssignedPortIds;
+        var assignedDescs = assignedIds
+            .Where(id => ports.ContainsKey(id))
+            .Select(id => ports[id])
+            .ToList();
+
+        return new UserDto
+        {
+            UserId        = u.UserId,
+            UserCode      = u.UserCode,
+            UserTypeId    = u.UserTypeId,
+            FirstName     = u.FirstName,
+            MiddleInitial = u.MiddleInitial,
+            LastName      = u.LastName,
+            ContactNo     = u.ContactNo,
+            DateCreated   = u.DateCreated,
+            PortId        = assignedIds.FirstOrDefault() == 0 ? null : assignedIds.FirstOrDefault(),
+            PortDesc      = assignedDescs.FirstOrDefault(),
+            PortIds       = assignedIds,
+            PortDescs     = assignedDescs,
+            StatusId      = u.StatusId,
+        };
+    }
 }

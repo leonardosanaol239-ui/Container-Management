@@ -301,8 +301,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (newPortId == null) return;
     final newPort = _ports.firstWhere((p) => p.portId == newPortId);
     final updated = user.copyWith(
-      assignedPortId: newPortId,
-      assignedPortName: newPort.portDesc,
+      assignedPortIds: [newPortId],
+      assignedPortNames: [newPort.portDesc],
     );
     try {
       final saved = await _api.updateUser(updated);
@@ -946,7 +946,7 @@ class _UserDialogState extends State<_UserDialog> {
   late final TextEditingController _codeCtrl;
   late final TextEditingController _passCtrl;
   late String _role;
-  int? _selectedPortId;
+  List<int> _selectedPortIds = [];
   bool _obscure = true;
   late int _statusId;
   String _codeError = '';
@@ -962,8 +962,8 @@ class _UserDialogState extends State<_UserDialog> {
     );
     _codeCtrl = TextEditingController(text: widget.existing?.userCode ?? '');
     _passCtrl = TextEditingController();
-    _role = widget.existing?.role ?? 'Driver';
-    _selectedPortId = widget.existing?.assignedPortId;
+    _role = widget.existing?.role ?? 'Port Manager';
+    _selectedPortIds = List.of(widget.existing?.assignedPortIds ?? []);
     _statusId = widget.existing?.statusId ?? userStatusActive;
   }
 
@@ -998,14 +998,19 @@ class _UserDialogState extends State<_UserDialog> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    if (_role == 'Port Manager' && _selectedPortId == null) {
+    if (_role == 'Port Manager' && _selectedPortIds.isEmpty) {
       setState(() {}); // triggers the inline error message to show
       return;
     }
-    final assignedPort = _selectedPortId == null
-        ? null
-        : widget.ports.firstWhere((p) => p.portId == _selectedPortId);
     final needsPort = _role == 'Port Manager' || _role == 'Driver';
+    final portNames = _selectedPortIds
+        .map((id) {
+          final match = widget.ports.where((p) => p.portId == id).toList();
+          return match.isNotEmpty ? match.first.portDesc : '';
+        })
+        .where((n) => n.isNotEmpty)
+        .toList();
+
     Navigator.pop(
       context,
       UserModel(
@@ -1019,8 +1024,8 @@ class _UserDialogState extends State<_UserDialog> {
         userCode: _codeCtrl.text.trim(),
         role: _role,
         password: _passCtrl.text.trim().isEmpty ? null : _passCtrl.text.trim(),
-        assignedPortId: needsPort ? _selectedPortId : null,
-        assignedPortName: needsPort ? assignedPort?.portDesc : null,
+        assignedPortIds: needsPort ? _selectedPortIds : [],
+        assignedPortNames: needsPort ? portNames : [],
         statusId: _statusId,
       ),
     );
@@ -1081,8 +1086,9 @@ class _UserDialogState extends State<_UserDialog> {
                       .toList(),
                   onChanged: (v) => setState(() {
                     _role = v!;
-                    if (_role != 'Port Manager' && _role != 'Driver')
-                      _selectedPortId = null;
+                    if (_role != 'Port Manager' && _role != 'Driver') {
+                      _selectedPortIds = [];
+                    }
                   }),
                 ),
 
@@ -1091,20 +1097,17 @@ class _UserDialogState extends State<_UserDialog> {
                   const SizedBox(height: 14),
                   _lbl('Assigned Port'),
                   const SizedBox(height: 6),
-                  _PortPickerField(
+                  _MultiPortPickerField(
                     ports: widget.ports,
-                    // Drivers can share ports — only Port Managers have exclusivity
-                    takenPortIds: _role == 'Port Manager'
-                        ? widget.takenPortIds
-                        : {},
-                    selectedPortId: _selectedPortId,
-                    onChanged: (id) => setState(() => _selectedPortId = id),
+                    selectedPortIds: _selectedPortIds,
+                    onChanged: (ids) => setState(() => _selectedPortIds = ids),
+                    multiSelect: false,
                   ),
-                  if (_role == 'Port Manager' && _selectedPortId == null)
+                  if (_role == 'Port Manager' && _selectedPortIds.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 6, left: 12),
                       child: Text(
-                        'Please select a port',
+                        'Please select at least one port',
                         style: TextStyle(
                           fontSize: 12,
                           color: Theme.of(context).colorScheme.error,
@@ -1170,7 +1173,7 @@ class _UserDialogState extends State<_UserDialog> {
                               LengthLimitingTextInputFormatter(2),
                             ],
                             decoration: const InputDecoration(
-                              hintText: 'M.',
+                              hintText: 'M.I',
                               isDense: true,
                             ),
                             validator: _miVal,
@@ -1339,166 +1342,201 @@ class _UserDialogState extends State<_UserDialog> {
     );
   }
 }
+// ── Multi-Port Picker ────────────────────────────────────────────────────────
 
-// ── Port Picker Field ────────────────────────────────────────────────────────
-
-class _PortPickerField extends StatelessWidget {
+class _MultiPortPickerField extends StatelessWidget {
   final List<Port> ports;
-  final Set<int> takenPortIds;
-  final int? selectedPortId;
-  final ValueChanged<int?> onChanged;
+  final List<int> selectedPortIds;
+  final ValueChanged<List<int>> onChanged;
+  final bool multiSelect;
 
-  const _PortPickerField({
+  const _MultiPortPickerField({
     required this.ports,
-    required this.takenPortIds,
-    required this.selectedPortId,
+    required this.selectedPortIds,
     required this.onChanged,
+    this.multiSelect = true,
   });
 
   String get _displayText {
-    if (selectedPortId == null) return 'Select a port';
-    final match = ports.where((p) => p.portId == selectedPortId).toList();
-    return match.isNotEmpty ? match.first.portDesc : 'Select a port';
+    if (selectedPortIds.isEmpty) return 'Select a port';
+    final names = selectedPortIds.map((id) {
+      final match = ports.where((p) => p.portId == id).toList();
+      return match.isNotEmpty ? match.first.portDesc : 'Port $id';
+    }).toList();
+    return names.join(', ');
   }
 
-  bool get _hasSelection => selectedPortId != null;
-
   Future<void> _openPicker(BuildContext context) async {
-    final picked = await showDialog<int>(
+    List<int> temp = List.of(selectedPortIds);
+
+    await showDialog<void>(
       context: context,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: SizedBox(
-          width: 340,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                decoration: const BoxDecoration(
-                  color: AppColors.yellow,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.location_on_rounded,
-                      size: 18,
-                      color: AppColors.green,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'Select Port',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
-                        color: AppColors.textDark,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Port list
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 380),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: ports.length,
-                  itemBuilder: (ctx, i) {
-                    final p = ports[i];
-                    final taken = takenPortIds.contains(p.portId);
-                    final isSelected = p.portId == selectedPortId;
-                    return InkWell(
-                      onTap: taken ? null : () => Navigator.pop(ctx, p.portId),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.green.withValues(alpha: 0.08)
-                              : taken
-                              ? Colors.grey.withValues(alpha: 0.04)
-                              : Colors.white,
-                          border: Border(
-                            bottom: BorderSide(
-                              color: Colors.grey.withValues(alpha: 0.12),
-                            ),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.location_on_rounded,
-                              size: 16,
-                              color: taken
-                                  ? AppColors.textGrey
-                                  : isSelected
-                                  ? AppColors.green
-                                  : AppColors.textDark,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                p.portDesc,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: taken
-                                      ? AppColors.textGrey
-                                      : AppColors.textDark,
-                                ),
-                              ),
-                            ),
-                            if (taken) _tag('Assigned', AppColors.textGrey),
-                            if (isSelected && !taken)
-                              const Icon(
-                                Icons.check_circle_rounded,
-                                size: 18,
-                                color: AppColors.green,
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              // Cancel
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                child: SizedBox(
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setS) => Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: SizedBox(
+            width: 340,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header
+                Container(
                   width: double.infinity,
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      'Cancel',
-                      style: TextStyle(color: AppColors.textGrey),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: const BoxDecoration(
+                    color: AppColors.yellow,
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(14),
                     ),
                   ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on_rounded,
+                        size: 18,
+                        color: AppColors.green,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        multiSelect
+                            ? 'Select Ports (multiple allowed)'
+                            : 'Select Port',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                // Port list
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 380),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: ports.length,
+                    itemBuilder: (ctx2, i) {
+                      final p = ports[i];
+                      final isSelected = temp.contains(p.portId);
+                      return InkWell(
+                        onTap: () {
+                          setS(() {
+                            if (multiSelect) {
+                              if (isSelected) {
+                                temp.remove(p.portId);
+                              } else {
+                                temp.add(p.portId);
+                              }
+                            } else {
+                              temp = [p.portId];
+                            }
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.green.withValues(alpha: 0.08)
+                                : Colors.white,
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Colors.grey.withValues(alpha: 0.12),
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                multiSelect
+                                    ? (isSelected
+                                          ? Icons.check_box_rounded
+                                          : Icons
+                                                .check_box_outline_blank_rounded)
+                                    : (isSelected
+                                          ? Icons.radio_button_checked_rounded
+                                          : Icons
+                                                .radio_button_unchecked_rounded),
+                                size: 20,
+                                color: isSelected
+                                    ? AppColors.green
+                                    : AppColors.textGrey,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  p.portDesc,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: AppColors.textDark,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                // Actions
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Row(
+                    children: [
+                      if (multiSelect && temp.isNotEmpty)
+                        TextButton(
+                          onPressed: () => setS(() => temp = []),
+                          child: const Text(
+                            'Clear all',
+                            style: TextStyle(color: AppColors.textGrey),
+                          ),
+                        ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(color: AppColors.textGrey),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.green,
+                          foregroundColor: AppColors.yellow,
+                        ),
+                        onPressed: () {
+                          onChanged(temp);
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text('Done'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
-    if (picked != null) onChanged(picked);
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasSelection = selectedPortIds.isNotEmpty;
     return GestureDetector(
       onTap: () => _openPicker(context),
       child: Container(
@@ -1507,10 +1545,10 @@ class _PortPickerField extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: _hasSelection
+            color: hasSelection
                 ? AppColors.green
                 : AppColors.yellow.withValues(alpha: 0.6),
-            width: _hasSelection ? 1.5 : 1,
+            width: hasSelection ? 1.5 : 1,
           ),
         ),
         child: Row(
@@ -1518,7 +1556,7 @@ class _PortPickerField extends StatelessWidget {
             Icon(
               Icons.location_on_rounded,
               size: 18,
-              color: _hasSelection ? AppColors.green : AppColors.textGrey,
+              color: hasSelection ? AppColors.green : AppColors.textGrey,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -1526,16 +1564,32 @@ class _PortPickerField extends StatelessWidget {
                 _displayText,
                 style: TextStyle(
                   fontSize: 13,
-                  color: _hasSelection
-                      ? AppColors.textDark
-                      : AppColors.textGrey,
-                  fontWeight: _hasSelection ? FontWeight.w600 : FontWeight.w400,
+                  color: hasSelection ? AppColors.textDark : AppColors.textGrey,
+                  fontWeight: hasSelection ? FontWeight.w600 : FontWeight.w400,
                 ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (hasSelection)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.green,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${selectedPortIds.length}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 4),
             Icon(
               Icons.arrow_drop_down_rounded,
-              color: _hasSelection ? AppColors.green : AppColors.textGrey,
+              color: hasSelection ? AppColors.green : AppColors.textGrey,
             ),
           ],
         ),

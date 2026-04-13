@@ -14,7 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
-  static const _roles = ['Admin', 'Port Manager', 'Driver'];
+  static const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer'];
 
   @override
   void dispose() {

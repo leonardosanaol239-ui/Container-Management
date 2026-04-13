@@ -5,7 +5,7 @@ import '../models/port.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
-const _roles = ['Admin', 'Port Manager', 'Driver'];
+const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer'];
 
 // Fallback port list used when API is unavailable
 final _fallbackPorts = [

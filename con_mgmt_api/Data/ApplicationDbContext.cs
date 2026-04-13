@@ -23,6 +23,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Orientation> Orientations { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<UserType> UserTypes { get; set; } = null!;
+    public DbSet<Customer> Customers { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

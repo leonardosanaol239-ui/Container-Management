@@ -1,6 +1,16 @@
 // Maps role display names ↔ UserTypeId in dbo.UserTypes
-const _roleToTypeId = {'Admin': 1, 'Port Manager': 2, 'Driver': 3};
-const _typeIdToRole = {1: 'Admin', 2: 'Port Manager', 3: 'Driver'};
+const _roleToTypeId = {
+  'Admin': 1,
+  'Port Manager': 2,
+  'Driver': 3,
+  'Customer': 4,
+};
+const _typeIdToRole = {
+  1: 'Admin',
+  2: 'Port Manager',
+  3: 'Driver',
+  4: 'Customer',
+};
 
 // User status values from dbo.Status
 const userStatusActive = 3;

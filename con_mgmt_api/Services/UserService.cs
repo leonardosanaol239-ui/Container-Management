@@ -76,6 +76,21 @@ public class UserService : IUserService
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
+        // If Customer role (UserTypeId = 4), also insert into Customers table
+        if (user.UserTypeId == 4)
+        {
+            var customer = new Customer
+            {
+                UserId        = user.UserId,
+                FirstName     = user.FirstName,
+                LastName      = user.LastName,
+                MiddleInitial = string.IsNullOrEmpty(user.MiddleInitial) ? null : user.MiddleInitial,
+                ContactNo     = string.IsNullOrEmpty(user.ContactNo) ? null : user.ContactNo,
+            };
+            _context.Customers.Add(customer);
+            await _context.SaveChangesAsync();
+        }
+
         return (await GetUserByIdAsync(user.UserId))!;
     }
 

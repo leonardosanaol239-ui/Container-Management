@@ -340,7 +340,7 @@ class _SlotCell extends StatelessWidget {
             child: isOccupied
                 ? Center(
                     child: Text(
-                      topContainer!.containerNumber,
+                      topContainer.containerNumber,
                       style: const TextStyle(
                         fontSize: 6,
                         fontWeight: FontWeight.bold,
@@ -372,7 +372,7 @@ class _SlotCell extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    topContainer!.containerNumber,
+                    topContainer.containerNumber,
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,

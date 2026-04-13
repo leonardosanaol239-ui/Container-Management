@@ -15,6 +15,7 @@ public class AuthController : ControllerBase
         { 1, "Admin" },
         { 2, "Port Manager" },
         { 3, "Driver" },
+        { 4, "Customer" },
     };
 
     private readonly ApplicationDbContext _context;

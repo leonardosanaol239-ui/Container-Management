@@ -1,10 +1,18 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'dashboard_screen.dart';
+import 'driver_dashboard_screen.dart';
+import 'port_manager_dashboard_screen.dart';
+import 'customer_dashboard_screen.dart';
 
-const _roles = ['Admin', 'Port Manager', 'Driver'];
-const _roleTypeIds = {'Admin': 1, 'Port Manager': 2, 'Driver': 3};
+const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer'];
+const _roleTypeIds = {
+  'Admin': 1,
+  'Port Manager': 2,
+  'Driver': 3,
+  'Customer': 4,
+};
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,13 +27,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   String _role = 'Admin';
   bool _obscure = true;
-<<<<<<< HEAD
-
-  static const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer'];
-=======
   bool _loading = false;
   String _errorMsg = '';
->>>>>>> 7d31656b22aeaf1fc49f4c682726038012b198a1
 
   @override
   void dispose() {
@@ -40,7 +43,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _loading = true;
       _errorMsg = '';
     });
-
     try {
       final session = await _api.login(
         userCode: _codeCtrl.text.trim(),
@@ -48,9 +50,16 @@ class _LoginScreenState extends State<LoginScreen> {
         userTypeId: _roleTypeIds[_role]!,
       );
       if (!mounted) return;
+      final Widget dest = session.isAdmin
+          ? DashboardScreen(session: session)
+          : session.isPortManager
+          ? PortManagerDashboardScreen(session: session)
+          : session.isCustomer
+          ? CustomerDashboardScreen(session: session)
+          : DriverDashboardScreen(session: session);
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => DashboardScreen(session: session)),
+        MaterialPageRoute(builder: (_) => dest),
         (_) => false,
       );
     } catch (e) {
@@ -87,7 +96,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Header
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
@@ -119,7 +127,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                       ),
                     ),
-
                     Padding(
                       padding: const EdgeInsets.all(24),
                       child: Form(
@@ -127,7 +134,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Role
                             const Text(
                               'Role',
                               style: TextStyle(
@@ -156,8 +162,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                     }),
                             ),
                             const SizedBox(height: 16),
-
-                            // User Code
                             const Text(
                               'User Code',
                               style: TextStyle(
@@ -181,8 +185,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                   : null,
                             ),
                             const SizedBox(height: 16),
-
-                            // Password
                             const Text(
                               'Password',
                               style: TextStyle(
@@ -215,8 +217,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? 'Password is required'
                                   : null,
                             ),
-
-                            // Error message
                             if (_errorMsg.isNotEmpty) ...[
                               const SizedBox(height: 12),
                               Container(
@@ -254,7 +254,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             ],
-
                             const SizedBox(height: 24),
                             SizedBox(
                               width: double.infinity,

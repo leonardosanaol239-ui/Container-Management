@@ -1948,7 +1948,9 @@ Color _roleColor(String role) {
       return AppColors.green;
     case 'Port Manager':
       return const Color(0xFF1565C0);
+    case 'Customer':
+      return const Color(0xFF6A1B9A); // purple
     default:
-      return const Color(0xFFE65100);
+      return const Color(0xFFE65100); // orange for Driver
   }
 }

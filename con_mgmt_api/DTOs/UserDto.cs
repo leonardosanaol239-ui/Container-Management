@@ -15,6 +15,10 @@ public class UserDto
     public DateTime DateCreated { get; set; }
     public int? PortId { get; set; }
     public string? PortDesc { get; set; }
+    /// <summary>All assigned port IDs (for Port Managers with multiple ports)</summary>
+    public List<int> PortIds { get; set; } = new();
+    /// <summary>All assigned port descriptions</summary>
+    public List<string> PortDescs { get; set; } = new();
     public int StatusId { get; set; }
 }
 
@@ -31,5 +35,7 @@ public class SaveUserDto
     public string? Password { get; set; }
     public string ContactNo { get; set; } = string.Empty;
     public int? PortId { get; set; }
+    /// <summary>Multiple port assignments (Port Manager)</summary>
+    public List<int>? PortIds { get; set; }
     public int StatusId { get; set; } = 3;
 }

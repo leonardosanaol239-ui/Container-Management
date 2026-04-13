@@ -104,9 +104,7 @@ class _LandingScreenState extends State<LandingScreen>
           ),
 
           // ── Grid + dot background ─────────────────────────────────────────
-          Positioned.fill(
-            child: CustomPaint(painter: _BackgroundPainter()),
-          ),
+          Positioned.fill(child: CustomPaint(painter: _BackgroundPainter())),
 
           // ── Top-right decorative glow ─────────────────────────────────────
           Positioned(
@@ -243,10 +241,8 @@ class _LandingScreenState extends State<LandingScreen>
         // Outermost ring
         AnimatedBuilder(
           animation: _pulseAnim,
-          builder: (ctx, child) => Transform.scale(
-            scale: _pulseAnim.value,
-            child: child,
-          ),
+          builder: (ctx, child) =>
+              Transform.scale(scale: _pulseAnim.value, child: child),
           child: Container(
             width: 150,
             height: 150,
@@ -335,8 +331,6 @@ class _LandingScreenState extends State<LandingScreen>
     );
   }
 
-
-
   Widget _buildGetStartedButton(BuildContext context) {
     return AnimatedBuilder(
       animation: _shimmerAnim,
@@ -374,10 +368,8 @@ class _LandingScreenState extends State<LandingScreen>
                 context,
                 PageRouteBuilder(
                   pageBuilder: (_, __, ___) => const LoginScreen(),
-                  transitionsBuilder: (_, anim, __, child) => FadeTransition(
-                    opacity: anim,
-                    child: child,
-                  ),
+                  transitionsBuilder: (_, anim, __, child) =>
+                      FadeTransition(opacity: anim, child: child),
                   transitionDuration: const Duration(milliseconds: 400),
                 ),
               ),
@@ -409,7 +401,6 @@ class _LandingScreenState extends State<LandingScreen>
     );
   }
 }
-
 
 // ── Background painter ────────────────────────────────────────────────────────
 

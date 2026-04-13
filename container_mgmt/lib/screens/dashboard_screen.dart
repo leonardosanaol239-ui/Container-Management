@@ -1,33 +1,109 @@
 import 'package:flutter/material.dart';
 import '../models/session.dart';
+import '../models/container_model.dart';
+import '../models/port.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/port_selection_dialog.dart';
 import 'user_management_screen.dart';
+import 'login_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   final Session session;
   const DashboardScreen({super.key, required this.session});
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  final _api = ApiService();
+  List<ContainerModel> _containers = [];
+  List<Port> _ports = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final results = await Future.wait([
+        _api.getPorts(),
+        // fetch containers from first port as a sample; admin sees all ports
+      ]);
+      final ports = results[0];
+      // Load containers from all ports
+      List<ContainerModel> allContainers = [];
+      for (final port in ports) {
+        try {
+          final c = await _api.getContainersByPort(port.portId);
+          allContainers.addAll(c);
+        } catch (_) {}
+      }
+      setState(() {
+        _ports = ports;
+        _containers = allContainers;
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() => _loading = false);
+    }
+  }
+
+  void _logout() => Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => const LoginScreen()),
+    (_) => false,
+  );
+
+  @override
   Widget build(BuildContext context) {
+    final total = _containers.length;
+    final laden = _containers.where((c) => c.statusId == 1).length;
+    final empty = _containers.where((c) => c.statusId == 2).length;
+    final inYard = _containers.where((c) => c.isInYard).length;
+    final movedOut = _containers.where((c) => c.isMovedOut).length;
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: Column(
         children: [
+          _AdminHeader(session: widget.session, onLogout: _logout),
           Expanded(
-            child: Scrollbar(
-              thumbVisibility: true,
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _HeroHeader(session: session),
-                    _StatsSection(),
-                    _QuickActionsSection(context: context),
-                  ],
-                ),
-              ),
-            ),
+            child: _loading
+                ? const Center(
+                    child: CircularProgressIndicator(color: AppColors.yellow),
+                  )
+                : RefreshIndicator(
+                    color: AppColors.yellow,
+                    onRefresh: _load,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _StatsSection(
+                            total: total,
+                            laden: laden,
+                            empty: empty,
+                            ports: _ports.length,
+                            inYard: inYard,
+                            movedOut: movedOut,
+                          ),
+                          _QuickActionsSection(
+                            context: context,
+                            session: widget.session,
+                          ),
+                          _PortsSection(ports: _ports, containers: _containers),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
+                    ),
+                  ),
           ),
           _FooterStrip(),
         ],
@@ -36,11 +112,12 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-// ── Hero Header ──────────────────────────────────────────────────────────────
+// ── Admin Header ─────────────────────────────────────────────────────────────
 
-class _HeroHeader extends StatelessWidget {
+class _AdminHeader extends StatelessWidget {
   final Session session;
-  const _HeroHeader({required this.session});
+  final VoidCallback onLogout;
+  const _AdminHeader({required this.session, required this.onLogout});
 
   @override
   Widget build(BuildContext context) {
@@ -59,45 +136,44 @@ class _HeroHeader extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Image.asset(
                 'assets/gothong_logo.png',
-                height: 40,
+                height: 38,
                 fit: BoxFit.contain,
               ),
               const SizedBox(width: 12),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 6,
+                  horizontal: 12,
+                  vertical: 5,
                 ),
                 decoration: BoxDecoration(
                   color: AppColors.green,
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: const Text(
-                  'CONTAINER MANAGEMENT SYSTEM',
+                  'ADMIN DASHBOARD',
                   style: TextStyle(
                     color: AppColors.yellow,
                     fontWeight: FontWeight.w900,
-                    fontSize: 11,
+                    fontSize: 10,
                     letterSpacing: 1.2,
                   ),
                 ),
               ),
               const Spacer(),
-              // Welcome text
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    'Welcome, ${session.fullName}',
+                    session.fullName,
                     style: const TextStyle(
                       color: AppColors.green,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       fontSize: 13,
                     ),
                   ),
@@ -110,47 +186,79 @@ class _HeroHeader extends StatelessWidget {
                   ),
                 ],
               ),
-              // Users button — Admin only
-              if (session.isAdmin) ...[
-                const SizedBox(width: 16),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const UserManagementScreen(),
-                    ),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.green,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.manage_accounts,
-                          color: AppColors.yellow,
-                          size: 16,
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Users',
-                          style: TextStyle(
-                            color: AppColors.yellow,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
+              const SizedBox(width: 14),
+              // Users button
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const UserManagementScreen(),
                   ),
                 ),
-              ],
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.green,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.manage_accounts,
+                        color: AppColors.yellow,
+                        size: 15,
+                      ),
+                      SizedBox(width: 5),
+                      Text(
+                        'Users',
+                        style: TextStyle(
+                          color: AppColors.yellow,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Logout button
+              GestureDetector(
+                onTap: onLogout,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.green,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.logout_rounded,
+                        color: AppColors.yellow,
+                        size: 15,
+                      ),
+                      SizedBox(width: 5),
+                      Text(
+                        'Logout',
+                        style: TextStyle(
+                          color: AppColors.yellow,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -159,9 +267,19 @@ class _HeroHeader extends StatelessWidget {
   }
 }
 
-// ── Stats Section ────────────────────────────────────────────────────────────
+// ── Stats Section ─────────────────────────────────────────────────────────────
 
 class _StatsSection extends StatelessWidget {
+  final int total, laden, empty, ports, inYard, movedOut;
+  const _StatsSection({
+    required this.total,
+    required this.laden,
+    required this.empty,
+    required this.ports,
+    required this.inYard,
+    required this.movedOut,
+  });
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -169,41 +287,20 @@ class _StatsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 5,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: AppColors.red,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'OVERVIEW',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.textDark,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ],
-          ),
+          _sectionTitle('OVERVIEW', AppColors.red),
           const SizedBox(height: 16),
           Row(
             children: [
               _StatCard(
                 label: 'Total\nContainers',
-                value: '128',
+                value: '$total',
                 icon: Icons.inventory_2_rounded,
                 accent: AppColors.green,
               ),
               const SizedBox(width: 12),
               _StatCard(
                 label: 'Laden',
-                value: '74',
+                value: '$laden',
                 icon: Icons.check_circle_rounded,
                 accent: AppColors.yellow,
                 accentText: AppColors.textDark,
@@ -211,17 +308,45 @@ class _StatsSection extends StatelessWidget {
               const SizedBox(width: 12),
               _StatCard(
                 label: 'Empty',
-                value: '54',
+                value: '$empty',
                 icon: Icons.radio_button_unchecked_rounded,
                 accent: AppColors.red,
               ),
               const SizedBox(width: 12),
               _StatCard(
                 label: 'Active\nPorts',
-                value: '15',
+                value: '$ports',
                 icon: Icons.location_on_rounded,
                 accent: AppColors.green,
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _StatCard(
+                label: 'In Yard',
+                value: '$inYard',
+                icon: Icons.warehouse_rounded,
+                accent: AppColors.green,
+              ),
+              const SizedBox(width: 12),
+              _StatCard(
+                label: 'Moved Out',
+                value: '$movedOut',
+                icon: Icons.local_shipping_rounded,
+                accent: AppColors.yellow,
+                accentText: AppColors.textDark,
+              ),
+              const SizedBox(width: 12),
+              _StatCard(
+                label: 'Unassigned',
+                value: '${total - inYard - movedOut}',
+                icon: Icons.help_outline_rounded,
+                accent: AppColors.textGrey,
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: SizedBox()),
             ],
           ),
         ],
@@ -231,12 +356,10 @@ class _StatsSection extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
+  final String label, value;
   final IconData icon;
   final Color accent;
   final Color accentText;
-
   const _StatCard({
     required this.label,
     required this.value,
@@ -300,11 +423,12 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// ── Quick Actions ────────────────────────────────────────────────────────────
+// ── Quick Actions ─────────────────────────────────────────────────────────────
 
 class _QuickActionsSection extends StatelessWidget {
   final BuildContext context;
-  const _QuickActionsSection({required this.context});
+  final Session session;
+  const _QuickActionsSection({required this.context, required this.session});
 
   @override
   Widget build(BuildContext ctx) {
@@ -313,28 +437,7 @@ class _QuickActionsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 5,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: AppColors.red,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'QUICK ACTIONS',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.textDark,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ],
-          ),
+          _sectionTitle('QUICK ACTIONS', AppColors.red),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -364,85 +467,127 @@ class _QuickActionsSection extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _InfoTile(
-                icon: Icons.sailing_rounded,
-                label: 'Transport',
-                color: AppColors.yellow,
-                textColor: AppColors.textDark,
-              ),
-              const SizedBox(width: 12),
-              _InfoTile(
-                icon: Icons.sync_alt_rounded,
-                label: 'E2E Supply Chain',
-                color: AppColors.red,
-              ),
-              const SizedBox(width: 12),
-              _InfoTile(
-                icon: Icons.business_center_rounded,
-                label: 'Business Solutions',
-                color: AppColors.green,
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
 }
 
-class _InfoTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final Color textColor;
-  const _InfoTile({
-    required this.icon,
-    required this.label,
-    required this.color,
-    this.textColor = AppColors.white,
-  });
+// ── Ports Overview ────────────────────────────────────────────────────────────
+
+class _PortsSection extends StatelessWidget {
+  final List<Port> ports;
+  final List<ContainerModel> containers;
+  const _PortsSection({required this.ports, required this.containers});
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.35),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: textColor, size: 24),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: textColor,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
-                height: 1.3,
-              ),
-            ),
-          ],
-        ),
+    if (ports.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionTitle('PORTS OVERVIEW', AppColors.red),
+          const SizedBox(height: 16),
+          ...ports.map((port) {
+            final portContainers = containers
+                .where((c) => c.currentPortId == port.portId)
+                .toList();
+            final laden = portContainers.where((c) => c.statusId == 1).length;
+            final empty = portContainers.where((c) => c.statusId == 2).length;
+            return _PortRow(
+              port: port,
+              total: portContainers.length,
+              laden: laden,
+              empty: empty,
+            );
+          }),
+        ],
       ),
     );
   }
 }
 
-// ── Footer ───────────────────────────────────────────────────────────────────
+class _PortRow extends StatelessWidget {
+  final Port port;
+  final int total, laden, empty;
+  const _PortRow({
+    required this.port,
+    required this.total,
+    required this.laden,
+    required this.empty,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.yellow.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.yellow.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.green,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(
+              Icons.location_on_rounded,
+              color: AppColors.yellow,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              port.portDesc,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+                color: AppColors.textDark,
+              ),
+            ),
+          ),
+          _pill('$total total', AppColors.green, AppColors.white),
+          const SizedBox(width: 6),
+          _pill('$laden laden', AppColors.yellow, AppColors.textDark),
+          const SizedBox(width: 6),
+          _pill('$empty empty', AppColors.red, AppColors.white),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(String label, Color bg, Color fg) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    decoration: BoxDecoration(
+      color: bg,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: fg),
+    ),
+  );
+}
+
+// ── Footer ────────────────────────────────────────────────────────────────────
 
 class _FooterStrip extends StatelessWidget {
   @override
@@ -470,3 +615,28 @@ class _FooterStrip extends StatelessWidget {
     );
   }
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+Widget _sectionTitle(String text, Color accentColor) => Row(
+  children: [
+    Container(
+      width: 5,
+      height: 22,
+      decoration: BoxDecoration(
+        color: accentColor,
+        borderRadius: BorderRadius.circular(4),
+      ),
+    ),
+    const SizedBox(width: 10),
+    Text(
+      text,
+      style: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w900,
+        color: AppColors.textDark,
+        letterSpacing: 1.2,
+      ),
+    ),
+  ],
+);

@@ -2,9 +2,17 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'dashboard_screen.dart';
+import 'driver_dashboard_screen.dart';
+import 'port_manager_dashboard_screen.dart';
+import 'customer_dashboard_screen.dart';
 
-const _roles = ['Admin', 'Port Manager', 'Driver'];
-const _roleTypeIds = {'Admin': 1, 'Port Manager': 2, 'Driver': 3};
+const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer'];
+const _roleTypeIds = {
+  'Admin': 1,
+  'Port Manager': 2,
+  'Driver': 3,
+  'Customer': 4,
+};
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,9 +51,19 @@ class _LoginScreenState extends State<LoginScreen> {
         userTypeId: _roleTypeIds[_role]!,
       );
       if (!mounted) return;
+      Widget dest;
+      if (session.isAdmin) {
+        dest = DashboardScreen(session: session);
+      } else if (session.isPortManager) {
+        dest = PortManagerDashboardScreen(session: session);
+      } else if (session.isCustomer) {
+        dest = CustomerDashboardScreen(session: session);
+      } else {
+        dest = DriverDashboardScreen(session: session);
+      }
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => DashboardScreen(session: session)),
+        MaterialPageRoute(builder: (_) => dest),
         (_) => false,
       );
     } catch (e) {

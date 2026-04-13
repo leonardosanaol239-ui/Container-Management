@@ -19,11 +19,13 @@ class YardScreen extends StatefulWidget {
   final Yard yard;
   final int portId;
   final String portName;
+  final int? highlightRowId;
   const YardScreen({
     super.key,
     required this.yard,
     required this.portId,
     required this.portName,
+    this.highlightRowId,
   });
   @override
   State<YardScreen> createState() => _YardScreenState();
@@ -73,6 +75,10 @@ class _YardScreenState extends State<YardScreen>
       vsync: this,
       duration: const Duration(milliseconds: 350),
     );
+    if (widget.highlightRowId != null) {
+      _highlightedRowId = widget.highlightRowId;
+      _blinkCtrl.repeat(reverse: true);
+    }
     _loadAll();
   }
 

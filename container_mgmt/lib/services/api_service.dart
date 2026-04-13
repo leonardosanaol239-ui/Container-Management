@@ -13,9 +13,8 @@ import '../models/truck.dart';
 import '../models/user_model.dart';
 
 class ApiService {
-  // When running the API locally on this machine use 192.168.118.161:5000
-  // When the API is deployed on the remote server use 192.168.118.132:5000
-  static const String baseUrl = 'http://192.168.118.161:5000/api';
+  // When running the API locally on this machine use 192.168.118.132:5000
+  static const String baseUrl = 'http://192.168.118.132:5000/api';
 
   // ── Ports ────────────────────────────────────────────────
   Future<List<Port>> getPorts() async {

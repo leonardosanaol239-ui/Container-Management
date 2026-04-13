@@ -420,9 +420,9 @@ class ApiService {
       Uri.parse('$baseUrl/Layout/rows/$rowId'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        if (sizeId != null) 'sizeId': sizeId,
-        if (orientationId != null) 'orientationId': orientationId,
-        if (maxStack != null) 'maxStack': maxStack,
+        'sizeId': ?sizeId,
+        'orientationId': ?orientationId,
+        'maxStack': ?maxStack,
       }),
     );
     _check(res);

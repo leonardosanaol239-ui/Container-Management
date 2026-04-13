@@ -72,38 +72,41 @@ class UserModel {
   bool get isDeleted => statusId == userStatusDeleted;
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    int? _int(String a, String b) => (json[a] ?? json[b]) as int?;
-    String _str(String a, String b) => ((json[a] ?? json[b]) as String?) ?? '';
+    int? getInt(String a, String b) => (json[a] ?? json[b]) as int?;
+    String getStr(String a, String b) =>
+        ((json[a] ?? json[b]) as String?) ?? '';
 
-    final typeId = _int('userTypeId', 'UserTypeId') ?? 3;
+    final typeId = getInt('userTypeId', 'UserTypeId') ?? 3;
 
     // Parse portIds list from API
     final rawPortIds = json['portIds'] ?? json['PortIds'];
     final List<int> portIds = rawPortIds is List
         ? rawPortIds.whereType<int>().toList()
-        : (_int('portId', 'PortId') != null ? [_int('portId', 'PortId')!] : []);
+        : (getInt('portId', 'PortId') != null
+              ? [getInt('portId', 'PortId')!]
+              : []);
 
     final rawPortDescs = json['portDescs'] ?? json['PortDescs'];
     final List<String> portDescs = rawPortDescs is List
         ? rawPortDescs.whereType<String>().toList()
-        : (_str('portDesc', 'PortDesc').isNotEmpty
-              ? [_str('portDesc', 'PortDesc')]
+        : (getStr('portDesc', 'PortDesc').isNotEmpty
+              ? [getStr('portDesc', 'PortDesc')]
               : []);
 
     return UserModel(
-      userId: _int('userId', 'UserId'),
-      firstName: _str('firstName', 'FirstName'),
-      middleInitial: _str('middleInitial', 'MiddleInitial'),
-      lastName: _str('lastName', 'LastName'),
-      userCode: _str('userCode', 'UserCode'),
+      userId: getInt('userId', 'UserId'),
+      firstName: getStr('firstName', 'FirstName'),
+      middleInitial: getStr('middleInitial', 'MiddleInitial'),
+      lastName: getStr('lastName', 'LastName'),
+      userCode: getStr('userCode', 'UserCode'),
       role: _typeIdToRole[typeId] ?? 'Driver',
       userTypeId: typeId,
-      contactNumber: _str('contactNo', 'ContactNo').isEmpty
+      contactNumber: getStr('contactNo', 'ContactNo').isEmpty
           ? null
-          : _str('contactNo', 'ContactNo'),
+          : getStr('contactNo', 'ContactNo'),
       assignedPortIds: portIds,
       assignedPortNames: portDescs,
-      statusId: _int('statusId', 'StatusId') ?? userStatusActive,
+      statusId: getInt('statusId', 'StatusId') ?? userStatusActive,
     );
   }
 

@@ -122,9 +122,10 @@ class _Yard1ScreenState extends State<Yard1Screen> {
 
   String get _breadcrumb {
     String b = '${widget.portName} > Yard 1';
-    if (_selectedBlock != null)
+    if (_selectedBlock != null) {
       b +=
           ' > ${_selectedBlock!.blockDesc ?? "Block ${_selectedBlock!.blockNumber}"}';
+    }
     if (_selectedBay != null) b += ' > Bay ${_selectedBay!.bayNumber}';
     return b;
   }
@@ -454,7 +455,7 @@ class _Yard1ScreenState extends State<Yard1Screen> {
                           shrinkWrap: true,
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           itemCount: _movedOutContainers.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          separatorBuilder: (_, _) => const Divider(height: 1),
                           itemBuilder: (ctx, i) {
                             final c = _movedOutContainers[i];
                             return ListTile(
@@ -1321,11 +1322,12 @@ class _MoveOutDialogState extends State<_MoveOutDialog> {
   Future<void> _loadTrucks() async {
     try {
       final trucks = await widget.api.getTrucks();
-      if (mounted)
+      if (mounted) {
         setState(() {
           _trucks = trucks;
           _loadingTrucks = false;
         });
+      }
     } catch (_) {
       if (mounted) setState(() => _loadingTrucks = false);
     }

@@ -657,7 +657,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 80),
                     itemCount: _filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
                     itemBuilder: (_, i) => _UserTile(
                       user: _filtered[i],
                       onEdit: _filtered[i].isDeleted
@@ -980,18 +980,21 @@ class _UserDialogState extends State<_UserDialog> {
 
   String? _nameVal(String? v, String field) {
     if (v == null || v.trim().isEmpty) return '$field is required';
-    if (RegExp(r'[0-9]').hasMatch(v))
+    if (RegExp(r'[0-9]').hasMatch(v)) {
       return 'Numbers not allowed — letters and dots (.) only';
-    if (RegExp(r'[^a-zA-Z. ]').hasMatch(v))
+    }
+    if (RegExp(r'[^a-zA-Z. ]').hasMatch(v)) {
       return 'Only letters and dots (.) allowed';
+    }
     return null;
   }
 
   String? _miVal(String? v) {
     if (v == null || v.trim().isEmpty) return null;
     if (RegExp(r'[0-9]').hasMatch(v)) return 'Numbers not allowed';
-    if (RegExp(r'[^a-zA-Z.]').hasMatch(v))
+    if (RegExp(r'[^a-zA-Z.]').hasMatch(v)) {
       return 'Only a letter or letter + dot';
+    }
     if (v.trim().length > 2) return 'Max 2 characters (e.g. M or M.)';
     return null;
   }
@@ -1068,7 +1071,7 @@ class _UserDialogState extends State<_UserDialog> {
                 // ── Role ──
                 _lbl('Role'), const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
-                  value: _role,
+                  initialValue: _role,
                   decoration: const InputDecoration(isDense: true),
                   items: _roles
                       .map(
@@ -1215,8 +1218,9 @@ class _UserDialogState extends State<_UserDialog> {
                   ],
                   validator: (value) {
                     if (value == null || value.isEmpty) return null;
-                    if (value.trim().length < 10)
+                    if (value.trim().length < 10) {
                       return 'Enter a valid contact number';
+                    }
                     return null;
                   },
                 ),
@@ -1281,8 +1285,9 @@ class _UserDialogState extends State<_UserDialog> {
                     ),
                   ),
                   validator: (v) {
-                    if (!isEdit && (v == null || v.trim().isEmpty))
+                    if (!isEdit && (v == null || v.trim().isEmpty)) {
                       return 'Password is required';
+                    }
                     return null;
                   },
                 ),

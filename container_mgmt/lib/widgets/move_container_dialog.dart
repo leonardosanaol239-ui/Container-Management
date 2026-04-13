@@ -36,9 +36,10 @@ class _MoveContainerDialogState extends State<MoveContainerDialog> {
 
   String get _breadcrumb {
     String b = '${widget.portName} > Yard 1';
-    if (_selectedBlock != null)
+    if (_selectedBlock != null) {
       b +=
           ' > ${_selectedBlock!.blockDesc ?? "Block ${_selectedBlock!.blockNumber}"}';
+    }
     if (_selectedBay != null) b += ' > Bay ${_selectedBay!.bayNumber}';
     return b;
   }

@@ -457,7 +457,7 @@ class _YardCard extends StatelessWidget {
     if (isBlinking && blinkCtrl != null) {
       return AnimatedBuilder(
         animation: blinkCtrl!,
-        builder: (_, __) => Container(
+        builder: (_, _) => Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             boxShadow: [

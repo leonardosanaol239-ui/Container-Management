@@ -19,13 +19,14 @@ class UserModel {
   final String middleInitial;
   final String lastName;
   final String userCode;
-  final String role; // 'Admin' | 'Port Manager' | 'Driver'
-  final int userTypeId; // 1 | 2 | 3
+  final String role;
+  final int userTypeId;
   final String? password;
-  final String? contactNumber; // DB: ContactNo
-  final int? assignedPortId; // DB: PortId
-  final String? assignedPortName;
-  final int statusId; // 3=Active, 4=Inactive, 5=Deleted
+  final String? contactNumber;
+  // Multiple port support
+  final List<int> assignedPortIds;
+  final List<String> assignedPortNames;
+  final int statusId;
 
   UserModel({
     this.userId,
@@ -37,10 +38,16 @@ class UserModel {
     int? userTypeId,
     this.password,
     this.contactNumber,
-    this.assignedPortId,
-    this.assignedPortName,
+    this.assignedPortIds = const [],
+    this.assignedPortNames = const [],
     this.statusId = userStatusActive,
   }) : userTypeId = userTypeId ?? _roleToTypeId[role] ?? 3;
+
+  // Convenience getters for single-port backward compat
+  int? get assignedPortId =>
+      assignedPortIds.isNotEmpty ? assignedPortIds.first : null;
+  String? get assignedPortName =>
+      assignedPortNames.isNotEmpty ? assignedPortNames.first : null;
 
   String get name {
     final mi = middleInitial.trim();
@@ -54,14 +61,25 @@ class UserModel {
   bool get isInactive => statusId == userStatusInactive;
   bool get isDeleted => statusId == userStatusDeleted;
 
-  /// Handles both camelCase (Flutter convention) and PascalCase (.NET API responses)
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    int? _int(String camel, String pascal) =>
-        (json[camel] ?? json[pascal]) as int?;
-    String _str(String camel, String pascal) =>
-        ((json[camel] ?? json[pascal]) as String?) ?? '';
+    int? _int(String a, String b) => (json[a] ?? json[b]) as int?;
+    String _str(String a, String b) => ((json[a] ?? json[b]) as String?) ?? '';
 
     final typeId = _int('userTypeId', 'UserTypeId') ?? 3;
+
+    // Parse portIds list from API
+    final rawPortIds = json['portIds'] ?? json['PortIds'];
+    final List<int> portIds = rawPortIds is List
+        ? rawPortIds.whereType<int>().toList()
+        : (_int('portId', 'PortId') != null ? [_int('portId', 'PortId')!] : []);
+
+    final rawPortDescs = json['portDescs'] ?? json['PortDescs'];
+    final List<String> portDescs = rawPortDescs is List
+        ? rawPortDescs.whereType<String>().toList()
+        : (_str('portDesc', 'PortDesc').isNotEmpty
+              ? [_str('portDesc', 'PortDesc')]
+              : []);
+
     return UserModel(
       userId: _int('userId', 'UserId'),
       firstName: _str('firstName', 'FirstName'),
@@ -70,19 +88,15 @@ class UserModel {
       userCode: _str('userCode', 'UserCode'),
       role: _typeIdToRole[typeId] ?? 'Driver',
       userTypeId: typeId,
-      // password intentionally not read back
       contactNumber: _str('contactNo', 'ContactNo').isEmpty
           ? null
           : _str('contactNo', 'ContactNo'),
-      assignedPortId: _int('portId', 'PortId'),
-      assignedPortName: _str('portDesc', 'PortDesc').isEmpty
-          ? null
-          : _str('portDesc', 'PortDesc'),
+      assignedPortIds: portIds,
+      assignedPortNames: portDescs,
       statusId: _int('statusId', 'StatusId') ?? userStatusActive,
     );
   }
 
-  /// Payload sent to the API — exact field names expected by the backend DTO
   Map<String, dynamic> toJson() {
     final map = <String, dynamic>{
       'userCode': userCode,
@@ -95,9 +109,10 @@ class UserModel {
     };
     if (userId != null) map['userId'] = userId;
     if (password != null && password!.isNotEmpty) map['password'] = password;
-    // Only include portId for Port Managers and Drivers — never send null portId for Admin
-    if (role == 'Port Manager' || role == 'Driver')
-      map['portId'] = assignedPortId;
+    if (role == 'Port Manager' || role == 'Driver') {
+      map['portIds'] = assignedPortIds;
+      map['portId'] = assignedPortIds.isNotEmpty ? assignedPortIds.first : null;
+    }
     return map;
   }
 
@@ -111,8 +126,8 @@ class UserModel {
     int? userTypeId,
     String? password,
     String? contactNumber,
-    int? assignedPortId,
-    String? assignedPortName,
+    List<int>? assignedPortIds,
+    List<String>? assignedPortNames,
     int? statusId,
   }) => UserModel(
     userId: userId ?? this.userId,
@@ -124,8 +139,8 @@ class UserModel {
     userTypeId: userTypeId ?? this.userTypeId,
     password: password ?? this.password,
     contactNumber: contactNumber ?? this.contactNumber,
-    assignedPortId: assignedPortId ?? this.assignedPortId,
-    assignedPortName: assignedPortName ?? this.assignedPortName,
+    assignedPortIds: assignedPortIds ?? this.assignedPortIds,
+    assignedPortNames: assignedPortNames ?? this.assignedPortNames,
     statusId: statusId ?? this.statusId,
   );
 }

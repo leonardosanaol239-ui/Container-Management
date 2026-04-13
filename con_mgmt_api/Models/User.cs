@@ -36,8 +36,46 @@ public class User
 
     public DateTime DateCreated { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// Primary port (kept for backward compatibility)
+    /// </summary>
     public int? PortId { get; set; }
+
+    /// <summary>
+    /// Comma-separated list of assigned port IDs e.g. "1,3,7"
+    /// Used for Port Managers who can manage multiple ports.
+    /// </summary>
+    [MaxLength(500)]
+    [Column("PortIds")]
+    public string? PortIds { get; set; }
 
     [Required]
     public int StatusId { get; set; } = 3; // 3 = Active
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>Parses PortIds string into a list of ints.</summary>
+    [NotMapped]
+    public List<int> AssignedPortIds =>
+        string.IsNullOrWhiteSpace(PortIds)
+            ? (PortId.HasValue ? new List<int> { PortId.Value } : new List<int>())
+            : PortIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                     .Select(s => int.TryParse(s.Trim(), out var id) ? id : 0)
+                     .Where(id => id > 0)
+                     .ToList();
+
+    /// <summary>Sets PortIds from a list and keeps PortId in sync with the first entry.</summary>
+    public void SetPortIds(List<int> ids)
+    {
+        if (ids == null || ids.Count == 0)
+        {
+            PortIds = null;
+            PortId = null;
+        }
+        else
+        {
+            PortIds = string.Join(",", ids.Distinct());
+            PortId = ids[0]; // keep first for backward compat
+        }
+    }
 }

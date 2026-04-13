@@ -14,8 +14,7 @@ import '../models/user_model.dart';
 import '../models/session.dart';
 
 class ApiService {
-  // When running the API locally on this machine use 192.168.118.132:5000
-  static const String baseUrl = 'http://192.168.118.132:5000/api';
+  static const String baseUrl = 'http://localhost:5000/api';
 
   // ── Ports ────────────────────────────────────────────────
   Future<List<Port>> getPorts() async {
@@ -221,24 +220,33 @@ class ApiService {
     required String password,
     required int userTypeId,
   }) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/Auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'userCode': userCode.trim(),
-        'password': password,
-        'userTypeId': userTypeId,
-      }),
-    );
-    if (res.statusCode == 200) {
-      return Session.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
-    }
-    // Parse error message from API
     try {
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      throw Exception(body['message'] ?? 'Login failed.');
-    } catch (_) {
-      throw Exception('Login failed. Please try again.');
+      final res = await http.post(
+        Uri.parse('$baseUrl/Auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'userCode': userCode.trim(),
+          'password': password,
+          'userTypeId': userTypeId,
+        }),
+      );
+      if (res.statusCode == 200) {
+        return Session.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+      }
+      // Parse error message from API (401, 400, etc.)
+      try {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        throw Exception(body['message'] ?? 'Login failed.');
+      } catch (inner) {
+        if (inner is Exception) rethrow;
+        throw Exception('Login failed (${res.statusCode}).');
+      }
+    } on Exception {
+      rethrow;
+    } catch (e) {
+      throw Exception(
+        'Could not reach the server. Please check your connection.',
+      );
     }
   }
 

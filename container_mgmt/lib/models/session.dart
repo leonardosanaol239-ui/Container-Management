@@ -3,10 +3,11 @@ class Session {
   final int userId;
   final String userCode;
   final String fullName;
-  final String role; // 'Admin' | 'Port Manager' | 'Driver'
-  final int userTypeId; // 1 | 2 | 3
+  final String role; // 'Admin' | 'Port Manager' | 'Driver' | 'Customer'
+  final int userTypeId; // 1 | 2 | 3 | 4
   final int? portId;
   final String? portDesc;
+  final int? customerId; // populated when userTypeId == 4
 
   const Session({
     required this.userId,
@@ -16,11 +17,13 @@ class Session {
     required this.userTypeId,
     this.portId,
     this.portDesc,
+    this.customerId,
   });
 
   bool get isAdmin => userTypeId == 1;
   bool get isPortManager => userTypeId == 2;
   bool get isDriver => userTypeId == 3;
+  bool get isCustomer => userTypeId == 4;
 
   factory Session.fromJson(Map<String, dynamic> json) => Session(
     userId: json['userId'] as int,
@@ -30,5 +33,6 @@ class Session {
     userTypeId: json['userTypeId'] as int,
     portId: json['portId'] as int?,
     portDesc: json['portDesc'] as String?,
+    customerId: json['customerId'] as int?,
   );
 }

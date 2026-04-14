@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'dashboard_screen.dart';
+import 'customer_dashboard_screen.dart';
 
 const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer'];
 const _roleTypeIds = {
@@ -48,11 +49,21 @@ class _LoginScreenState extends State<LoginScreen> {
         userTypeId: _roleTypeIds[_role]!,
       );
       if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => DashboardScreen(session: session)),
-        (_) => false,
-      );
+      if (session.isCustomer) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CustomerDashboardScreen(session: session),
+          ),
+          (_) => false,
+        );
+      } else {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => DashboardScreen(session: session)),
+          (_) => false,
+        );
+      }
     } catch (e) {
       setState(() {
         _loading = false;

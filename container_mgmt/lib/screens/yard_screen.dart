@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import '../services/api_service.dart';
 import '../models/yard.dart';
 import '../models/block.dart';
@@ -112,12 +113,20 @@ class _YardScreenState extends State<YardScreen>
       final customers = results[6] as List<CustomerModel>;
       final Map<int, List<Bay>> baysByBlock = {};
       final Map<int, List<RowModel>> rowsByBay = {};
-      for (final block in blocks) {
-        final bays = await _api.getBays(block.blockId);
-        baysByBlock[block.blockId] = bays;
-        for (final bay in bays) {
-          rowsByBay[bay.bayId] = await _api.getRows(bay.bayId);
-        }
+      // Fetch all bays in parallel
+      final bayResults = await Future.wait(
+        blocks.map((block) => _api.getBays(block.blockId)),
+      );
+      for (int i = 0; i < blocks.length; i++) {
+        baysByBlock[blocks[i].blockId] = bayResults[i];
+      }
+      // Fetch all rows in parallel across all bays
+      final allBays = bayResults.expand((b) => b).toList();
+      final rowResults = await Future.wait(
+        allBays.map((bay) => _api.getRows(bay.bayId)),
+      );
+      for (int i = 0; i < allBays.length; i++) {
+        rowsByBay[allBays[i].bayId] = rowResults[i];
       }
       final Map<int, List<ContainerModel>> byRow = {};
       for (final c in containers) {
@@ -520,110 +529,112 @@ class _YardScreenState extends State<YardScreen>
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
         ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              key: _yardKey,
+      body: Stack(
+        key: _yardKey,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
+                DragTarget<ContainerModel>(
+                  onWillAcceptWithDetails: (d) => d.data.yardId != null,
+                  onAcceptWithDetails: (d) => _returnToHolding(d.data),
+                  builder: (ctx, candidates, _) => Container(
+                    decoration: candidates.isNotEmpty
+                        ? BoxDecoration(
+                            border: Border.all(color: Colors.blue, width: 4),
+                            borderRadius: BorderRadius.circular(12),
+                          )
+                        : null,
+                    child: ContainerHoldingArea(
+                      portId: widget.portId,
+                      containers: _containers,
+                      onRefresh: _loadAll,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      DragTarget<ContainerModel>(
-                        onWillAcceptWithDetails: (d) => d.data.yardId != null,
-                        onAcceptWithDetails: (d) => _returnToHolding(d.data),
-                        builder: (ctx, candidates, _) => Container(
-                          decoration: candidates.isNotEmpty
-                              ? BoxDecoration(
-                                  border: Border.all(
-                                    color: Colors.blue,
-                                    width: 4,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                )
-                              : null,
-                          child: ContainerHoldingArea(
-                            portId: widget.portId,
-                            containers: _containers,
-                            onRefresh: _loadAll,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildToolbar(),
-                            const SizedBox(height: 8),
-                            Expanded(child: _buildCanvas()),
-                          ],
-                        ),
-                      ),
+                      _buildToolbar(),
+                      const SizedBox(height: 8),
+                      Expanded(child: _buildCanvas()),
                     ],
                   ),
                 ),
-                if (_tierPopupRowId != null && _tierPopupPosition != null)
-                  Positioned(
-                    left: _tierPopupPosition!.dx,
-                    top: _tierPopupPosition!.dy,
-                    child: _TierPopup(
-                      containers: _containersByRow[_tierPopupRowId!] ?? [],
-                      onClose: _closeTierPopup,
-                    ),
-                  ),
-                if (_foundContainer != null)
-                  Positioned(
-                    top: 44,
-                    right: 0,
-                    child: _buildSearchResultCard(),
-                  ),
-                if (_showMoveOutList && _movedOutContainers.isNotEmpty)
-                  Positioned(
-                    left: 220,
-                    top: 56,
-                    child: Material(
-                      elevation: 8,
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        width: 240,
-                        constraints: const BoxConstraints(maxHeight: 300),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red),
-                        ),
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          itemCount: _movedOutContainers.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (ctx, i) {
-                            final c = _movedOutContainers[i];
-                            return ListTile(
-                              dense: true,
-                              title: Text(
-                                c.containerNumber,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              subtitle: Text(
-                                c.boundTo != null
-                                    ? 'Bound to: ${c.boundTo}'
-                                    : '',
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
               ],
             ),
+          ),
+          if (_tierPopupRowId != null && _tierPopupPosition != null)
+            Positioned(
+              left: _tierPopupPosition!.dx,
+              top: _tierPopupPosition!.dy,
+              child: _TierPopup(
+                containers: _containersByRow[_tierPopupRowId!] ?? [],
+                onClose: _closeTierPopup,
+              ),
+            ),
+          if (_foundContainer != null)
+            Positioned(top: 44, right: 0, child: _buildSearchResultCard()),
+          if (_showMoveOutList && _movedOutContainers.isNotEmpty)
+            Positioned(
+              left: 220,
+              top: 56,
+              child: Material(
+                elevation: 8,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 240,
+                  constraints: const BoxConstraints(maxHeight: 300),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red),
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: _movedOutContainers.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (ctx, i) {
+                      final c = _movedOutContainers[i];
+                      return ListTile(
+                        dense: true,
+                        title: Text(
+                          c.containerNumber,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        subtitle: Text(
+                          c.boundTo != null ? 'Bound to: ${c.boundTo}' : '',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          // Semi-transparent loading overlay
+          if (_loading)
+            Positioned.fill(
+              child: Container(
+                color: Colors.white.withOpacity(0.45),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.yellow,
+                    strokeWidth: 3,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1154,49 +1165,104 @@ class _YardScreenState extends State<YardScreen>
         final cw = yardW * _scale;
         final ch = yardH * _scale;
         // Fixed frame — InteractiveViewer zooms/pans only inside it
-        return Container(
-          width: availW,
-          height: availH,
-          decoration: BoxDecoration(
-            color: Colors.grey[200],
-            border: Border.all(color: Colors.grey.shade400, width: 1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          clipBehavior: Clip.hardEdge,
-          child: InteractiveViewer(
-            minScale: 0.3,
-            maxScale: 6.0,
-            panEnabled: true,
-            constrained: false,
-            boundaryMargin: EdgeInsets.symmetric(
-              horizontal: availW * 0.4,
-              vertical: availH * 0.4,
-            ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: cw,
-                  height: ch,
-                  decoration: BoxDecoration(
-                    color: _yard.imagePath != null ? null : Colors.grey[300],
-                    border: Border.all(color: Colors.grey, width: 1),
-                    borderRadius: BorderRadius.circular(8),
-                    image: _yard.imagePath != null
-                        ? DecorationImage(
-                            image: NetworkImage(
-                              '${ApiService.baseUrl.replaceAll('/api', '')}${_yard.imagePath}',
-                            ),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: CustomPaint(painter: _YardGridPainter()),
+        return Stack(
+          children: [
+            Container(
+              width: availW,
+              height: availH,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                border: Border.all(color: Colors.grey.shade400, width: 1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              clipBehavior: Clip.hardEdge,
+              child: InteractiveViewer(
+                minScale: 0.3,
+                maxScale: 6.0,
+                panEnabled: true,
+                constrained: false,
+                boundaryMargin: EdgeInsets.symmetric(
+                  horizontal: availW * 0.4,
+                  vertical: availH * 0.4,
                 ),
-                ..._blocks.map((b) => _buildPositionedBlock(b)),
-              ],
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: cw,
+                      height: ch,
+                      decoration: BoxDecoration(
+                        color: _yard.imagePath != null
+                            ? null
+                            : Colors.grey[300],
+                        border: Border.all(color: Colors.grey, width: 1),
+                        borderRadius: BorderRadius.circular(8),
+                        image: _yard.imagePath != null
+                            ? DecorationImage(
+                                image: NetworkImage(
+                                  '${ApiService.baseUrl.replaceAll('/api', '')}${_yard.imagePath}',
+                                ),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: CustomPaint(painter: _YardGridPainter()),
+                    ),
+                    ..._blocks.map((b) => _buildPositionedBlock(b)),
+                  ],
+                ),
+              ),
             ),
-          ),
+            // View Full button overlay
+            Positioned(
+              top: 8,
+              left: 8,
+              child: GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => _FullScreenYardView(
+                      yard: _yard,
+                      blocks: _blocks,
+                      baysByBlock: _baysByBlock,
+                      rowsByBay: _rowsByBay,
+                      containersByRow: _containersByRow,
+                      blockOffsets: Map.from(_blockOffsets),
+                      blockRotations: Map.from(_blockRotations),
+                      scale: _scale,
+                      portName: widget.portName,
+                      customers: _customers,
+                    ),
+                  ),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.55),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.fullscreen, color: Colors.white, size: 14),
+                      SizedBox(width: 4),
+                      Text(
+                        'View Full',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -3076,4 +3142,650 @@ class _TransferDialogState extends State<_TransferDialog> {
         .toList(),
     onChanged: onChanged,
   );
+}
+
+// -- Full Screen Yard View ----------------------------------------------------
+
+class _FullScreenYardView extends StatefulWidget {
+  final Yard yard;
+  final List<Block> blocks;
+  final Map<int, List<Bay>> baysByBlock;
+  final Map<int, List<RowModel>> rowsByBay;
+  final Map<int, List<ContainerModel>> containersByRow;
+  final Map<int, Offset> blockOffsets;
+  final Map<int, double> blockRotations;
+  final double scale;
+  final String portName;
+  final List<CustomerModel> customers;
+
+  const _FullScreenYardView({
+    required this.yard,
+    required this.blocks,
+    required this.baysByBlock,
+    required this.rowsByBay,
+    required this.containersByRow,
+    required this.blockOffsets,
+    required this.blockRotations,
+    required this.scale,
+    required this.portName,
+    required this.customers,
+  });
+
+  @override
+  State<_FullScreenYardView> createState() => _FullScreenYardViewState();
+}
+
+class _FullScreenYardViewState extends State<_FullScreenYardView>
+    with SingleTickerProviderStateMixin {
+  late double _scale;
+  late AnimationController _blinkCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _scale = widget.scale;
+    _blinkCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+  }
+
+  @override
+  void dispose() {
+    _blinkCtrl.dispose();
+    super.dispose();
+  }
+
+  void _showContainersList() {
+    final allContainers =
+        widget.containersByRow.values
+            .expand((list) => list)
+            .where((c) => !c.isMovedOut)
+            .toList()
+          ..sort((a, b) => a.containerNumber.compareTo(b.containerNumber));
+
+    // Build flat lookup maps
+    final Map<int, Block> blocksById = {
+      for (final b in widget.blocks) b.blockId: b,
+    };
+    final Map<int, Bay> baysById = {
+      for (final list in widget.baysByBlock.values)
+        for (final bay in list) bay.bayId: bay,
+    };
+    final Map<int, RowModel> rowsById = {
+      for (final list in widget.rowsByBay.values)
+        for (final row in list) row.rowId: row,
+    };
+
+    showDialog(
+      context: context,
+      builder: (_) => _YardContainersDialog(
+        containers: allContainers,
+        yard: widget.yard,
+        portName: widget.portName,
+        blocksById: blocksById,
+        baysById: baysById,
+        rowsById: rowsById,
+        customers: widget.customers,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final yardW = (widget.yard.yardWidth ?? 300).toDouble();
+    final yardH = (widget.yard.yardHeight ?? 170).toDouble();
+
+    return Scaffold(
+      backgroundColor: Colors.grey[200],
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: Text(
+          '${widget.portName}  >  Yard ${widget.yard.yardNumber}  —  Full View',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: _showContainersList,
+            icon: const Icon(Icons.list_alt, size: 16, color: AppColors.green),
+            label: const Text(
+              'Containers List',
+              style: TextStyle(
+                color: AppColors.green,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Chip(
+              label: const Text(
+                'View Only',
+                style: TextStyle(fontSize: 11, color: Colors.white),
+              ),
+              backgroundColor: AppColors.green,
+              padding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      ),
+      body: LayoutBuilder(
+        builder: (ctx, constraints) {
+          final availW = constraints.maxWidth;
+          final availH = constraints.maxHeight;
+          final fitScale = (availW / yardW) < (availH / yardH)
+              ? (availW / yardW)
+              : (availH / yardH);
+          if (_scale == widget.scale) _scale = fitScale;
+          final cw = yardW * _scale;
+          final ch = yardH * _scale;
+
+          return InteractiveViewer(
+            minScale: 0.2,
+            maxScale: 8.0,
+            panEnabled: true,
+            constrained: false,
+            boundaryMargin: EdgeInsets.symmetric(
+              horizontal: availW * 0.5,
+              vertical: availH * 0.5,
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: cw,
+                  height: ch,
+                  decoration: BoxDecoration(
+                    color: widget.yard.imagePath != null
+                        ? null
+                        : Colors.grey[300],
+                    border: Border.all(color: Colors.grey, width: 1),
+                    borderRadius: BorderRadius.circular(8),
+                    image: widget.yard.imagePath != null
+                        ? DecorationImage(
+                            image: NetworkImage(
+                              '${ApiService.baseUrl.replaceAll('/api', '')}${widget.yard.imagePath}',
+                            ),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  child: CustomPaint(painter: _YardGridPainter()),
+                ),
+                ...widget.blocks.map((b) {
+                  final offsetFt =
+                      widget.blockOffsets[b.blockId] ??
+                      Offset(
+                        (b.posX ?? 10).toDouble(),
+                        (b.posY ?? 10).toDouble(),
+                      );
+                  final offset = Offset(
+                    offsetFt.dx * _scale,
+                    offsetFt.dy * _scale,
+                  );
+                  final rotation =
+                      widget.blockRotations[b.blockId] ?? b.rotation;
+
+                  return Positioned(
+                    left: offset.dx,
+                    top: offset.dy,
+                    child: Transform.rotate(
+                      angle: rotation,
+                      child: _BlockWidget(
+                        block: b,
+                        baysByBlock: widget.baysByBlock,
+                        rowsByBay: widget.rowsByBay,
+                        containersByRow: widget.containersByRow,
+                        highlightedRowId: null,
+                        blinkCtrl: _blinkCtrl,
+                        editMode: false,
+                        selectedRowId: null,
+                        scaleX: _scale,
+                        scaleY: _scale,
+                        onSlotTap: null,
+                        onSlotDrop: null,
+                        onSelectRow: null,
+                        onAddBay: null,
+                        onRemoveBay: null,
+                        onDeleteBlock: null,
+                        rotateHandle: null,
+                        onAddRow: null,
+                        onRemoveRow: null,
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// -- Yard Containers List Dialog ----------------------------------------------
+
+class _YardContainersDialog extends StatefulWidget {
+  final List<ContainerModel> containers;
+  final Yard yard;
+  final String portName;
+  final Map<int, Block> blocksById;
+  final Map<int, Bay> baysById;
+  final Map<int, RowModel> rowsById;
+  final List<CustomerModel> customers;
+
+  const _YardContainersDialog({
+    required this.containers,
+    required this.yard,
+    required this.portName,
+    required this.blocksById,
+    required this.baysById,
+    required this.rowsById,
+    required this.customers,
+  });
+
+  @override
+  State<_YardContainersDialog> createState() => _YardContainersDialogState();
+}
+
+class _YardContainersDialogState extends State<_YardContainersDialog>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabCtrl;
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: 4, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<ContainerModel> get _filtered {
+    if (_searchQuery.isEmpty) return widget.containers;
+    final q = _searchQuery.toLowerCase();
+    return widget.containers
+        .where((c) => c.containerNumber.toLowerCase().contains(q))
+        .toList();
+  }
+
+  void _showDetails(BuildContext context, ContainerModel c) {
+    final block = c.blockId != null ? widget.blocksById[c.blockId] : null;
+    final blockLabel =
+        block?.blockName ??
+        (block != null ? 'Block ${block.blockNumber}' : '-');
+    final bay = c.bayId != null ? widget.baysById[c.bayId] : null;
+    final bayLabel = bay?.bayNumber ?? '-';
+    final row = c.rowId != null ? widget.rowsById[c.rowId] : null;
+    final rowLabel = row != null ? '${row.rowNumber}' : '-';
+    final tierLabel = c.tier != null ? '${c.tier}' : '-';
+    final typeLabel = c.containerSizeId == 1
+        ? '20ft'
+        : c.containerSizeId == 2
+        ? '40ft'
+        : (c.type ?? '-');
+    final statusLabel = c.statusId == 1 ? 'Laden' : 'Empty';
+    final statusColor = c.statusId == 1
+        ? Colors.amber.shade700
+        : Colors.red.shade600;
+    final customer = c.customerId != null
+        ? widget.customers
+              .where((cu) => cu.customerId == c.customerId)
+              .firstOrNull
+        : null;
+
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 48, vertical: 80),
+        child: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1E1E2E),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'CONTAINER DETAILS',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.amber,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              c.containerNumber,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.redAccent,
+                        size: 20,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _sectionLabel('GENERAL'),
+                    _detailRow('Customer:', customer?.fullName ?? '-'),
+                    _detailRow('Status:', statusLabel, valueColor: statusColor),
+                    _detailRow('Dwell Time:', '-'),
+                    _detailRow('Date Moved in Yard:', '-'),
+                    _detailRow('Days Until Due:', '-'),
+                    _detailRow('Container Type:', typeLabel),
+                    if (c.containerDesc != null && c.containerDesc!.isNotEmpty)
+                      _detailRow('Description:', c.containerDesc!),
+                    const SizedBox(height: 12),
+                    _sectionLabel('LOCATION'),
+                    _detailRow('Port:', widget.portName),
+                    _detailRow('Yard:', 'Yard ${widget.yard.yardNumber}'),
+                    _detailRow('Block:', blockLabel),
+                    _detailRow('Bay:', bayLabel),
+                    _detailRow('Row:', rowLabel),
+                    _detailRow('Tier:', tierLabel),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String title) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(
+      title,
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.bold,
+        color: Colors.grey.shade500,
+        letterSpacing: 1,
+      ),
+    ),
+  );
+
+  Widget _detailRow(String label, String value, {Color? valueColor}) => Padding(
+    padding: const EdgeInsets.only(bottom: 5),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 140,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textDark,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              color: valueColor ?? Colors.grey.shade700,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final containers = _filtered;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
+      child: SizedBox(
+        width: 520,
+        height: 560,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 16, 0),
+              child: Row(
+                children: [
+                  const Text(
+                    'Containers in Yard',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: AppColors.textDark,
+                    ),
+                  ),
+                  const Spacer(),
+                  SizedBox(
+                    width: 180,
+                    child: TextField(
+                      controller: _searchCtrl,
+                      onChanged: (v) => setState(() => _searchQuery = v),
+                      decoration: InputDecoration(
+                        hintText: 'Search container...',
+                        hintStyle: const TextStyle(fontSize: 12),
+                        isDense: true,
+                        prefixIcon: const Icon(Icons.search, size: 16),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 14),
+                                onPressed: () {
+                                  _searchCtrl.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                            : null,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.close, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            TabBar(
+              controller: _tabCtrl,
+              labelColor: AppColors.green,
+              unselectedLabelColor: Colors.grey,
+              indicatorColor: AppColors.green,
+              indicatorWeight: 2,
+              labelStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+              tabs: const [
+                Tab(text: 'All'),
+                Tab(text: 'Undertime'),
+                Tab(text: 'Due'),
+                Tab(text: 'Overdue'),
+              ],
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: TabBarView(
+                controller: _tabCtrl,
+                children: [
+                  containers.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No containers in yard',
+                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: containers.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (ctx, i) => _YardContainerTile(
+                            c: containers[i],
+                            onTap: () => _showDetails(ctx, containers[i]),
+                          ),
+                        ),
+                  const Center(
+                    child: Text(
+                      'Undertime',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ),
+                  const Center(
+                    child: Text(
+                      'Due',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ),
+                  const Center(
+                    child: Text(
+                      'Overdue',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _YardContainerTile extends StatelessWidget {
+  final ContainerModel c;
+  final VoidCallback onTap;
+  const _YardContainerTile({required this.c, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = c.statusId == 1
+        ? Colors.amber.shade700
+        : Colors.red.shade600;
+    final statusLabel = c.statusId == 1 ? 'Laden' : 'Empty';
+    final typeLabel = c.containerSizeId == 1
+        ? '20ft'
+        : c.containerSizeId == 2
+        ? '40ft'
+        : (c.type ?? '-');
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: statusColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    c.containerNumber,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  if (c.containerDesc != null && c.containerDesc!.isNotEmpty)
+                    Text(
+                      c.containerDesc!,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              typeLabel,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                statusLabel,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: statusColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

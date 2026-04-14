@@ -6,6 +6,7 @@ import '../models/bay.dart';
 import '../models/row_model.dart';
 import '../models/container_model.dart';
 import '../models/size_model.dart';
+import '../models/customer_model.dart';
 import '../models/orientation_model.dart';
 import '../models/truck.dart';
 import '../widgets/container_holding_area.dart';
@@ -42,6 +43,7 @@ class _YardScreenState extends State<YardScreen>
   List<ContainerModel> _containers = [];
   List<ContainerModel> _movedOutContainers = [];
   List<SizeModel> _sizes = [];
+  List<CustomerModel> _customers = [];
   List<OrientationModel> _orientations = [];
   bool _loading = true;
   bool _editMode = false;
@@ -99,6 +101,7 @@ class _YardScreenState extends State<YardScreen>
         _api.getSizes(),
         _api.getOrientations(),
         _api.getYardById(widget.yard.yardId),
+        _api.getCustomers(),
       ]);
       final blocks = results[0] as List<Block>;
       final containers = results[1] as List<ContainerModel>;
@@ -106,6 +109,7 @@ class _YardScreenState extends State<YardScreen>
       final sizes = results[3] as List<SizeModel>;
       final orientations = results[4] as List<OrientationModel>;
       final freshYard = results[5] as Yard?;
+      final customers = results[6] as List<CustomerModel>;
       final Map<int, List<Bay>> baysByBlock = {};
       final Map<int, List<RowModel>> rowsByBay = {};
       for (final block in blocks) {
@@ -135,6 +139,7 @@ class _YardScreenState extends State<YardScreen>
         _movedOutContainers = movedOut;
         _sizes = sizes;
         _orientations = orientations;
+        _customers = customers;
         _loading = false;
         // Always sync offsets from DB so saved positions are reflected
         for (final b in blocks) {
@@ -1011,6 +1016,10 @@ class _YardScreenState extends State<YardScreen>
   );
 
   void _showContainerDetailsDialog(ContainerModel c) {
+    // Resolve customer name
+    final customer = c.customerId != null
+        ? _customers.where((cu) => cu.customerId == c.customerId).firstOrNull
+        : null;
     showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -1067,6 +1076,8 @@ class _YardScreenState extends State<YardScreen>
                   c.statusId == 1 ? 'Laden' : 'Empty',
                 ),
                 _detailRow('Type:', c.type ?? '-'),
+                if (customer != null)
+                  _detailRow('Customer:', customer.fullName),
                 const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,

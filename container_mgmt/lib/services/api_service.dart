@@ -12,6 +12,7 @@ import '../models/orientation_model.dart';
 import '../models/truck.dart';
 import '../models/user_model.dart';
 import '../models/session.dart';
+import '../models/customer_model.dart';
 
 class ApiService {
   static const String baseUrl = 'http://localhost:5000/api';
@@ -124,6 +125,7 @@ class ApiService {
     required int containerSizeId,
     required String desc,
     required int portId,
+    int? customerId,
   }) async {
     final res = await http.post(
       Uri.parse('$baseUrl/Containers'),
@@ -134,6 +136,7 @@ class ApiService {
         'containerSizeId': containerSizeId,
         'containerDesc': desc,
         'currentPortId': portId,
+        if (customerId != null) 'customerId': customerId,
       }),
     );
     _check(res);
@@ -248,6 +251,15 @@ class ApiService {
         'Could not reach the server. Please check your connection.',
       );
     }
+  }
+
+  // ── Customers ────────────────────────────────────────────
+  Future<List<CustomerModel>> getCustomers() async {
+    final res = await http.get(Uri.parse('$baseUrl/Customers'));
+    _check(res);
+    return (jsonDecode(res.body) as List)
+        .map((e) => CustomerModel.fromJson(e))
+        .toList();
   }
 
   // ── Users ────────────────────────────────────────────────

@@ -53,6 +53,7 @@ public class ContainerService : IContainerService
             ContainerDesc = createDto.ContainerDesc,
             CurrentPortId = createDto.CurrentPortId,
             ContainerSizeId = createDto.ContainerSizeId,
+            CustomerId      = createDto.CustomerId,
             CreatedDate = DateTime.UtcNow
         };
 

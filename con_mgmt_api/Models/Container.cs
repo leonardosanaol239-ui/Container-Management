@@ -42,6 +42,8 @@ public class Container
     // Container physical size (references Sizes table)
     public int? ContainerSizeId { get; set; }
 
+    public int? CustomerId { get; set; }
+
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
 
     // Navigation properties removed to prevent circular references

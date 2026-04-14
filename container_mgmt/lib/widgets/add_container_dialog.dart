@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../models/customer_model.dart';
 import '../theme/app_theme.dart';
 
 class AddContainerDialog extends StatefulWidget {
@@ -13,14 +14,48 @@ class AddContainerDialog extends StatefulWidget {
 class _AddContainerDialogState extends State<AddContainerDialog> {
   final _api = ApiService();
   final _descCtrl = TextEditingController();
-  int _statusId = 2; // default Empty
-  int _sizeId = 1; // default 20ft
+  final _customerCtrl = TextEditingController();
+  int _statusId = 2;
+  int _sizeId = 1;
   bool _loading = false;
   String? _error;
+  List<CustomerModel> _customers = [];
+  List<CustomerModel> _filtered = [];
+  CustomerModel? _selectedCustomer;
+  bool _showDropdown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomers();
+  }
+
+  Future<void> _loadCustomers() async {
+    try {
+      final list = await _api.getCustomers();
+      setState(() => _customers = list);
+    } catch (_) {}
+  }
+
+  void _onCustomerSearch(String q) {
+    setState(() {
+      _selectedCustomer = null;
+      if (q.isEmpty) {
+        _filtered = [];
+        _showDropdown = false;
+      } else {
+        _filtered = _customers
+            .where((c) => c.fullName.toLowerCase().contains(q.toLowerCase()))
+            .toList();
+        _showDropdown = _filtered.isNotEmpty;
+      }
+    });
+  }
 
   @override
   void dispose() {
     _descCtrl.dispose();
+    _customerCtrl.dispose();
     super.dispose();
   }
 
@@ -35,6 +70,7 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
         containerSizeId: _sizeId,
         desc: _descCtrl.text.trim(),
         portId: widget.portId,
+        customerId: _selectedCustomer?.customerId,
       );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -182,6 +218,89 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
                         color: AppColors.green,
                         onTap: () => setState(() => _sizeId = 2),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  _FieldLabel(
+                    icon: Icons.person_rounded,
+                    label: 'Customer (Optional)',
+                  ),
+                  const SizedBox(height: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: _customerCtrl,
+                        onChanged: _onCustomerSearch,
+                        onTap: () {
+                          if (_customers.isNotEmpty &&
+                              _customerCtrl.text.isEmpty) {
+                            setState(() {
+                              _filtered = _customers;
+                              _showDropdown = true;
+                            });
+                          }
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search customer name…',
+                          hintStyle: const TextStyle(
+                            color: AppColors.textGrey,
+                            fontSize: 13,
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: AppColors.green,
+                            size: 18,
+                          ),
+                          suffixIcon: _selectedCustomer != null
+                              ? IconButton(
+                                  icon: const Icon(Icons.close, size: 16),
+                                  onPressed: () => setState(() {
+                                    _selectedCustomer = null;
+                                    _customerCtrl.clear();
+                                    _showDropdown = false;
+                                  }),
+                                )
+                              : null,
+                        ),
+                      ),
+                      if (_showDropdown)
+                        Container(
+                          constraints: const BoxConstraints(maxHeight: 160),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            border: Border.all(color: AppColors.yellow),
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black12, blurRadius: 6),
+                            ],
+                          ),
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: _filtered.length,
+                            itemBuilder: (_, i) {
+                              final c = _filtered[i];
+                              return ListTile(
+                                dense: true,
+                                title: Text(
+                                  c.fullName,
+                                  style: const TextStyle(fontSize: 13),
+                                ),
+                                subtitle: c.contactNo != null
+                                    ? Text(
+                                        c.contactNo!,
+                                        style: const TextStyle(fontSize: 11),
+                                      )
+                                    : null,
+                                onTap: () => setState(() {
+                                  _selectedCustomer = c;
+                                  _customerCtrl.text = c.fullName;
+                                  _showDropdown = false;
+                                }),
+                              );
+                            },
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 18),

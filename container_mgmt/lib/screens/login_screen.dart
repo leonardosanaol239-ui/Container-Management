@@ -3,8 +3,13 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'dashboard_screen.dart';
 
-const _roles = ['Admin', 'Port Manager', 'Driver'];
-const _roleTypeIds = {'Admin': 1, 'Port Manager': 2, 'Driver': 3};
+const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer'];
+const _roleTypeIds = {
+  'Admin': 1,
+  'Port Manager': 2,
+  'Driver': 3,
+  'Customer': 4,
+};
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,13 +24,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   String _role = 'Admin';
   bool _obscure = true;
-<<<<<<< HEAD
-
-  static const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer'];
-=======
   bool _loading = false;
   String _errorMsg = '';
->>>>>>> 7d31656b22aeaf1fc49f4c682726038012b198a1
 
   @override
   void dispose() {
@@ -138,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 6),
                             DropdownButtonFormField<String>(
-                              value: _role,
+                              initialValue: _role,
                               decoration: const InputDecoration(isDense: true),
                               items: _roles
                                   .map(

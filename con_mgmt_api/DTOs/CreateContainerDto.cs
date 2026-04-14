@@ -15,4 +15,5 @@ public class CreateContainerDto
     public int CurrentPortId { get; set; }
 
     public int? ContainerSizeId { get; set; }
+    public int? CustomerId { get; set; }
 }

@@ -15,6 +15,7 @@ class ContainerModel {
   final String? boundTo;
   final String createdDate;
   final int? containerSizeId;
+  final int? customerId;
 
   ContainerModel({
     required this.containerId,
@@ -33,6 +34,7 @@ class ContainerModel {
     this.boundTo,
     required this.createdDate,
     this.containerSizeId,
+    this.customerId,
   });
 
   bool get isInYard => yardId != null;
@@ -55,5 +57,6 @@ class ContainerModel {
     boundTo: json['boundTo'],
     createdDate: json['createdDate'],
     containerSizeId: json['containerSizeId'],
+    customerId: json['customerId'],
   );
 }

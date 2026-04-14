@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/container_model.dart';
+import '../models/customer_model.dart';
 import '../models/truck.dart';
 import '../models/block.dart';
 import '../models/bay.dart';
@@ -22,6 +23,7 @@ class _Yard1ScreenState extends State<Yard1Screen> {
   final _api = ApiService();
   List<ContainerModel> _containers = [];
   List<Block> _blocks = [];
+  List<CustomerModel> _customers = [];
   Map<int, List<ContainerModel>> _containersByRow = {};
   Map<int, List<Bay>> _baysByBlock = {};
   Map<int, List<RowModel>> _rowsByBay = {};
@@ -84,6 +86,7 @@ class _Yard1ScreenState extends State<Yard1Screen> {
         list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
       }
       final movedOut = await _api.getMovedOutContainers(widget.portId);
+      final customers = await _api.getCustomers();
       setState(() {
         _containers = containers;
         _blocks = blocks;
@@ -91,6 +94,7 @@ class _Yard1ScreenState extends State<Yard1Screen> {
         _rowsByBay = rowsByBay;
         _containersByRow = byRow;
         _movedOutContainers = movedOut;
+        _customers = customers;
         _loading = false;
       });
     } catch (_) {
@@ -364,6 +368,7 @@ class _Yard1ScreenState extends State<Yard1Screen> {
                                         baysByBlock: _baysByBlock,
                                         rowsByBay: _rowsByBay,
                                         onClose: _clearSearch,
+                                        customers: _customers,
                                       ),
                                     ),
                                 ],
@@ -431,6 +436,7 @@ class _Yard1ScreenState extends State<Yard1Screen> {
                     child: _InlineTierPopup(
                       containers: _containersByRow[_tierPopupRowId!] ?? [],
                       onClose: _closeTierPopup,
+                      customers: _customers,
                     ),
                   ),
 
@@ -913,8 +919,13 @@ class _SlotDropArea extends StatelessWidget {
 class _InlineTierPopup extends StatefulWidget {
   final List<ContainerModel> containers;
   final VoidCallback onClose;
+  final List<CustomerModel> customers;
 
-  const _InlineTierPopup({required this.containers, required this.onClose});
+  const _InlineTierPopup({
+    required this.containers,
+    required this.onClose,
+    this.customers = const [],
+  });
 
   @override
   State<_InlineTierPopup> createState() => _InlineTierPopupState();
@@ -922,6 +933,21 @@ class _InlineTierPopup extends StatefulWidget {
 
 class _InlineTierPopupState extends State<_InlineTierPopup> {
   ContainerModel? _selectedContainer;
+  List<CustomerModel> _localCustomers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _localCustomers = widget.customers;
+    if (_localCustomers.isEmpty) _fetchCustomers();
+  }
+
+  Future<void> _fetchCustomers() async {
+    try {
+      final list = await ApiService().getCustomers();
+      if (mounted) setState(() => _localCustomers = list);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1056,6 +1082,17 @@ class _InlineTierPopupState extends State<_InlineTierPopup> {
         _detailRow('Status:', isLaden ? 'Laden' : 'Empty'),
         _detailRow('Type:', c.type ?? '-'),
         _detailRow('Tier:', '${c.tier ?? '-'}'),
+        if (c.customerId != null)
+          Builder(
+            builder: (_) {
+              final cu = _localCustomers
+                  .where((x) => x.customerId == c.customerId)
+                  .firstOrNull;
+              return cu != null
+                  ? _detailRow('Customer:', cu.fullName)
+                  : const SizedBox.shrink();
+            },
+          ),
         const SizedBox(height: 6),
         const Text(
           'Description:',
@@ -1111,7 +1148,10 @@ class _SearchResultPopup extends StatelessWidget {
     required this.baysByBlock,
     required this.rowsByBay,
     required this.onClose,
+    this.customers = const [],
   });
+
+  final List<CustomerModel> customers;
 
   String _blockName() {
     final b = blocks.firstWhere(
@@ -1184,7 +1224,19 @@ class _SearchResultPopup extends StatelessWidget {
             child: ElevatedButton(
               onPressed: () => showDialog(
                 context: context,
-                builder: (_) => ContainerDetailsDialog(container: container),
+                builder: (_) {
+                  final customer = container.customerId != null
+                      ? customers
+                            .where(
+                              (cu) => cu.customerId == container.customerId,
+                            )
+                            .firstOrNull
+                      : null;
+                  return ContainerDetailsDialog(
+                    container: container,
+                    customerName: customer?.fullName,
+                  );
+                },
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.amber,

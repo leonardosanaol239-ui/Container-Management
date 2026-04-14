@@ -1,13 +1,48 @@
 import 'package:flutter/material.dart';
 import '../models/container_model.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
-class ContainerDetailsDialog extends StatelessWidget {
+class ContainerDetailsDialog extends StatefulWidget {
   final ContainerModel container;
-  const ContainerDetailsDialog({super.key, required this.container});
+  final String? customerName;
+  const ContainerDetailsDialog({
+    super.key,
+    required this.container,
+    this.customerName,
+  });
+
+  @override
+  State<ContainerDetailsDialog> createState() => _ContainerDetailsDialogState();
+}
+
+class _ContainerDetailsDialogState extends State<ContainerDetailsDialog> {
+  String? _resolvedCustomerName;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolvedCustomerName = widget.customerName;
+    if (_resolvedCustomerName == null && widget.container.customerId != null) {
+      _fetchCustomer();
+    }
+  }
+
+  Future<void> _fetchCustomer() async {
+    try {
+      final customers = await ApiService().getCustomers();
+      final match = customers
+          .where((c) => c.customerId == widget.container.customerId)
+          .firstOrNull;
+      if (mounted && match != null) {
+        setState(() => _resolvedCustomerName = match.fullName);
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
+    final container = widget.container;
     final isLaden = container.statusId == 1;
     final statusColor = isLaden ? AppColors.yellow : AppColors.red;
     final statusTextColor = isLaden ? AppColors.textDark : AppColors.white;
@@ -40,8 +75,11 @@ class ContainerDetailsDialog extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.inventory_2_rounded,
-                      color: AppColors.yellow, size: 20),
+                  const Icon(
+                    Icons.inventory_2_rounded,
+                    color: AppColors.yellow,
+                    size: 20,
+                  ),
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
@@ -62,8 +100,11 @@ class ContainerDetailsDialog extends StatelessWidget {
                         color: AppColors.red,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.close_rounded,
-                          color: AppColors.white, size: 16),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        color: AppColors.white,
+                        size: 16,
+                      ),
                     ),
                   ),
                 ],
@@ -109,7 +150,9 @@ class ContainerDetailsDialog extends StatelessWidget {
                     label: 'Status',
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 6),
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: statusColor,
                         borderRadius: BorderRadius.circular(20),
@@ -139,14 +182,32 @@ class ContainerDetailsDialog extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (_resolvedCustomerName != null) ...[
+                    const SizedBox(height: 12),
+                    _DetailRow(
+                      icon: Icons.person_rounded,
+                      label: 'Customer',
+                      child: Text(
+                        _resolvedCustomerName!,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   // Description
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Row(
                       children: [
-                        const Icon(Icons.notes_rounded,
-                            color: AppColors.green, size: 18),
+                        const Icon(
+                          Icons.notes_rounded,
+                          color: AppColors.green,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Description',
@@ -166,7 +227,9 @@ class ContainerDetailsDialog extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFFDE7),
                       border: Border.all(
-                          color: AppColors.yellow.withOpacity(0.4), width: 1.5),
+                        color: AppColors.yellow.withOpacity(0.4),
+                        width: 1.5,
+                      ),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -174,7 +237,9 @@ class ContainerDetailsDialog extends StatelessWidget {
                           ? container.containerDesc!
                           : 'No description provided.',
                       style: const TextStyle(
-                          color: AppColors.textDark, fontSize: 13),
+                        color: AppColors.textDark,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 ],

@@ -13,6 +13,7 @@ public interface IContainerService
     Task<Container?> GetContainerByNumberAsync(string containerNumber);
     Task<ContainerLocationHierarchyDto?> GetContainerLocationHierarchyAsync(int containerId);
     Task<Container?> UpdateContainerLocationAsync(int containerId, UpdateContainerLocationDto updateDto);
+    Task<Container?> UpdateLocationStatusAsync(int containerId, int locationStatusId);
     Task<Container?> MoveOutContainerAsync(int containerId, MoveOutContainerDto dto);
     Task<IEnumerable<Container>> GetMovedOutContainersAsync(int portId);
 }

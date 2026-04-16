@@ -24,6 +24,8 @@ class Session {
   bool get isPortManager => userTypeId == 2;
   bool get isDriver => userTypeId == 3;
   bool get isCustomer => userTypeId == 4;
+  bool get isChecker => userTypeId == 5;
+  bool get canMoveRequest => isAdmin || isPortManager || isChecker;
 
   factory Session.fromJson(Map<String, dynamic> json) => Session(
     userId: json['userId'] as int,

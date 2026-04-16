@@ -3,6 +3,7 @@ import '../models/session.dart';
 import '../theme/app_theme.dart';
 import '../widgets/port_selection_dialog.dart';
 import 'user_management_screen.dart';
+import 'landing_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   final Session session;
@@ -151,6 +152,40 @@ class _HeroHeader extends StatelessWidget {
                   ),
                 ),
               ],
+              // Logout button
+              const SizedBox(width: 16),
+              GestureDetector(
+                onTap: () => Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LandingScreen()),
+                  (_) => false,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.green,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.logout, color: AppColors.yellow, size: 16),
+                      SizedBox(width: 6),
+                      Text(
+                        'Logout',
+                        style: TextStyle(
+                          color: AppColors.yellow,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),

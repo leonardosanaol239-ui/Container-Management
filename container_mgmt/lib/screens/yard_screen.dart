@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/api_service.dart';
+import '../models/session.dart';
 import '../models/yard.dart';
 import '../models/block.dart';
 import '../models/bay.dart';
@@ -15,19 +16,21 @@ import '../widgets/container_holding_area.dart';
 const double kContainerHeight = 8.0;
 const double k20ftWidth = 20.0;
 const double k40ftWidth = 40.0;
-const double kYardBorderPx = 16.0; // thick yard boundary border
+const double kYardBorderPx = 16.0;
 
 class YardScreen extends StatefulWidget {
   final Yard yard;
   final int portId;
   final String portName;
   final int? highlightRowId;
+  final Session? session;
   const YardScreen({
     super.key,
     required this.yard,
     required this.portId,
     required this.portName,
     this.highlightRowId,
+    this.session,
   });
   @override
   State<YardScreen> createState() => _YardScreenState();
@@ -41,6 +44,8 @@ class _YardScreenState extends State<YardScreen>
   Map<int, List<Bay>> _baysByBlock = {};
   Map<int, List<RowModel>> _rowsByBay = {};
   Map<int, List<ContainerModel>> _containersByRow = {};
+  Map<int, List<ContainerModel>> _confirmedContainersByRow = {};
+  Map<int, List<ContainerModel>> _requestContainersByRow = {};
   List<ContainerModel> _containers = [];
   List<ContainerModel> _movedOutContainers = [];
   List<SizeModel> _sizes = [];
@@ -63,6 +68,8 @@ class _YardScreenState extends State<YardScreen>
   ContainerModel? _foundContainer;
   int? _highlightedRowId;
   bool _showMoveOutList = false;
+  bool _showCheckerView =
+      true; // true = checker view (MoveRequest), false = confirmed view
   double _scale = 3.0;
   double get _canvasW => (_yard.yardWidth ?? 300) * _scale;
   double get _canvasH => (_yard.yardHeight ?? 170) * _scale;
@@ -137,13 +144,35 @@ class _YardScreenState extends State<YardScreen>
       for (final list in byRow.values) {
         list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
       }
+      // Confirmed view: only locationStatusId == 1 (In Yard)
+      final Map<int, List<ContainerModel>> confirmedByRow = {};
+      // Checker view: locationStatusId == 3 (Move Request) + 1 (In Yard)
+      final Map<int, List<ContainerModel>> requestByRow = {};
+      for (final c in containers) {
+        if (c.rowId != null && !c.isMovedOut) {
+          if (c.locationStatusId == 1) {
+            confirmedByRow.putIfAbsent(c.rowId!, () => []).add(c);
+          }
+          if (c.locationStatusId == 3 || c.locationStatusId == 1) {
+            requestByRow.putIfAbsent(c.rowId!, () => []).add(c);
+          }
+        }
+      }
+      for (final list in confirmedByRow.values) {
+        list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
+      }
+      for (final list in requestByRow.values) {
+        list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
+      }
       setState(() {
         if (freshYard != null) _yard = freshYard;
         _blocks = blocks;
         debugPrint('Yard imagePath: ${_yard.imagePath}');
         _baysByBlock = baysByBlock;
         _rowsByBay = rowsByBay;
-        _containersByRow = byRow;
+        _containersByRow = requestByRow; // default to checker view
+        _confirmedContainersByRow = confirmedByRow;
+        _requestContainersByRow = requestByRow;
         _containers = containers;
         _movedOutContainers = movedOut;
         _sizes = sizes;
@@ -245,7 +274,13 @@ class _YardScreenState extends State<YardScreen>
         bayId: bayId,
         rowId: rowId,
         tier: existing.length + 1,
+        locationStatusId: 3,
       );
+      // Explicitly set locationStatusId = 3 (Move Request) in case
+      // the backend's /location endpoint doesn't save locationStatusId
+      try {
+        await _api.setMoveRequest(container.containerId);
+      } catch (_) {}
       await _loadAll();
     } catch (_) {}
   }
@@ -1213,53 +1248,101 @@ class _YardScreenState extends State<YardScreen>
                 ),
               ),
             ),
-            // View Full button overlay
+            // View Full + Toggle overlay
             Positioned(
               top: 8,
               left: 8,
-              child: GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => _FullScreenYardView(
-                      yard: _yard,
-                      blocks: _blocks,
-                      baysByBlock: _baysByBlock,
-                      rowsByBay: _rowsByBay,
-                      containersByRow: _containersByRow,
-                      blockOffsets: Map.from(_blockOffsets),
-                      blockRotations: Map.from(_blockRotations),
-                      scale: _scale,
-                      portName: widget.portName,
-                      customers: _customers,
+              child: Row(
+                children: [
+                  // Toggle: Checker / Confirmed
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _showCheckerView = !_showCheckerView;
+                      _containersByRow = _showCheckerView
+                          ? _requestContainersByRow
+                          : _confirmedContainersByRow;
+                    }),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _showCheckerView
+                            ? Colors.blue.withOpacity(0.8)
+                            : Colors.green.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _showCheckerView
+                                ? Icons.pending_actions
+                                : Icons.check_circle,
+                            color: Colors.white,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _showCheckerView ? 'Checker View' : 'Confirmed',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.55),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.fullscreen, color: Colors.white, size: 14),
-                      SizedBox(width: 4),
-                      Text(
-                        'View Full',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
+                  const SizedBox(width: 6),
+                  // View Full button
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => _FullScreenYardView(
+                          yard: _yard,
+                          blocks: _blocks,
+                          baysByBlock: _baysByBlock,
+                          rowsByBay: _rowsByBay,
+                          containersByRow: _containersByRow,
+                          blockOffsets: Map.from(_blockOffsets),
+                          blockRotations: Map.from(_blockRotations),
+                          scale: _scale,
+                          portName: widget.portName,
+                          customers: _customers,
                         ),
                       ),
-                    ],
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.55),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.fullscreen, color: Colors.white, size: 14),
+                          SizedBox(width: 4),
+                          Text(
+                            'View Full',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ],
@@ -2091,6 +2174,10 @@ class _SlotCell extends StatelessWidget {
                     : isHighlighted
                     ? Colors.yellow.withAlpha(80)
                     : Colors.transparent)
+              : topContainer.locationStatusId == 3
+              ? Colors
+                    .blue
+                    .shade300 // Move Request — pending confirmation
               : (topContainer.statusId == 1
                     ? Colors.amber.shade300
                     : Colors.red.shade300);
@@ -2171,7 +2258,9 @@ class _SlotCell extends StatelessWidget {
 
                   decoration: BoxDecoration(
                     color:
-                        (topContainer.statusId == 1
+                        (topContainer.locationStatusId == 3
+                                ? Colors.blue.shade300
+                                : topContainer.statusId == 1
                                 ? Colors.amber.shade300
                                 : Colors.red.shade300)
                             .withAlpha(200),

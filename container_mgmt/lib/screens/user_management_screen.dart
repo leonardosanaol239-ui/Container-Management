@@ -5,7 +5,7 @@ import '../models/port.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
-const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer'];
+const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer', 'Checker'];
 
 // Fallback port list used when API is unavailable
 final _fallbackPorts = [
@@ -998,11 +998,13 @@ class _UserDialogState extends State<_UserDialog> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    if (_role == 'Port Manager' && _selectedPortIds.isEmpty) {
+    if ((_role == 'Port Manager' || _role == 'Checker') &&
+        _selectedPortIds.isEmpty) {
       setState(() {}); // triggers the inline error message to show
       return;
     }
-    final needsPort = _role == 'Port Manager' || _role == 'Driver';
+    final needsPort =
+        _role == 'Port Manager' || _role == 'Driver' || _role == 'Checker';
     final portNames = _selectedPortIds
         .map((id) {
           final match = widget.ports.where((p) => p.portId == id).toList();
@@ -1086,14 +1088,18 @@ class _UserDialogState extends State<_UserDialog> {
                       .toList(),
                   onChanged: (v) => setState(() {
                     _role = v!;
-                    if (_role != 'Port Manager' && _role != 'Driver') {
+                    if (_role != 'Port Manager' &&
+                        _role != 'Driver' &&
+                        _role != 'Checker') {
                       _selectedPortIds = [];
                     }
                   }),
                 ),
 
-                // ── Port (Port Manager & Driver) ──
-                if (_role == 'Port Manager' || _role == 'Driver') ...[
+                // ── Port (Port Manager, Driver & Checker) ──
+                if (_role == 'Port Manager' ||
+                    _role == 'Driver' ||
+                    _role == 'Checker') ...[
                   const SizedBox(height: 14),
                   _lbl('Assigned Port'),
                   const SizedBox(height: 6),
@@ -1103,7 +1109,8 @@ class _UserDialogState extends State<_UserDialog> {
                     onChanged: (ids) => setState(() => _selectedPortIds = ids),
                     multiSelect: false,
                   ),
-                  if (_role == 'Port Manager' && _selectedPortIds.isEmpty)
+                  if ((_role == 'Port Manager' || _role == 'Checker') &&
+                      _selectedPortIds.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 6, left: 12),
                       child: Text(

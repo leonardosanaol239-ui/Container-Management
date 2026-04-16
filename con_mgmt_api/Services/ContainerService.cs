@@ -220,8 +220,19 @@ public class ContainerService : IContainerService
             container.BayId = updateDto.BayId;
             container.RowId = updateDto.RowId;
             container.Tier = updateDto.Tier;
+            // Do NOT touch LocationStatusId here — it is set separately
         }
 
+        await _context.SaveChangesAsync();
+        return container;
+    }
+
+    public async Task<Container?> UpdateLocationStatusAsync(int containerId, int locationStatusId)
+    {
+        var container = await _context.Containers.FindAsync(containerId);
+        if (container == null) return null;
+
+        container.LocationStatusId = locationStatusId;
         await _context.SaveChangesAsync();
         return container;
     }

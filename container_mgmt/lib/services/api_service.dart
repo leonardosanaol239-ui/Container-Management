@@ -150,6 +150,7 @@ class ApiService {
     required int bayId,
     required int rowId,
     required int tier,
+    int? locationStatusId,
   }) async {
     final res = await http.put(
       Uri.parse('$baseUrl/Containers/$containerId/location'),
@@ -160,7 +161,28 @@ class ApiService {
         'bayId': bayId,
         'rowId': rowId,
         'tier': tier,
+        if (locationStatusId != null) 'locationStatusId': locationStatusId,
       }),
+    );
+    _check(res);
+    return ContainerModel.fromJson(jsonDecode(res.body));
+  }
+
+  Future<ContainerModel> confirmMoveRequest(int containerId) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/Containers/$containerId/locationstatus'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'locationStatusId': 1}),
+    );
+    _check(res);
+    return ContainerModel.fromJson(jsonDecode(res.body));
+  }
+
+  Future<ContainerModel> setMoveRequest(int containerId) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/Containers/$containerId/locationstatus'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'locationStatusId': 3}),
     );
     _check(res);
     return ContainerModel.fromJson(jsonDecode(res.body));

@@ -4,12 +4,14 @@ const _roleToTypeId = {
   'Port Manager': 2,
   'Driver': 3,
   'Customer': 4,
+  'Checker': 5,
 };
 const _typeIdToRole = {
   1: 'Admin',
   2: 'Port Manager',
   3: 'Driver',
   4: 'Customer',
+  5: 'Checker',
 };
 
 // User status values from dbo.Status

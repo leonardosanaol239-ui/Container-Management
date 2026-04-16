@@ -130,4 +130,12 @@ public class ContainersController : ControllerBase
             return Conflict(ex.Message);
         }
     }
+
+    [HttpPut("{id}/locationstatus")]
+    public async Task<IActionResult> UpdateLocationStatus(int id, [FromBody] UpdateLocationStatusDto dto)
+    {
+        var container = await _containerService.UpdateLocationStatusAsync(id, dto.LocationStatusId);
+        if (container == null) return NotFound($"Container with ID {id} not found");
+        return Ok(container);
+    }
 }

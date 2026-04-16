@@ -3,13 +3,15 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'dashboard_screen.dart';
 import 'customer_dashboard_screen.dart';
+import 'driver_dashboard_screen.dart';
 
-const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer'];
+const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer', 'Checker'];
 const _roleTypeIds = {
   'Admin': 1,
   'Port Manager': 2,
   'Driver': 3,
   'Customer': 4,
+  'Checker': 5,
 };
 
 class LoginScreen extends StatefulWidget {
@@ -54,6 +56,14 @@ class _LoginScreenState extends State<LoginScreen> {
           context,
           MaterialPageRoute(
             builder: (_) => CustomerDashboardScreen(session: session),
+          ),
+          (_) => false,
+        );
+      } else if (session.isDriver) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DriverDashboardScreen(session: session),
           ),
           (_) => false,
         );

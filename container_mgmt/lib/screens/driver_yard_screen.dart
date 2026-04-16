@@ -136,34 +136,67 @@ class _DriverYardScreenState extends State<DriverYardScreen> {
   }
 
   void _showRequestDetails(ContainerModel c) {
-    // Resolve location labels
-    Block? block;
-    Bay? bay;
-    RowModel? row;
+    // Resolve Move TO location (current pending slot)
+    Block? toBlock;
+    Bay? toBay;
+    RowModel? toRow;
     for (final b in _blocks) {
       if (b.blockId == c.blockId) {
-        block = b;
+        toBlock = b;
         break;
       }
     }
     for (final list in _baysByBlock.values) {
       for (final b in list) {
         if (b.bayId == c.bayId) {
-          bay = b;
+          toBay = b;
           break;
         }
       }
-      if (bay != null) break;
+      if (toBay != null) break;
     }
     for (final list in _rowsByBay.values) {
       for (final r in list) {
         if (r.rowId == c.rowId) {
-          row = r;
+          toRow = r;
           break;
         }
       }
-      if (row != null) break;
+      if (toRow != null) break;
     }
+
+    // Resolve Move FROM location (previous confirmed location)
+    Block? fromBlock;
+    Bay? fromBay;
+    RowModel? fromRow;
+    final fromHolding = c.prevYardId == null && c.prevBlockId == null;
+    if (!fromHolding) {
+      for (final b in _blocks) {
+        if (b.blockId == c.prevBlockId) {
+          fromBlock = b;
+          break;
+        }
+      }
+      for (final list in _baysByBlock.values) {
+        for (final b in list) {
+          if (b.bayId == c.prevBayId) {
+            fromBay = b;
+            break;
+          }
+        }
+        if (fromBay != null) break;
+      }
+      for (final list in _rowsByBay.values) {
+        for (final r in list) {
+          if (r.rowId == c.prevRowId) {
+            fromRow = r;
+            break;
+          }
+        }
+        if (fromRow != null) break;
+      }
+    }
+
     final customer = c.customerId != null
         ? _customers.where((cu) => cu.customerId == c.customerId).firstOrNull
         : null;
@@ -178,9 +211,9 @@ class _DriverYardScreenState extends State<DriverYardScreen> {
       builder: (_) => Dialog(
         backgroundColor: const Color(0xFF1A1A2E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 60, vertical: 80),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
         child: SizedBox(
-          width: 380,
+          width: 500,
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -189,12 +222,7 @@ class _DriverYardScreenState extends State<DriverYardScreen> {
               children: [
                 const Text(
                   'Move Request for:',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -206,19 +234,125 @@ class _DriverYardScreenState extends State<DriverYardScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                _infoRow('Yard:', 'Yard ${_yard.yardNumber}'),
-                _infoRow(
-                  'Block:',
-                  block?.blockName ??
-                      (block != null ? 'Block ${block.blockNumber}' : '-'),
+                // Move From / Move To side by side
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Move From
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 6,
+                              horizontal: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: fromHolding
+                                  ? Colors.grey.shade600
+                                  : Colors.green,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Move From',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          if (fromHolding) ...[
+                            _locRow('Yard:', '-', grayed: true),
+                            _locRow('Block:', '-', grayed: true),
+                            _locRow('Bay:', '-', grayed: true),
+                            _locRow('Row:', '-', grayed: true),
+                            _locRow('Tier:', '-', grayed: true),
+                            const SizedBox(height: 4),
+                            const Text(
+                              '(Holding Area)',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 11,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ] else ...[
+                            _locRow('Yard:', 'Yard ${_yard.yardNumber}'),
+                            _locRow(
+                              'Block:',
+                              fromBlock?.blockName ??
+                                  (fromBlock != null
+                                      ? 'Block ${fromBlock.blockNumber}'
+                                      : '-'),
+                            ),
+                            _locRow('Bay:', fromBay?.bayNumber ?? '-'),
+                            _locRow(
+                              'Row:',
+                              fromRow != null ? '${fromRow.rowNumber}' : '-',
+                            ),
+                            _locRow(
+                              'Tier:',
+                              c.prevTier != null ? '${c.prevTier}' : '-',
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    // Move To
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 6,
+                              horizontal: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade600,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'Move To',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          _locRow('Yard:', 'Yard ${_yard.yardNumber}'),
+                          _locRow(
+                            'Block:',
+                            toBlock?.blockName ??
+                                (toBlock != null
+                                    ? 'Block ${toBlock.blockNumber}'
+                                    : '-'),
+                          ),
+                          _locRow('Bay:', toBay?.bayNumber ?? '-'),
+                          _locRow(
+                            'Row:',
+                            toRow != null ? '${toRow.rowNumber}' : '-',
+                          ),
+                          _locRow('Tier:', c.tier != null ? '${c.tier}' : '-'),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                _infoRow('Bay:', bay?.bayNumber ?? '-'),
-                _infoRow('Row:', row != null ? '${row.rowNumber}' : '-'),
-                _infoRow('Tier:', c.tier != null ? '${c.tier}' : '-'),
-                const SizedBox(height: 16),
-                _infoRow('Customer:', customer?.fullName ?? '-'),
-                _infoRow('Container Type:', typeLabel),
-                _infoRow('Container Desc:', c.containerDesc ?? '-'),
+                const SizedBox(height: 20),
+                _locRow('Customer:', customer?.fullName ?? '-'),
+                _locRow('Container Type:', typeLabel),
+                _locRow('Container Desc:', c.containerDesc ?? '-'),
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
@@ -252,26 +386,29 @@ class _DriverYardScreenState extends State<DriverYardScreen> {
     );
   }
 
-  Widget _infoRow(String label, String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
+  Widget _locRow(String label, String value, {bool grayed = false}) => Padding(
+    padding: const EdgeInsets.only(bottom: 5),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 130,
+          width: 55,
           child: Text(
             label,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: grayed ? Colors.grey : Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: 13,
+              fontSize: 12,
             ),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(color: Colors.white60, fontSize: 13),
+            style: TextStyle(
+              color: grayed ? Colors.grey.shade600 : Colors.white60,
+              fontSize: 12,
+            ),
           ),
         ),
       ],

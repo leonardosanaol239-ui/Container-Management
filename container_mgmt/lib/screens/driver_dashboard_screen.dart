@@ -297,6 +297,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                       portName: widget.session.portDesc ?? '',
                       portId: widget.session.portId ?? yard.portId,
                       session: widget.session,
+                      onReturn: _loadData,
                     );
                   }).toList(),
                 ),
@@ -459,6 +460,7 @@ class _YardRequestCard extends StatelessWidget {
   final String portName;
   final int portId;
   final Session session;
+  final VoidCallback onReturn;
 
   const _YardRequestCard({
     required this.yard,
@@ -466,6 +468,7 @@ class _YardRequestCard extends StatelessWidget {
     required this.portName,
     required this.portId,
     required this.session,
+    required this.onReturn,
   });
 
   @override
@@ -509,17 +512,20 @@ class _YardRequestCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           GestureDetector(
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => DriverYardScreen(
-                  yard: yard,
-                  portId: portId,
-                  portName: portName,
-                  session: session,
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => DriverYardScreen(
+                    yard: yard,
+                    portId: portId,
+                    portName: portName,
+                    session: session,
+                  ),
                 ),
-              ),
-            ),
+              );
+              onReturn();
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(

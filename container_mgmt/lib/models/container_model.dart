@@ -16,6 +16,12 @@ class ContainerModel {
   final String createdDate;
   final int? containerSizeId;
   final int? customerId;
+  // Previous confirmed location (before move request)
+  final int? prevYardId;
+  final int? prevBlockId;
+  final int? prevBayId;
+  final int? prevRowId;
+  final int? prevTier;
 
   ContainerModel({
     required this.containerId,
@@ -35,6 +41,11 @@ class ContainerModel {
     required this.createdDate,
     this.containerSizeId,
     this.customerId,
+    this.prevYardId,
+    this.prevBlockId,
+    this.prevBayId,
+    this.prevRowId,
+    this.prevTier,
   });
 
   bool get isInYard => yardId != null;
@@ -58,5 +69,10 @@ class ContainerModel {
     createdDate: json['createdDate'],
     containerSizeId: json['containerSizeId'],
     customerId: json['customerId'],
+    prevYardId: json['prevYardId'],
+    prevBlockId: json['prevBlockId'],
+    prevBayId: json['prevBayId'],
+    prevRowId: json['prevRowId'],
+    prevTier: json['prevTier'],
   );
 }

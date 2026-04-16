@@ -39,6 +39,13 @@ public class Container
     [MaxLength(255)]
     public string? BoundTo { get; set; }
 
+    // Previous confirmed location (before move request)
+    public int? PrevYardId { get; set; }
+    public int? PrevBlockId { get; set; }
+    public int? PrevBayId { get; set; }
+    public int? PrevRowId { get; set; }
+    public int? PrevTier { get; set; }
+
     // Container physical size (references Sizes table)
     public int? ContainerSizeId { get; set; }
 

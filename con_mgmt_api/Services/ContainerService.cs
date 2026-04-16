@@ -54,6 +54,7 @@ public class ContainerService : IContainerService
             CurrentPortId = createDto.CurrentPortId,
             ContainerSizeId = createDto.ContainerSizeId,
             CustomerId      = createDto.CustomerId,
+            LocationStatusId = 4, // Holding Area
             CreatedDate = DateTime.UtcNow
         };
 
@@ -143,6 +144,7 @@ public class ContainerService : IContainerService
             container.BayId = null;
             container.RowId = null;
             container.Tier = null;
+            container.LocationStatusId = 4; // Back to Holding Area
         }
         else
         {
@@ -213,6 +215,16 @@ public class ContainerService : IContainerService
                 {
                     throw new ArgumentException($"FILO violation: Tier {tier} must be occupied before placing container in tier {updateDto.Tier}");
                 }
+            }
+
+            // Save previous confirmed location before overwriting
+            if (container.LocationStatusId == 1 || container.LocationStatusId == null)
+            {
+                container.PrevYardId = container.YardId;
+                container.PrevBlockId = container.BlockId;
+                container.PrevBayId = container.BayId;
+                container.PrevRowId = container.RowId;
+                container.PrevTier = container.Tier;
             }
 
             container.YardId = updateDto.YardId;

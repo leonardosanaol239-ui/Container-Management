@@ -136,284 +136,20 @@ class _DriverYardScreenState extends State<DriverYardScreen> {
   }
 
   void _showRequestDetails(ContainerModel c) {
-    // Resolve Move TO location (current pending slot)
-    Block? toBlock;
-    Bay? toBay;
-    RowModel? toRow;
-    for (final b in _blocks) {
-      if (b.blockId == c.blockId) {
-        toBlock = b;
-        break;
-      }
-    }
-    for (final list in _baysByBlock.values) {
-      for (final b in list) {
-        if (b.bayId == c.bayId) {
-          toBay = b;
-          break;
-        }
-      }
-      if (toBay != null) break;
-    }
-    for (final list in _rowsByBay.values) {
-      for (final r in list) {
-        if (r.rowId == c.rowId) {
-          toRow = r;
-          break;
-        }
-      }
-      if (toRow != null) break;
-    }
-
-    // Resolve Move FROM location (previous confirmed location)
-    Block? fromBlock;
-    Bay? fromBay;
-    RowModel? fromRow;
-    final fromHolding = c.prevYardId == null && c.prevBlockId == null;
-    if (!fromHolding) {
-      for (final b in _blocks) {
-        if (b.blockId == c.prevBlockId) {
-          fromBlock = b;
-          break;
-        }
-      }
-      for (final list in _baysByBlock.values) {
-        for (final b in list) {
-          if (b.bayId == c.prevBayId) {
-            fromBay = b;
-            break;
-          }
-        }
-        if (fromBay != null) break;
-      }
-      for (final list in _rowsByBay.values) {
-        for (final r in list) {
-          if (r.rowId == c.prevRowId) {
-            fromRow = r;
-            break;
-          }
-        }
-        if (fromRow != null) break;
-      }
-    }
-
-    final customer = c.customerId != null
-        ? _customers.where((cu) => cu.customerId == c.customerId).firstOrNull
-        : null;
-    final typeLabel = c.containerSizeId == 1
-        ? '20ft'
-        : c.containerSizeId == 2
-        ? '40ft'
-        : (c.type ?? '-');
-
     showDialog(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: const Color(0xFF1A1A2E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
-        child: SizedBox(
-          width: 500,
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Move Request for:',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Container Number: ${c.containerNumber}',
-                  style: const TextStyle(
-                    color: Colors.amber,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Move From / Move To side by side
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Move From
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 6,
-                              horizontal: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: fromHolding
-                                  ? Colors.grey.shade600
-                                  : Colors.green,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'Move From',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          if (fromHolding) ...[
-                            _locRow('Yard:', '-', grayed: true),
-                            _locRow('Block:', '-', grayed: true),
-                            _locRow('Bay:', '-', grayed: true),
-                            _locRow('Row:', '-', grayed: true),
-                            _locRow('Tier:', '-', grayed: true),
-                            const SizedBox(height: 4),
-                            const Text(
-                              '(Holding Area)',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 11,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ] else ...[
-                            _locRow('Yard:', 'Yard ${_yard.yardNumber}'),
-                            _locRow(
-                              'Block:',
-                              fromBlock?.blockName ??
-                                  (fromBlock != null
-                                      ? 'Block ${fromBlock.blockNumber}'
-                                      : '-'),
-                            ),
-                            _locRow('Bay:', fromBay?.bayNumber ?? '-'),
-                            _locRow(
-                              'Row:',
-                              fromRow != null ? '${fromRow.rowNumber}' : '-',
-                            ),
-                            _locRow(
-                              'Tier:',
-                              c.prevTier != null ? '${c.prevTier}' : '-',
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    // Move To
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 6,
-                              horizontal: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.red.shade600,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'Move To',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          _locRow('Yard:', 'Yard ${_yard.yardNumber}'),
-                          _locRow(
-                            'Block:',
-                            toBlock?.blockName ??
-                                (toBlock != null
-                                    ? 'Block ${toBlock.blockNumber}'
-                                    : '-'),
-                          ),
-                          _locRow('Bay:', toBay?.bayNumber ?? '-'),
-                          _locRow(
-                            'Row:',
-                            toRow != null ? '${toRow.rowNumber}' : '-',
-                          ),
-                          _locRow('Tier:', c.tier != null ? '${c.tier}' : '-'),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _locRow('Customer:', customer?.fullName ?? '-'),
-                _locRow('Container Type:', typeLabel),
-                _locRow('Container Desc:', c.containerDesc ?? '-'),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _confirmRequest(c);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      'Confirm',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+      builder: (_) => _MoveRequestDetailDialog(
+        container: c,
+        yard: _yard,
+        blocks: _blocks,
+        baysByBlock: _baysByBlock,
+        rowsByBay: _rowsByBay,
+        confirmedByRow: _confirmedByRow,
+        customers: _customers,
+        onConfirm: () => _confirmRequest(c),
       ),
     );
   }
-
-  Widget _locRow(String label, String value, {bool grayed = false}) => Padding(
-    padding: const EdgeInsets.only(bottom: 5),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 55,
-          child: Text(
-            label,
-            style: TextStyle(
-              color: grayed ? Colors.grey : Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              color: grayed ? Colors.grey.shade600 : Colors.white60,
-              fontSize: 12,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -910,4 +646,546 @@ class _GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+// ── Move Request Detail Dialog ────────────────────────────────────────────────
+
+class _MoveRequestDetailDialog extends StatefulWidget {
+  final ContainerModel container;
+  final Yard yard;
+  final List<Block> blocks;
+  final Map<int, List<Bay>> baysByBlock;
+  final Map<int, List<RowModel>> rowsByBay;
+  final Map<int, List<ContainerModel>> confirmedByRow;
+  final List<CustomerModel> customers;
+  final VoidCallback onConfirm;
+
+  const _MoveRequestDetailDialog({
+    required this.container,
+    required this.yard,
+    required this.blocks,
+    required this.baysByBlock,
+    required this.rowsByBay,
+    required this.confirmedByRow,
+    required this.customers,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_MoveRequestDetailDialog> createState() =>
+      _MoveRequestDetailDialogState();
+}
+
+class _MoveRequestDetailDialogState extends State<_MoveRequestDetailDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _blinkCtrl;
+  double _scale = 3.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _blinkCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _blinkCtrl.dispose();
+    super.dispose();
+  }
+
+  // Resolve helpers
+  Block? _findBlock(int? blockId) => blockId == null
+      ? null
+      : widget.blocks.where((b) => b.blockId == blockId).firstOrNull;
+
+  Bay? _findBay(int? bayId) {
+    if (bayId == null) return null;
+    for (final list in widget.baysByBlock.values) {
+      for (final b in list) {
+        if (b.bayId == bayId) return b;
+      }
+    }
+    return null;
+  }
+
+  RowModel? _findRow(int? rowId) {
+    if (rowId == null) return null;
+    for (final list in widget.rowsByBay.values) {
+      for (final r in list) {
+        if (r.rowId == rowId) return r;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.container;
+    final fromHolding = c.prevYardId == null && c.prevBlockId == null;
+
+    final toBlock = _findBlock(c.blockId);
+    final toBay = _findBay(c.bayId);
+    final toRow = _findRow(c.rowId);
+
+    final fromBlock = _findBlock(c.prevBlockId);
+    final fromBay = _findBay(c.prevBayId);
+    final fromRow = _findRow(c.prevRowId);
+
+    final customer = c.customerId != null
+        ? widget.customers
+              .where((cu) => cu.customerId == c.customerId)
+              .firstOrNull
+        : null;
+    final typeLabel = c.containerSizeId == 1
+        ? '20ft'
+        : c.containerSizeId == 2
+        ? '40ft'
+        : (c.type ?? '-');
+
+    return Dialog(
+      backgroundColor: const Color(0xFF1A1A2E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: SizedBox(
+        width: double.infinity,
+        height: MediaQuery.of(context).size.height * 0.85,
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 16, 0),
+              child: Row(
+                children: [
+                  const Text(
+                    'Move Request for:',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    c.containerNumber,
+                    style: const TextStyle(
+                      color: Colors.amber,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.redAccent,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Body: left panel + map
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Left: details panel
+                  SizedBox(
+                    width: 220,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 12, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Move To
+                          _sectionHeader('Move To', Colors.red.shade600),
+                          const SizedBox(height: 8),
+                          _locRow('Yard:', 'Yard ${widget.yard.yardNumber}'),
+                          _locRow(
+                            'Block:',
+                            toBlock?.blockName ??
+                                (toBlock != null
+                                    ? 'Block ${toBlock.blockNumber}'
+                                    : '-'),
+                          ),
+                          _locRow('Bay:', toBay?.bayNumber ?? '-'),
+                          _locRow(
+                            'Row:',
+                            toRow != null ? '${toRow.rowNumber}' : '-',
+                          ),
+                          _locRow('Tier:', c.tier != null ? '${c.tier}' : '-'),
+                          const SizedBox(height: 16),
+                          // Move From
+                          _sectionHeader(
+                            'Move From',
+                            fromHolding ? Colors.grey.shade600 : Colors.green,
+                          ),
+                          const SizedBox(height: 8),
+                          if (fromHolding) ...[
+                            _locRow('Yard:', '-', grayed: true),
+                            _locRow('Block:', '-', grayed: true),
+                            _locRow('Bay:', '-', grayed: true),
+                            _locRow('Row:', '-', grayed: true),
+                            _locRow('Tier:', '-', grayed: true),
+                            const Text(
+                              '(Holding Area)',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 10,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ] else ...[
+                            _locRow('Yard:', 'Yard ${widget.yard.yardNumber}'),
+                            _locRow(
+                              'Block:',
+                              fromBlock?.blockName ??
+                                  (fromBlock != null
+                                      ? 'Block ${fromBlock.blockNumber}'
+                                      : '-'),
+                            ),
+                            _locRow('Bay:', fromBay?.bayNumber ?? '-'),
+                            _locRow(
+                              'Row:',
+                              fromRow != null ? '${fromRow.rowNumber}' : '-',
+                            ),
+                            _locRow(
+                              'Tier:',
+                              c.prevTier != null ? '${c.prevTier}' : '-',
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          _locRow('Customer:', customer?.fullName ?? '-'),
+                          _locRow('Type:', typeLabel),
+                          _locRow('Desc:', c.containerDesc ?? '-'),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Right: interactive map
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 16, 0),
+                      child: _buildMap(c),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Confirm button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    widget.onConfirm();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Confirm',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String label, Color color) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(5),
+    ),
+    child: Text(
+      label,
+      textAlign: TextAlign.center,
+      style: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.bold,
+        fontSize: 12,
+      ),
+    ),
+  );
+
+  Widget _locRow(String label, String value, {bool grayed = false}) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 52,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: grayed ? Colors.grey : Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              color: grayed ? Colors.grey.shade600 : Colors.white60,
+              fontSize: 11,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildMap(ContainerModel c) {
+    final yardW = (widget.yard.yardWidth ?? 300).toDouble();
+    final yardH = (widget.yard.yardHeight ?? 170).toDouble();
+
+    return LayoutBuilder(
+      builder: (ctx, constraints) {
+        final availW = constraints.maxWidth;
+        final availH = constraints.maxHeight;
+        final fitScale = (availW / yardW) < (availH / yardH)
+            ? (availW / yardW)
+            : (availH / yardH);
+        if (_scale == 3.0) _scale = fitScale;
+        final cw = yardW * _scale;
+        final ch = yardH * _scale;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.grey[900],
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade700),
+          ),
+          clipBehavior: Clip.hardEdge,
+          child: InteractiveViewer(
+            minScale: 0.3,
+            maxScale: 8.0,
+            panEnabled: true,
+            constrained: false,
+            boundaryMargin: EdgeInsets.symmetric(
+              horizontal: availW * 0.4,
+              vertical: availH * 0.4,
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Yard background
+                Container(
+                  width: cw,
+                  height: ch,
+                  decoration: BoxDecoration(
+                    color: widget.yard.imagePath != null
+                        ? null
+                        : Colors.grey[800],
+                    borderRadius: BorderRadius.circular(8),
+                    image: widget.yard.imagePath != null
+                        ? DecorationImage(
+                            image: NetworkImage(
+                              '${ApiService.baseUrl.replaceAll('/api', '')}${widget.yard.imagePath}',
+                            ),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
+                  ),
+                  child: CustomPaint(painter: _GridPainter()),
+                ),
+                // Blocks
+                ...widget.blocks.map((b) => _buildMapBlock(b, c)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMapBlock(Block block, ContainerModel c) {
+    final offsetFt = Offset(
+      (block.posX ?? 10).toDouble(),
+      (block.posY ?? 10).toDouble(),
+    );
+    final offset = Offset(offsetFt.dx * _scale, offsetFt.dy * _scale);
+    final bays = widget.baysByBlock[block.blockId] ?? [];
+    final isVert = block.isVertical;
+    final is40 = block.is40ft;
+    final slotLong = (is40 ? _k40ftW : _k20ftW) * _scale;
+    final slotShort = _kContainerH * _scale;
+    final cellW = isVert ? slotShort : slotLong;
+    final cellH = isVert ? slotLong : slotShort;
+    final blockName = block.blockName ?? 'Block ${block.blockNumber}';
+
+    Widget blockWidget;
+    if (isVert) {
+      blockWidget = Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 14 * _scale / 3,
+            color: const Color(0xFF1B5E20).withValues(alpha: 0.85),
+            child: RotatedBox(
+              quarterTurns: 3,
+              child: Text(
+                blockName,
+                style: TextStyle(
+                  fontSize: 7 * _scale / 3,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: bays.map((bay) {
+              final rows = widget.rowsByBay[bay.bayId] ?? [];
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: rows
+                    .map((row) => _buildMapSlot(row, cellW, cellH, c))
+                    .toList(),
+              );
+            }).toList(),
+          ),
+        ],
+      );
+    } else {
+      blockWidget = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            color: const Color(0xFF1B5E20).withValues(alpha: 0.85),
+            child: Text(
+              blockName,
+              style: TextStyle(
+                fontSize: 7 * _scale / 3,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: bays.map((bay) {
+              final rows = widget.rowsByBay[bay.bayId] ?? [];
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: rows
+                    .map((row) => _buildMapSlot(row, cellW, cellH, c))
+                    .toList(),
+              );
+            }).toList(),
+          ),
+        ],
+      );
+    }
+
+    return Positioned(
+      left: offset.dx,
+      top: offset.dy,
+      child: Transform.rotate(angle: block.rotation, child: blockWidget),
+    );
+  }
+
+  Widget _buildMapSlot(
+    RowModel row,
+    double width,
+    double height,
+    ContainerModel c,
+  ) {
+    final isToSlot = row.rowId == c.rowId;
+    final isFromSlot =
+        !(c.prevYardId == null && c.prevBlockId == null) &&
+        row.rowId == c.prevRowId;
+
+    final containers = widget.confirmedByRow[row.rowId] ?? [];
+    final inYard = containers.where((ct) => !ct.isMovedOut).toList()
+      ..sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
+    final top = inYard.isNotEmpty ? inYard.last : null;
+
+    Color bgColor;
+    if (!isToSlot && !isFromSlot) {
+      bgColor = top == null
+          ? Colors.transparent
+          : top.statusId == 1
+          ? Colors.amber.shade300
+          : Colors.red.shade300;
+    } else {
+      bgColor = Colors.transparent; // will be overridden by blink
+    }
+
+    Widget cell = Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border.all(color: Colors.white24, width: 0.5),
+      ),
+      child: top != null && !isToSlot && !isFromSlot
+          ? Center(
+              child: Text(
+                top.containerNumber,
+                style: const TextStyle(
+                  fontSize: 6,
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            )
+          : null,
+    );
+
+    if (isToSlot || isFromSlot) {
+      final blinkColor = isToSlot ? Colors.red : Colors.green;
+      cell = AnimatedBuilder(
+        animation: _blinkCtrl,
+        builder: (_, __) => Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: blinkColor.withValues(alpha: _blinkCtrl.value * 0.85),
+            border: Border.all(color: blinkColor, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: blinkColor.withValues(alpha: _blinkCtrl.value * 0.6),
+                blurRadius: 4 * _blinkCtrl.value,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              isToSlot ? '▶' : '◀',
+              style: TextStyle(
+                fontSize: 8,
+                color: Colors.white.withValues(alpha: _blinkCtrl.value),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return cell;
+  }
 }

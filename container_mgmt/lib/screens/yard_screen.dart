@@ -3063,6 +3063,10 @@ class _TransferDialogState extends State<_TransferDialog> {
         rowId: _selRow!.rowId,
         tier: nextTier,
       );
+      // Transfer creates a move request — driver at destination yard must confirm
+      try {
+        await widget.api.setMoveRequest(widget.container.containerId);
+      } catch (_) {}
       widget.onTransferred();
       if (mounted) Navigator.pop(context);
     } catch (e) {

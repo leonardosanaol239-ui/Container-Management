@@ -749,9 +749,10 @@ class _ContainerListTile extends StatelessWidget {
                   children: [
                     _section('GENERAL'),
                     _row('Status:', statusLabel, valueColor: statusColor),
-                    _row('Date Moved in Yard:', '-'),
-                    _row('Days Until Due:', '-'),
-                    _row('Dwell Time:', '-'),
+                    _row('Date Moved:', _formatDate(c.moveConfirmedDate)),
+                    _row('Days in Slot:', _daysInSlot(c.moveConfirmedDate)),
+                    _row('Date in Yard:', _formatDate(c.yardEntryDate)),
+                    _row('Days in Yard:', _daysInSlot(c.yardEntryDate)),
                     _row('Container Type:', typeLabel),
                     if (c.containerDesc != null && c.containerDesc!.isNotEmpty)
                       _row('Description:', c.containerDesc!),
@@ -771,6 +772,27 @@ class _ContainerListTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _formatDate(String? isoDate) {
+    if (isoDate == null) return '-';
+    try {
+      final dt = DateTime.parse(isoDate).toLocal();
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return '-';
+    }
+  }
+
+  String _daysInSlot(String? isoDate) {
+    if (isoDate == null) return '-';
+    try {
+      final dt = DateTime.parse(isoDate).toLocal();
+      final days = DateTime.now().difference(dt).inDays;
+      return '$days day${days != 1 ? "s" : ""}';
+    } catch (_) {
+      return '-';
+    }
   }
 
   Widget _section(String title) => Padding(

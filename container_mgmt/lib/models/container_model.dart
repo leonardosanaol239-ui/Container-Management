@@ -16,6 +16,9 @@ class ContainerModel {
   final String createdDate;
   final int? containerSizeId;
   final int? customerId;
+  final String? moveRequestDate;
+  final String? moveConfirmedDate;
+  final String? yardEntryDate;
   // Previous confirmed location (before move request)
   final int? prevYardId;
   final int? prevBlockId;
@@ -41,6 +44,9 @@ class ContainerModel {
     required this.createdDate,
     this.containerSizeId,
     this.customerId,
+    this.moveRequestDate,
+    this.moveConfirmedDate,
+    this.yardEntryDate,
     this.prevYardId,
     this.prevBlockId,
     this.prevBayId,
@@ -69,6 +75,9 @@ class ContainerModel {
     createdDate: json['createdDate'],
     containerSizeId: json['containerSizeId'],
     customerId: json['customerId'],
+    moveRequestDate: json['moveRequestDate'] as String?,
+    moveConfirmedDate: json['moveConfirmedDate'] as String?,
+    yardEntryDate: json['yardEntryDate'] as String?,
     prevYardId: json['prevYardId'],
     prevBlockId: json['prevBlockId'],
     prevBayId: json['prevBayId'],

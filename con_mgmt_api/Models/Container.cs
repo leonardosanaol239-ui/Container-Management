@@ -34,6 +34,9 @@ public class Container
     public int? Tier { get; set; }
 
     public int? LocationStatusId { get; set; }
+    public DateTime? MoveRequestDate { get; set; }
+    public DateTime? MoveConfirmedDate { get; set; }
+    public DateTime? YardEntryDate { get; set; }
     public int? TruckId { get; set; }
 
     [MaxLength(255)]

@@ -56,10 +56,18 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
       final allContainers = results[0] as List<ContainerModel>;
       final yards = results[1] as List<Yard>;
 
-      // Only containers with locationStatusId == 3 (Move Request)
-      final moveRequests = allContainers
-          .where((c) => c.locationStatusId == 3)
-          .toList();
+      // Only containers with locationStatusId == 3 (Move Request) — oldest first
+      final moveRequests =
+          allContainers.where((c) => c.locationStatusId == 3).toList()
+            ..sort((a, b) {
+              final da = a.moveRequestDate;
+              final db = b.moveRequestDate;
+              if (da == null && db == null)
+                return a.containerId.compareTo(b.containerId);
+              if (da == null) return 1;
+              if (db == null) return -1;
+              return da.compareTo(db);
+            });
 
       // Count move requests per yard
       final Map<int, int> byYard = {};

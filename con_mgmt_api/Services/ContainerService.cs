@@ -145,6 +145,7 @@ public class ContainerService : IContainerService
             container.RowId = null;
             container.Tier = null;
             container.LocationStatusId = 4; // Back to Holding Area
+            container.YardEntryDate = null; // Clear yard entry date
         }
         else
         {
@@ -245,6 +246,17 @@ public class ContainerService : IContainerService
         if (container == null) return null;
 
         container.LocationStatusId = locationStatusId;
+        // Stamp the time when a move request is created
+        if (locationStatusId == 3)
+            container.MoveRequestDate = DateTime.UtcNow;
+        else if (locationStatusId == 1)
+        {
+            container.MoveConfirmedDate = DateTime.UtcNow;
+            // Stamp yard entry date only when first entering this yard
+            // (or re-entering after being elsewhere)
+            if (container.YardEntryDate == null)
+                container.YardEntryDate = DateTime.UtcNow;
+        }
         await _context.SaveChangesAsync();
         return container;
     }
@@ -264,6 +276,7 @@ public class ContainerService : IContainerService
         container.RowId = null;
         container.Tier = null;
         container.LocationStatusId = 2; // Moved Out
+        container.YardEntryDate = null; // Clear yard entry date on move out
         container.TruckId = dto.TruckId;
         container.BoundTo = dto.BoundTo;
 

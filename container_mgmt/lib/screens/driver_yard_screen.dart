@@ -8,10 +8,7 @@ import '../models/bay.dart';
 import '../models/row_model.dart';
 import '../models/container_model.dart';
 import '../models/customer_model.dart';
-
-const double _kContainerH = 8.0;
-const double _k20ftW = 20.0;
-const double _k40ftW = 40.0;
+import 'yard_screen.dart' show YardBlockWidget;
 
 class DriverYardScreen extends StatefulWidget {
   final Yard yard;
@@ -31,7 +28,8 @@ class DriverYardScreen extends StatefulWidget {
   State<DriverYardScreen> createState() => _DriverYardScreenState();
 }
 
-class _DriverYardScreenState extends State<DriverYardScreen> {
+class _DriverYardScreenState extends State<DriverYardScreen>
+    with SingleTickerProviderStateMixin {
   final _api = ApiService();
   bool _loading = true;
 
@@ -46,11 +44,16 @@ class _DriverYardScreenState extends State<DriverYardScreen> {
   List<CustomerModel> _customers = [];
 
   double _scale = 3.0;
+  late AnimationController _blinkCtrl;
 
   @override
   void initState() {
     super.initState();
     _yard = widget.yard;
+    _blinkCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
     _loadAll();
   }
 
@@ -90,7 +93,7 @@ class _DriverYardScreenState extends State<DriverYardScreen> {
         list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
       }
 
-      // Move requests for this yard — oldest first (by containerId as proxy)
+      // Move requests for this yard — oldest first by moveRequestDate
       final moveRequests =
           allContainers
               .where(
@@ -98,7 +101,15 @@ class _DriverYardScreenState extends State<DriverYardScreen> {
                     c.locationStatusId == 3 && c.yardId == widget.yard.yardId,
               )
               .toList()
-            ..sort((a, b) => a.containerId.compareTo(b.containerId));
+            ..sort((a, b) {
+              final da = a.moveRequestDate;
+              final db = b.moveRequestDate;
+              if (da == null && db == null)
+                return a.containerId.compareTo(b.containerId);
+              if (da == null) return 1;
+              if (db == null) return -1;
+              return da.compareTo(db);
+            });
 
       setState(() {
         _blocks = blocks;
@@ -400,145 +411,35 @@ class _DriverYardScreenState extends State<DriverYardScreen> {
       (block.posY ?? 10).toDouble(),
     );
     final offset = Offset(offsetFt.dx * _scale, offsetFt.dy * _scale);
-    final bays = _baysByBlock[block.blockId] ?? [];
-    final isVert = block.isVertical;
-    final is40 = block.is40ft;
-    final slotLong = (is40 ? _k40ftW : _k20ftW) * _scale;
-    final slotShort = _kContainerH * _scale;
-    final cellW = isVert ? slotShort : slotLong;
-    final cellH = isVert ? slotLong : slotShort;
-    final blockName = block.blockName ?? 'Block ${block.blockNumber}';
-
-    Widget blockWidget;
-    if (isVert) {
-      blockWidget = Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 14 * _scale / 3,
-            color: AppColors.green.withValues(alpha: 0.85),
-            child: RotatedBox(
-              quarterTurns: 3,
-              child: Text(
-                blockName,
-                style: TextStyle(
-                  fontSize: 7 * _scale / 3,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: bays.map((bay) {
-              final rows = _rowsByBay[bay.bayId] ?? [];
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: rows
-                    .map((row) => _buildSlot(row, cellW, cellH))
-                    .toList(),
-              );
-            }).toList(),
-          ),
-        ],
-      );
-    } else {
-      blockWidget = Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-            color: AppColors.green.withValues(alpha: 0.85),
-            child: Text(
-              blockName,
-              style: TextStyle(
-                fontSize: 7 * _scale / 3,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: bays.map((bay) {
-              final rows = _rowsByBay[bay.bayId] ?? [];
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: rows
-                    .map((row) => _buildSlot(row, cellW, cellH))
-                    .toList(),
-              );
-            }).toList(),
-          ),
-        ],
-      );
-    }
+    final rotation = block.rotation;
 
     return Positioned(
       left: offset.dx,
       top: offset.dy,
-      child: Transform.rotate(angle: block.rotation, child: blockWidget),
-    );
-  }
-
-  Widget _buildSlot(RowModel row, double width, double height) {
-    final containers = _confirmedByRow[row.rowId] ?? [];
-    final inYard = containers.where((c) => !c.isMovedOut).toList()
-      ..sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
-    final top = inYard.isNotEmpty ? inYard.last : null;
-
-    final bgColor = top == null
-        ? Colors.transparent
-        : top.statusId == 1
-        ? Colors.amber.shade300
-        : Colors.red.shade300;
-
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: bgColor,
-        border: Border.all(color: Colors.white, width: 1),
+      child: Transform.rotate(
+        angle: rotation,
+        child: YardBlockWidget(
+          block: block,
+          baysByBlock: _baysByBlock,
+          rowsByBay: _rowsByBay,
+          containersByRow: _confirmedByRow,
+          highlightedRowId: null,
+          blinkCtrl: _blinkCtrl,
+          editMode: false,
+          selectedRowId: null,
+          scaleX: _scale,
+          scaleY: _scale,
+          onSlotTap: null,
+          onSlotDrop: null,
+          onSelectRow: null,
+          onAddBay: null,
+          onRemoveBay: null,
+          onDeleteBlock: null,
+          rotateHandle: null,
+          onAddRow: null,
+          onRemoveRow: null,
+        ),
       ),
-      child: top == null
-          ? Center(
-              child: Text(
-                '${row.rowNumber}',
-                style: const TextStyle(fontSize: 8, color: Colors.white38),
-              ),
-            )
-          : Stack(
-              children: [
-                Center(
-                  child: Text(
-                    top.containerNumber,
-                    style: const TextStyle(
-                      fontSize: 7,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (inYard.length > 1)
-                  Positioned(
-                    top: 1,
-                    right: 2,
-                    child: Text(
-                      '${inYard.length}/${row.maxStack}',
-                      style: TextStyle(
-                        fontSize: 6,
-                        color: Colors.grey.shade700,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
     );
   }
 }
@@ -1005,8 +906,17 @@ class _MoveRequestDetailDialogState extends State<_MoveRequestDetailDialog>
                   ),
                   child: CustomPaint(painter: _GridPainter()),
                 ),
-                // Blocks
-                ...widget.blocks.map((b) => _buildMapBlock(b, c)),
+                // Base confirmed map — Move To slot blinks red via highlightedRowId
+                ...widget.blocks.map(
+                  (b) => _buildMapBlock(b, c, c.rowId, Colors.red, false),
+                ),
+                // Move From slot — green blink overlay
+                if (c.prevRowId != null &&
+                    !(c.prevYardId == null && c.prevBlockId == null))
+                  ...widget.blocks.map(
+                    (b) =>
+                        _buildMapBlock(b, c, c.prevRowId, Colors.green, true),
+                  ),
               ],
             ),
           ),
@@ -1015,177 +925,48 @@ class _MoveRequestDetailDialogState extends State<_MoveRequestDetailDialog>
     );
   }
 
-  Widget _buildMapBlock(Block block, ContainerModel c) {
+  Widget _buildMapBlock(
+    Block block,
+    ContainerModel c,
+    int? highlightedRowId,
+    Color? highlightColor,
+    bool highlightOnly,
+  ) {
     final offsetFt = Offset(
       (block.posX ?? 10).toDouble(),
       (block.posY ?? 10).toDouble(),
     );
     final offset = Offset(offsetFt.dx * _scale, offsetFt.dy * _scale);
-    final bays = widget.baysByBlock[block.blockId] ?? [];
-    final isVert = block.isVertical;
-    final is40 = block.is40ft;
-    final slotLong = (is40 ? _k40ftW : _k20ftW) * _scale;
-    final slotShort = _kContainerH * _scale;
-    final cellW = isVert ? slotShort : slotLong;
-    final cellH = isVert ? slotLong : slotShort;
-    final blockName = block.blockName ?? 'Block ${block.blockNumber}';
-
-    Widget blockWidget;
-    if (isVert) {
-      blockWidget = Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 14 * _scale / 3,
-            color: const Color(0xFF1B5E20).withValues(alpha: 0.85),
-            child: RotatedBox(
-              quarterTurns: 3,
-              child: Text(
-                blockName,
-                style: TextStyle(
-                  fontSize: 7 * _scale / 3,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: bays.map((bay) {
-              final rows = widget.rowsByBay[bay.bayId] ?? [];
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: rows
-                    .map((row) => _buildMapSlot(row, cellW, cellH, c))
-                    .toList(),
-              );
-            }).toList(),
-          ),
-        ],
-      );
-    } else {
-      blockWidget = Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-            color: const Color(0xFF1B5E20).withValues(alpha: 0.85),
-            child: Text(
-              blockName,
-              style: TextStyle(
-                fontSize: 7 * _scale / 3,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: bays.map((bay) {
-              final rows = widget.rowsByBay[bay.bayId] ?? [];
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: rows
-                    .map((row) => _buildMapSlot(row, cellW, cellH, c))
-                    .toList(),
-              );
-            }).toList(),
-          ),
-        ],
-      );
-    }
 
     return Positioned(
       left: offset.dx,
       top: offset.dy,
-      child: Transform.rotate(angle: block.rotation, child: blockWidget),
-    );
-  }
-
-  Widget _buildMapSlot(
-    RowModel row,
-    double width,
-    double height,
-    ContainerModel c,
-  ) {
-    final isToSlot = row.rowId == c.rowId;
-    final isFromSlot =
-        !(c.prevYardId == null && c.prevBlockId == null) &&
-        row.rowId == c.prevRowId;
-
-    final containers = widget.confirmedByRow[row.rowId] ?? [];
-    final inYard = containers.where((ct) => !ct.isMovedOut).toList()
-      ..sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
-    final top = inYard.isNotEmpty ? inYard.last : null;
-
-    Color bgColor;
-    if (!isToSlot && !isFromSlot) {
-      bgColor = top == null
-          ? Colors.transparent
-          : top.statusId == 1
-          ? Colors.amber.shade300
-          : Colors.red.shade300;
-    } else {
-      bgColor = Colors.transparent; // will be overridden by blink
-    }
-
-    Widget cell = Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: bgColor,
-        border: Border.all(color: Colors.white24, width: 0.5),
-      ),
-      child: top != null && !isToSlot && !isFromSlot
-          ? Center(
-              child: Text(
-                top.containerNumber,
-                style: const TextStyle(
-                  fontSize: 6,
-                  fontWeight: FontWeight.bold,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            )
-          : null,
-    );
-
-    if (isToSlot || isFromSlot) {
-      final blinkColor = isToSlot ? Colors.red : Colors.green;
-      cell = AnimatedBuilder(
-        animation: _blinkCtrl,
-        builder: (_, __) => Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: blinkColor.withValues(alpha: _blinkCtrl.value * 0.85),
-            border: Border.all(color: blinkColor, width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: blinkColor.withValues(alpha: _blinkCtrl.value * 0.6),
-                blurRadius: 4 * _blinkCtrl.value,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              isToSlot ? '▶' : '◀',
-              style: TextStyle(
-                fontSize: 8,
-                color: Colors.white.withValues(alpha: _blinkCtrl.value),
-              ),
-            ),
-          ),
+      child: Transform.rotate(
+        angle: block.rotation,
+        child: YardBlockWidget(
+          block: block,
+          baysByBlock: widget.baysByBlock,
+          rowsByBay: widget.rowsByBay,
+          containersByRow: widget.confirmedByRow,
+          highlightedRowId: highlightedRowId,
+          highlightColor: highlightColor,
+          highlightOnly: highlightOnly,
+          blinkCtrl: _blinkCtrl,
+          editMode: false,
+          selectedRowId: null,
+          scaleX: _scale,
+          scaleY: _scale,
+          onSlotTap: null,
+          onSlotDrop: null,
+          onSelectRow: null,
+          onAddBay: null,
+          onRemoveBay: null,
+          onDeleteBlock: null,
+          rotateHandle: null,
+          onAddRow: null,
+          onRemoveRow: null,
         ),
-      );
-    }
-
-    return cell;
+      ),
+    );
   }
 }

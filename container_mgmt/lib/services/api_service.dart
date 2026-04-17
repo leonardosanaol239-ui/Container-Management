@@ -15,7 +15,7 @@ import '../models/session.dart';
 import '../models/customer_model.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.118.132:5000/api';
+  static const String baseUrl = 'http://192.168.118.196:5000/api';
 
   // ── Ports ────────────────────────────────────────────────
   Future<List<Port>> getPorts() async {

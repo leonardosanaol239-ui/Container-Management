@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'dart:async';
 import '../theme/app_theme.dart';
 import '../services/api_service.dart';
 import '../models/session.dart';
@@ -68,9 +69,9 @@ class _YardScreenState extends State<YardScreen>
   ContainerModel? _foundContainer;
   int? _highlightedRowId;
   bool _showMoveOutList = false;
-  bool _showCheckerView =
-      true; // true = checker view (MoveRequest), false = confirmed view
+  bool _showCheckerView = true;
   double _scale = 3.0;
+  Timer? _pollTimer;
   double get _canvasW => (_yard.yardWidth ?? 300) * _scale;
   double get _canvasH => (_yard.yardHeight ?? 170) * _scale;
   double get _scaleX => _scale;
@@ -90,13 +91,95 @@ class _YardScreenState extends State<YardScreen>
       _blinkCtrl.repeat(reverse: true);
     }
     _loadAll();
+    // Auto-refresh every 5s — uses silent refresh to avoid flicker
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted && !_editMode) _silentRefresh();
+    });
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _blinkCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _silentRefresh() async {
+    if (!mounted) return;
+    try {
+      final results = await Future.wait([
+        _api.getBlocks(widget.yard.yardId),
+        _api.getContainersByPort(widget.portId),
+        _api.getMovedOutContainers(widget.portId),
+        _api.getSizes(),
+        _api.getOrientations(),
+        _api.getYardById(widget.yard.yardId),
+        _api.getCustomers(),
+      ]);
+      final blocks = results[0] as List<Block>;
+      final containers = results[1] as List<ContainerModel>;
+      final movedOut = results[2] as List<ContainerModel>;
+      final sizes = results[3] as List<SizeModel>;
+      final orientations = results[4] as List<OrientationModel>;
+      final freshYard = results[5] as Yard?;
+      final customers = results[6] as List<CustomerModel>;
+
+      final bayResults = await Future.wait(
+        blocks.map((b) => _api.getBays(b.blockId)),
+      );
+      final Map<int, List<Bay>> baysByBlock = {};
+      for (int i = 0; i < blocks.length; i++) {
+        baysByBlock[blocks[i].blockId] = bayResults[i];
+      }
+      final allBays = bayResults.expand((b) => b).toList();
+      final rowResults = await Future.wait(
+        allBays.map((bay) => _api.getRows(bay.bayId)),
+      );
+      final Map<int, List<RowModel>> rowsByBay = {};
+      for (int i = 0; i < allBays.length; i++) {
+        rowsByBay[allBays[i].bayId] = rowResults[i];
+      }
+
+      final Map<int, List<ContainerModel>> confirmedByRow = {};
+      final Map<int, List<ContainerModel>> requestByRow = {};
+      for (final c in containers) {
+        if (c.rowId != null && !c.isMovedOut) {
+          if (c.locationStatusId == 1)
+            confirmedByRow.putIfAbsent(c.rowId!, () => []).add(c);
+          if (c.locationStatusId == 3 || c.locationStatusId == 1)
+            requestByRow.putIfAbsent(c.rowId!, () => []).add(c);
+        }
+      }
+      for (final list in confirmedByRow.values)
+        list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
+      for (final list in requestByRow.values)
+        list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
+
+      if (!mounted) return;
+      setState(() {
+        if (freshYard != null) _yard = freshYard;
+        _blocks = blocks;
+        _baysByBlock = baysByBlock;
+        _rowsByBay = rowsByBay;
+        _containersByRow = _showCheckerView ? requestByRow : confirmedByRow;
+        _confirmedContainersByRow = confirmedByRow;
+        _requestContainersByRow = requestByRow;
+        _containers = containers;
+        _movedOutContainers = movedOut;
+        _sizes = sizes;
+        _orientations = orientations;
+        _customers = customers;
+        // Sync block positions
+        for (final b in blocks) {
+          _blockOffsets[b.blockId] = Offset(
+            (b.posX ?? 10).toDouble(),
+            (b.posY ?? 10).toDouble(),
+          );
+          _blockRotations[b.blockId] = b.rotation;
+        }
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadAll() async {
@@ -365,7 +448,7 @@ class _YardScreenState extends State<YardScreen>
               ),
               const SizedBox(height: 4),
               Text(
-                '${widget.portName}  ›  Yard ${widget.yard.yardNumber}',
+                '${widget.portName}  �  Yard ${widget.yard.yardNumber}',
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
               ),
               const Divider(height: 24),
@@ -607,7 +690,7 @@ class _YardScreenState extends State<YardScreen>
             Positioned(
               left: _tierPopupPosition!.dx,
               top: _tierPopupPosition!.dy,
-              child: _TierPopup(
+              child: YardTierPopup(
                 containers: _containersByRow[_tierPopupRowId!] ?? [],
                 onClose: _closeTierPopup,
                 customers: _customers,
@@ -1030,7 +1113,7 @@ class _YardScreenState extends State<YardScreen>
               child: ElevatedButton(
                 onPressed: () => showDialog(
                   context: context,
-                  builder: (_) => _FullContainerDetailsDialog(
+                  builder: (_) => YardContainerDetailsDialog(
                     container: c,
                     customers: _customers,
                     portName: widget.portName,
@@ -1111,7 +1194,7 @@ class _YardScreenState extends State<YardScreen>
         }
         final cw = yardW * _scale;
         final ch = yardH * _scale;
-        // Fixed frame — InteractiveViewer zooms/pans only inside it
+        // Fixed frame � InteractiveViewer zooms/pans only inside it
         return Stack(
           children: [
             Container(
@@ -1307,7 +1390,7 @@ class _YardScreenState extends State<YardScreen>
     // For horizontal blocks the bay-label row (14px) is above the slots.
     const leftColPx = 40.0; // approx width of vertical block's left column
     final left = isVert ? posInFt.dx + leftColPx / _scale : posInFt.dx;
-    // Labels/buttons are allowed outside yard — clamp only on raw posInFt.dy
+    // Labels/buttons are allowed outside yard � clamp only on raw posInFt.dy
     final top = posInFt.dy;
     return Rect.fromLTWH(left, top, totalW, totalH);
   }
@@ -1962,7 +2045,7 @@ class YardBlockWidget extends StatelessWidget {
               ],
             ],
           ),
-          // Block name — highlighted label sticking out below the block
+          // Block name � highlighted label sticking out below the block
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
@@ -2107,7 +2190,7 @@ class _SlotCell extends StatelessWidget {
               : topContainer.locationStatusId == 3
               ? Colors
                     .blue
-                    .shade300 // Move Request — pending confirmation
+                    .shade300 // Move Request � pending confirmation
               : (topContainer.statusId == 1
                     ? Colors.amber.shade300
                     : Colors.red.shade300);
@@ -2389,7 +2472,7 @@ class YardHighlightSlot extends StatelessWidget {
         );
       }
     }
-    // Row not in this block — render nothing
+    // Row not in this block � render nothing
     return const SizedBox.shrink();
   }
 }
@@ -2678,7 +2761,7 @@ class _AddBlockDialogState extends State<_AddBlockDialog> {
 }
 
 // -- Tier Popup ----------------------------------------------------------------
-class _TierPopup extends StatefulWidget {
+class YardTierPopup extends StatefulWidget {
   final List<ContainerModel> containers;
   final VoidCallback onClose;
   final List<CustomerModel> customers;
@@ -2688,7 +2771,7 @@ class _TierPopup extends StatefulWidget {
   final Map<int, Bay> baysById;
   final Map<int, RowModel> rowsById;
 
-  const _TierPopup({
+  const YardTierPopup({
     required this.containers,
     required this.onClose,
     required this.customers,
@@ -2699,10 +2782,10 @@ class _TierPopup extends StatefulWidget {
     required this.rowsById,
   });
   @override
-  State<_TierPopup> createState() => _TierPopupState();
+  State<YardTierPopup> createState() => _YardTierPopupState();
 }
 
-class _TierPopupState extends State<_TierPopup> {
+class _YardTierPopupState extends State<YardTierPopup> {
   ContainerModel? _selected;
 
   @override
@@ -2844,7 +2927,7 @@ class _TierPopupState extends State<_TierPopup> {
               widget.onClose();
               showDialog(
                 context: context,
-                builder: (_) => _FullContainerDetailsDialog(
+                builder: (_) => YardContainerDetailsDialog(
                   container: c,
                   customers: widget.customers,
                   portName: widget.portName,
@@ -2876,8 +2959,8 @@ class _TierPopupState extends State<_TierPopup> {
   String _fmtDate(String? iso) {
     if (iso == null) return '-';
     try {
-      final dt = DateTime.parse(iso).toLocal();
-      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      final dt = DateTime.parse(iso);
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {
       return '-';
     }
@@ -2886,9 +2969,7 @@ class _TierPopupState extends State<_TierPopup> {
   String _fmtDays(String? iso) {
     if (iso == null) return '-';
     try {
-      final days = DateTime.now()
-          .difference(DateTime.parse(iso).toLocal())
-          .inDays;
+      final days = DateTime.now().difference(DateTime.parse(iso)).inDays;
       return '$days day${days != 1 ? "s" : ""}';
     } catch (_) {
       return '-';
@@ -2919,7 +3000,7 @@ class _TierPopupState extends State<_TierPopup> {
 }
 
 // -- Full Container Details Dialog --------------------------------------------
-class _FullContainerDetailsDialog extends StatelessWidget {
+class YardContainerDetailsDialog extends StatelessWidget {
   final ContainerModel container;
   final List<CustomerModel> customers;
   final String portName;
@@ -2928,7 +3009,7 @@ class _FullContainerDetailsDialog extends StatelessWidget {
   final Map<int, Bay> baysById;
   final Map<int, RowModel> rowsById;
 
-  const _FullContainerDetailsDialog({
+  const YardContainerDetailsDialog({
     required this.container,
     required this.customers,
     required this.portName,
@@ -2941,8 +3022,8 @@ class _FullContainerDetailsDialog extends StatelessWidget {
   String _fmt(String? iso) {
     if (iso == null) return '-';
     try {
-      final dt = DateTime.parse(iso).toLocal();
-      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      final dt = DateTime.parse(iso);
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {
       return '-';
     }
@@ -2951,7 +3032,7 @@ class _FullContainerDetailsDialog extends StatelessWidget {
   String _days(String? iso) {
     if (iso == null) return '-';
     try {
-      final d = DateTime.now().difference(DateTime.parse(iso).toLocal()).inDays;
+      final d = DateTime.now().difference(DateTime.parse(iso)).inDays;
       return '$d day${d != 1 ? "s" : ""}';
     } catch (_) {
       return '-';
@@ -3374,7 +3455,7 @@ class _TransferDialogState extends State<_TransferDialog> {
         rowId: _selRow!.rowId,
         tier: nextTier,
       );
-      // Transfer creates a move request — driver at destination yard must confirm
+      // Transfer creates a move request � driver at destination yard must confirm
       try {
         await widget.api.setMoveRequest(widget.container.containerId);
       } catch (_) {}
@@ -3646,7 +3727,7 @@ class _FullScreenYardViewState extends State<_FullScreenYardView>
         backgroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          '${widget.portName}  >  Yard ${widget.yard.yardNumber}  —  Full View',
+          '${widget.portName}  >  Yard ${widget.yard.yardNumber}  �  Full View',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
         actions: [
@@ -3963,8 +4044,8 @@ class _YardContainersDialogState extends State<_YardContainersDialog>
   String _formatDate(String? isoDate) {
     if (isoDate == null) return '-';
     try {
-      final dt = DateTime.parse(isoDate).toLocal();
-      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      final dt = DateTime.parse(isoDate);
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {
       return '-';
     }
@@ -3973,7 +4054,7 @@ class _YardContainersDialogState extends State<_YardContainersDialog>
   String _daysInSlot(String? isoDate) {
     if (isoDate == null) return '-';
     try {
-      final dt = DateTime.parse(isoDate).toLocal();
+      final dt = DateTime.parse(isoDate);
       final days = DateTime.now().difference(dt).inDays;
       return '$days day${days != 1 ? "s" : ""}';
     } catch (_) {

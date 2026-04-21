@@ -55,7 +55,7 @@ public class ContainerService : IContainerService
             ContainerSizeId = createDto.ContainerSizeId,
             CustomerId      = createDto.CustomerId,
             LocationStatusId = 4, // Holding Area
-            CreatedDate = DateTime.UtcNow
+            CreatedDate = DateTime.UtcNow.AddHours(8)
         };
 
         _context.Containers.Add(container);
@@ -228,6 +228,10 @@ public class ContainerService : IContainerService
                 container.PrevTier = container.Tier;
             }
 
+            // If moving to a different yard, reset YardEntryDate so it
+            // gets stamped fresh when the driver confirms at the new yard
+            if (container.YardId != updateDto.YardId)
+                container.YardEntryDate = null;
             container.YardId = updateDto.YardId;
             container.BlockId = updateDto.BlockId;
             container.BayId = updateDto.BayId;
@@ -248,14 +252,15 @@ public class ContainerService : IContainerService
         container.LocationStatusId = locationStatusId;
         // Stamp the time when a move request is created
         if (locationStatusId == 3)
-            container.MoveRequestDate = DateTime.UtcNow;
+            container.MoveRequestDate = DateTime.UtcNow.AddHours(8);
         else if (locationStatusId == 1)
         {
-            container.MoveConfirmedDate = DateTime.UtcNow;
-            // Stamp yard entry date only when first entering this yard
-            // (or re-entering after being elsewhere)
+            container.MoveConfirmedDate = DateTime.UtcNow.AddHours(8);
+            // Only set YardEntryDate the first time the container enters this yard.
+            // If it already has a YardEntryDate it means it's just moving slots
+            // within the same yard — don't overwrite it.
             if (container.YardEntryDate == null)
-                container.YardEntryDate = DateTime.UtcNow;
+                container.YardEntryDate = DateTime.UtcNow.AddHours(8);
         }
         await _context.SaveChangesAsync();
         return container;

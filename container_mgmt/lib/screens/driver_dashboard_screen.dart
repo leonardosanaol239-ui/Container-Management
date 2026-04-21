@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../models/session.dart';
 import '../models/container_model.dart';
 import '../models/yard.dart';
@@ -26,15 +27,21 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
 
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _silentRefresh(),
+    );
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -86,6 +93,41 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     } catch (e) {
       setState(() => _loading = false);
     }
+  }
+
+  Future<void> _silentRefresh() async {
+    if (!mounted) return;
+    final portId = widget.session.portId;
+    if (portId == null) return;
+    try {
+      final results = await Future.wait([
+        _api.getContainersByPort(portId),
+        _api.getYards(portId),
+      ]);
+      final allContainers = results[0] as List<ContainerModel>;
+      final yards = results[1] as List<Yard>;
+      final moveRequests =
+          allContainers.where((c) => c.locationStatusId == 3).toList()
+            ..sort((a, b) {
+              final da = a.moveRequestDate;
+              final db = b.moveRequestDate;
+              if (da == null && db == null)
+                return a.containerId.compareTo(b.containerId);
+              if (da == null) return 1;
+              if (db == null) return -1;
+              return da.compareTo(db);
+            });
+      final Map<int, int> byYard = {};
+      for (final c in moveRequests) {
+        if (c.yardId != null) byYard[c.yardId!] = (byYard[c.yardId!] ?? 0) + 1;
+      }
+      if (!mounted) return;
+      setState(() {
+        _moveRequests = moveRequests;
+        _yards = yards;
+        _requestsByYard = byYard;
+      });
+    } catch (_) {}
   }
 
   List<ContainerModel> get _filtered {

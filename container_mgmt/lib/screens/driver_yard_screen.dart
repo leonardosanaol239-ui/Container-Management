@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../theme/app_theme.dart';
 import '../services/api_service.dart';
 import '../models/session.dart';
@@ -8,7 +9,8 @@ import '../models/bay.dart';
 import '../models/row_model.dart';
 import '../models/container_model.dart';
 import '../models/customer_model.dart';
-import 'yard_screen.dart' show YardBlockWidget;
+import 'yard_screen.dart'
+    show YardBlockWidget, YardContainerDetailsDialog, YardTierPopup;
 
 class DriverYardScreen extends StatefulWidget {
   final Yard yard;
@@ -45,6 +47,9 @@ class _DriverYardScreenState extends State<DriverYardScreen>
 
   double _scale = 3.0;
   late AnimationController _blinkCtrl;
+  Timer? _pollTimer;
+  int? _tierPopupRowId;
+  Offset? _tierPopupPosition;
 
   @override
   void initState() {
@@ -55,6 +60,82 @@ class _DriverYardScreenState extends State<DriverYardScreen>
       duration: const Duration(milliseconds: 350),
     );
     _loadAll();
+    _pollTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _silentRefresh(),
+    );
+  }
+
+  /// Refresh without showing the loading overlay so the map doesn't flicker
+  Future<void> _silentRefresh() async {
+    if (!mounted) return;
+    try {
+      final blocks = await _api.getBlocks(widget.yard.yardId);
+      final allContainers = await _api.getContainersByPort(widget.portId);
+      final customers = await _api.getCustomers();
+
+      final bayResults = await Future.wait(
+        blocks.map((b) => _api.getBays(b.blockId)),
+      );
+      final Map<int, List<Bay>> baysByBlock = {};
+      for (int i = 0; i < blocks.length; i++) {
+        baysByBlock[blocks[i].blockId] = bayResults[i];
+      }
+      final allBays = bayResults.expand((b) => b).toList();
+      final rowResults = await Future.wait(
+        allBays.map((bay) => _api.getRows(bay.bayId)),
+      );
+      final Map<int, List<RowModel>> rowsByBay = {};
+      for (int i = 0; i < allBays.length; i++) {
+        rowsByBay[allBays[i].bayId] = rowResults[i];
+      }
+
+      final Map<int, List<ContainerModel>> confirmedByRow = {};
+      for (final c in allContainers) {
+        if (c.rowId != null &&
+            c.yardId == widget.yard.yardId &&
+            c.locationStatusId == 1) {
+          confirmedByRow.putIfAbsent(c.rowId!, () => []).add(c);
+        }
+      }
+      for (final list in confirmedByRow.values) {
+        list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
+      }
+
+      final moveRequests =
+          allContainers
+              .where(
+                (c) =>
+                    c.locationStatusId == 3 && c.yardId == widget.yard.yardId,
+              )
+              .toList()
+            ..sort((a, b) {
+              final da = a.moveRequestDate;
+              final db = b.moveRequestDate;
+              if (da == null && db == null)
+                return a.containerId.compareTo(b.containerId);
+              if (da == null) return 1;
+              if (db == null) return -1;
+              return da.compareTo(db);
+            });
+
+      if (!mounted) return;
+      setState(() {
+        _blocks = blocks;
+        _baysByBlock = baysByBlock;
+        _rowsByBay = rowsByBay;
+        _confirmedByRow = confirmedByRow;
+        _moveRequests = moveRequests;
+        _customers = customers;
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _blinkCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAll() async {
@@ -212,6 +293,31 @@ class _DriverYardScreenState extends State<DriverYardScreen>
                     strokeWidth: 3,
                   ),
                 ),
+              ),
+            ),
+          // Tier popup overlay
+          if (_tierPopupRowId != null && _tierPopupPosition != null)
+            Positioned(
+              left: _tierPopupPosition!.dx,
+              top: _tierPopupPosition!.dy,
+              child: YardTierPopup(
+                containers: _confirmedByRow[_tierPopupRowId!] ?? [],
+                onClose: () => setState(() {
+                  _tierPopupRowId = null;
+                  _tierPopupPosition = null;
+                }),
+                customers: _customers,
+                portName: widget.portName,
+                yardNumber: _yard.yardNumber,
+                blocks: _blocks,
+                baysById: {
+                  for (final list in _baysByBlock.values)
+                    for (final b in list) b.bayId: b,
+                },
+                rowsById: {
+                  for (final list in _rowsByBay.values)
+                    for (final r in list) r.rowId: r,
+                },
               ),
             ),
         ],
@@ -429,7 +535,35 @@ class _DriverYardScreenState extends State<DriverYardScreen>
           selectedRowId: null,
           scaleX: _scale,
           scaleY: _scale,
-          onSlotTap: null,
+          onSlotTap: (rowId, pos) {
+            final containers = _confirmedByRow[rowId] ?? [];
+            if (containers.isEmpty) return;
+            if (containers.length == 1) {
+              showDialog(
+                context: context,
+                builder: (_) => YardContainerDetailsDialog(
+                  container: containers.first,
+                  customers: _customers,
+                  portName: widget.portName,
+                  yardNumber: _yard.yardNumber,
+                  blocks: _blocks,
+                  baysById: {
+                    for (final list in _baysByBlock.values)
+                      for (final b in list) b.bayId: b,
+                  },
+                  rowsById: {
+                    for (final list in _rowsByBay.values)
+                      for (final r in list) r.rowId: r,
+                  },
+                ),
+              );
+            } else {
+              setState(() {
+                _tierPopupRowId = rowId;
+                _tierPopupPosition = pos;
+              });
+            }
+          },
           onSlotDrop: null,
           onSelectRow: null,
           onAddBay: null,

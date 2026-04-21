@@ -777,8 +777,8 @@ class _ContainerListTile extends StatelessWidget {
   String _formatDate(String? isoDate) {
     if (isoDate == null) return '-';
     try {
-      final dt = DateTime.parse(isoDate).toLocal();
-      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      final dt = DateTime.parse(isoDate);
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } catch (_) {
       return '-';
     }
@@ -787,7 +787,7 @@ class _ContainerListTile extends StatelessWidget {
   String _daysInSlot(String? isoDate) {
     if (isoDate == null) return '-';
     try {
-      final dt = DateTime.parse(isoDate).toLocal();
+      final dt = DateTime.parse(isoDate);
       final days = DateTime.now().difference(dt).inDays;
       return '$days day${days != 1 ? "s" : ""}';
     } catch (_) {
@@ -920,3 +920,4 @@ class _ContainerListTile extends StatelessWidget {
     );
   }
 }
+

@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../widgets/port_selection_dialog.dart';
 import 'user_management_screen.dart';
 import 'landing_screen.dart';
+import 'port_management_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   final Session session;
@@ -24,7 +25,7 @@ class DashboardScreen extends StatelessWidget {
                   children: [
                     _HeroHeader(session: session),
                     _StatsSection(),
-                    _QuickActionsSection(context: context),
+                    _QuickActionsSection(context: context, session: session),
                   ],
                 ),
               ),
@@ -339,7 +340,29 @@ class _StatCard extends StatelessWidget {
 
 class _QuickActionsSection extends StatelessWidget {
   final BuildContext context;
-  const _QuickActionsSection({required this.context});
+  final Session session;
+  const _QuickActionsSection({required this.context, required this.session});
+
+  void _openPortManagement(BuildContext ctx) {
+    if (session.isChecker && session.portId != null) {
+      // Checker goes directly to their assigned port — no selection dialog
+      Navigator.push(
+        ctx,
+        MaterialPageRoute(
+          builder: (_) => PortManagementScreen(
+            portId: session.portId!,
+            portName: session.portDesc ?? 'Port ${session.portId}',
+            session: session,
+          ),
+        ),
+      );
+    } else {
+      showDialog(
+        context: ctx,
+        builder: (_) => PortSelectionDialog(session: session),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext ctx) {
@@ -374,10 +397,7 @@ class _QuickActionsSection extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () => showDialog(
-                context: context,
-                builder: (_) => const PortSelectionDialog(),
-              ),
+              onPressed: () => _openPortManagement(ctx),
               icon: const Icon(Icons.location_city_rounded, size: 22),
               label: const Text(
                 'MANAGE CONTAINER LOCATION',

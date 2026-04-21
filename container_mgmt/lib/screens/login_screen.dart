@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import 'dashboard_screen.dart';
 import 'customer_dashboard_screen.dart';
 import 'driver_dashboard_screen.dart';
+import 'checker_dashboard_screen.dart';
 
 const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer', 'Checker'];
 const _roleTypeIds = {
@@ -67,7 +68,16 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           (_) => false,
         );
+      } else if (session.isChecker) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CheckerDashboardScreen(session: session),
+          ),
+          (_) => false,
+        );
       } else {
+        // Admin and Port Manager
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => DashboardScreen(session: session)),

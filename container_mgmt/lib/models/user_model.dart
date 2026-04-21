@@ -121,7 +121,7 @@ class UserModel {
     };
     if (userId != null) map['userId'] = userId;
     if (password != null && password!.isNotEmpty) map['password'] = password;
-    if (role == 'Port Manager' || role == 'Driver') {
+    if (role == 'Port Manager' || role == 'Driver' || role == 'Checker') {
       map['portIds'] = assignedPortIds;
       map['portId'] = assignedPortIds.isNotEmpty ? assignedPortIds.first : null;
     }

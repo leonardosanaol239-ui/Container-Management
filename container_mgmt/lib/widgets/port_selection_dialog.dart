@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import '../models/session.dart';
 import '../screens/port_management_screen.dart';
 import '../theme/app_theme.dart';
 
 class PortSelectionDialog extends StatefulWidget {
-  const PortSelectionDialog({super.key});
+  final Session? session;
+  const PortSelectionDialog({super.key, this.session});
 
   @override
   State<PortSelectionDialog> createState() => _PortSelectionDialogState();
@@ -220,6 +222,7 @@ class _PortSelectionDialogState extends State<PortSelectionDialog> {
                               builder: (_) => PortManagementScreen(
                                 portId: port['portId'] as int,
                                 portName: port['name'] as String,
+                                session: widget.session,
                               ),
                             ),
                           );

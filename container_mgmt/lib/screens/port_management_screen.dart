@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/container_model.dart';
+import '../models/session.dart';
 import '../models/yard.dart';
 import '../widgets/container_holding_area.dart';
 import '../theme/app_theme.dart';
@@ -9,10 +10,12 @@ import 'yard_screen.dart';
 class PortManagementScreen extends StatefulWidget {
   final int portId;
   final String portName;
+  final Session? session;
   const PortManagementScreen({
     super.key,
     required this.portId,
     required this.portName,
+    this.session,
   });
 
   @override
@@ -83,6 +86,7 @@ class _PortManagementScreenState extends State<PortManagementScreen>
           yard: yard,
           portId: widget.portId,
           portName: widget.portName,
+          session: widget.session,
         ),
       ),
     ).then((_) => _loadAll());

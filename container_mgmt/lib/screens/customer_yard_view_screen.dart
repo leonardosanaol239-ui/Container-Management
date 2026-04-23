@@ -391,93 +391,167 @@ class _ReadOnlyBlockWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final blockName = block.blockName ?? 'Block ${block.blockNumber}';
 
+    // Match admin view gaps exactly: 2.5ft between bays, 1ft between rows
+    final bayGap = 2.5 * scale;
+    final rowGap = 1.0 * scale;
+
     if (isVert) {
-      // Vertical: bays stack top-to-bottom, rows left-to-right
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Left column: block name
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 14 * scale / 3,
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                color: AppColors.green.withOpacity(0.85),
-                child: RotatedBox(
-                  quarterTurns: 3,
-                  child: Text(
-                    blockName,
-                    style: TextStyle(
-                      fontSize: 7 * scale / 3,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+      // VERTICAL: matches YardBlockWidget vertical layout
+      // - Block name as teal pill rotated on the LEFT (outside block)
+      // - Bays stacked top-to-bottom; each bay = row of slots + bay label on right
+      // - White border around the bays grid
+      final bayRows = bays.map((bay) {
+        final rows = (rowsByBay[bay.bayId] ?? []).reversed.toList();
+        final slotWidgets = <Widget>[];
+        for (int i = 0; i < rows.length; i++) {
+          if (i > 0) slotWidgets.add(SizedBox(width: rowGap));
+          slotWidgets.add(
+            _ReadOnlySlot(
+              row: rows[i],
+              containers: containersByRow[rows[i].rowId] ?? [],
+              width: cellW,
+              height: cellH,
+              onContainerTap: onContainerTap,
+            ),
+          );
+        }
+        // Bay label on the right
+        slotWidgets.add(
+          Container(
+            width: 14,
+            alignment: Alignment.center,
+            child: RotatedBox(
+              quarterTurns: 1,
+              child: Text(
+                bay.bayNumber,
+                style: const TextStyle(
+                  fontSize: 9,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            ],
+            ),
           ),
-          // Bays column
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: bays.map((bay) {
-              final rows = rowsByBay[bay.bayId] ?? [];
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: rows.map((row) {
-                  return _ReadOnlySlot(
-                    row: row,
-                    containers: containersByRow[row.rowId] ?? [],
-                    width: cellW,
-                    height: cellH,
-                    onContainerTap: onContainerTap,
-                  );
-                }).toList(),
-              );
-            }).toList(),
+        );
+        return Row(mainAxisSize: MainAxisSize.min, children: slotWidgets);
+      }).toList();
+
+      final bayRowsWithGaps = <Widget>[];
+      for (int i = 0; i < bayRows.length; i++) {
+        if (i > 0) bayRowsWithGaps.add(SizedBox(height: bayGap));
+        bayRowsWithGaps.add(bayRows[i]);
+      }
+
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Block name as teal pill rotated on the left (matches admin)
+          RotatedBox(
+            quarterTurns: 3,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.teal.shade100,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                blockName,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.teal.shade700,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          // Bays grid with white border (matches admin)
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white, width: 1.5),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: bayRowsWithGaps,
+            ),
           ),
         ],
       );
     } else {
-      // Horizontal: bays left-to-right, rows top-to-bottom
+      // HORIZONTAL: matches YardBlockWidget horizontal layout
+      // - Bay labels above each column
+      // - White border around the block
+      // - Block name as blueGrey pill BELOW the block (matches admin)
+      final cols = bays.map((bay) {
+        final rows = rowsByBay[bay.bayId] ?? [];
+        final slotWidgets = <Widget>[
+          SizedBox(
+            width: cellW,
+            height: 14,
+            child: Center(
+              child: Text(
+                bay.bayNumber,
+                style: const TextStyle(
+                  fontSize: 9,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ];
+        for (int i = 0; i < rows.length; i++) {
+          if (i > 0) slotWidgets.add(SizedBox(height: rowGap));
+          slotWidgets.add(
+            _ReadOnlySlot(
+              row: rows[i],
+              containers: containersByRow[rows[i].rowId] ?? [],
+              width: cellW,
+              height: cellH,
+              onContainerTap: onContainerTap,
+            ),
+          );
+        }
+        return Column(mainAxisSize: MainAxisSize.min, children: slotWidgets);
+      }).toList();
+
+      final colsWithGaps = <Widget>[];
+      for (int i = 0; i < cols.length; i++) {
+        if (i > 0) colsWithGaps.add(SizedBox(width: bayGap));
+        colsWithGaps.add(cols[i]);
+      }
+
+      // Block grid with white border (matches admin)
+      final blockGrid = Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white, width: 1.5),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: colsWithGaps),
+      );
+
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Block name header
+          blockGrid,
+          // Block name as blueGrey pill below (matches admin)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-            color: AppColors.green.withOpacity(0.85),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.blueGrey.shade100,
+              borderRadius: BorderRadius.circular(4),
+            ),
             child: Text(
               blockName,
               style: TextStyle(
-                fontSize: 7 * scale / 3,
+                fontSize: 10,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: Colors.blueGrey.shade700,
               ),
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: bays.map((bay) {
-              final rows = rowsByBay[bay.bayId] ?? [];
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: rows.map((row) {
-                  return _ReadOnlySlot(
-                    row: row,
-                    containers: containersByRow[row.rowId] ?? [],
-                    width: cellW,
-                    height: cellH,
-                    onContainerTap: onContainerTap,
-                  );
-                }).toList(),
-              );
-            }).toList(),
           ),
         ],
       );
@@ -524,7 +598,11 @@ class _ReadOnlySlot extends StatelessWidget {
           ? Center(
               child: Text(
                 '${row.rowNumber}',
-                style: const TextStyle(fontSize: 8, color: Colors.white38),
+                style: const TextStyle(
+                  fontSize: 8,
+                  color: Colors.white38,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             )
           : Stack(

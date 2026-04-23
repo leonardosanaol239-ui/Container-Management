@@ -993,19 +993,36 @@ class _YardScreenState extends State<YardScreen>
           const SizedBox(width: 12),
           Expanded(
             child: Container(
+              height: 40,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.black),
+                color: Colors.white,
+                border: Border.all(color: Colors.grey.shade300, width: 1.5),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    child: Icon(
+                      Icons.search_rounded,
+                      color: AppColors.textGrey,
+                      size: 18,
+                    ),
+                  ),
                   Expanded(
                     child: TextField(
                       controller: _searchCtrl,
+                      style: const TextStyle(fontSize: 13),
                       decoration: const InputDecoration(
                         hintText: 'Search container number',
+                        hintStyle: TextStyle(
+                          color: AppColors.textGrey,
+                          fontSize: 13,
+                        ),
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12),
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 10),
                         isDense: true,
                       ),
                       onSubmitted: (_) => _searchContainer(),
@@ -1013,23 +1030,37 @@ class _YardScreenState extends State<YardScreen>
                   ),
                   if (_searchCtrl.text.isNotEmpty)
                     IconButton(
-                      icon: const Icon(Icons.close, size: 18),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: Colors.grey.shade500,
+                      ),
                       onPressed: _clearSearch,
-                    ),
-                  ElevatedButton(
-                    onPressed: _searchContainer,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.amber,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(6),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
                       ),
                     ),
-                    child: const Text(
-                      'Locate',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                  GestureDetector(
+                    onTap: _searchContainer,
+                    child: Container(
+                      height: 40,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.yellow,
+                        borderRadius: const BorderRadius.horizontal(
+                          right: Radius.circular(7),
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: const Text(
+                        'Locate',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 12,
+                          color: AppColors.textDark,
+                        ),
                       ),
                     ),
                   ),

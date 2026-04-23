@@ -39,14 +39,15 @@ public class YardsController : ControllerBase
     }
 
     [HttpPost("{id}/image")]
-    public async Task<IActionResult> UploadYardImage(int id, IFormFile file)
+    public async Task<IActionResult> UploadYardImage(int id, IFormFile file,
+        [FromServices] Microsoft.AspNetCore.Hosting.IWebHostEnvironment env)
     {
         if (file == null || file.Length == 0) return BadRequest("No file provided.");
         var yard = await _yardService.GetYardByIdAsync(id);
         if (yard == null) return NotFound();
 
-        // Use the app's base directory so the path is always reliable
-        var folder = Path.Combine(AppContext.BaseDirectory, "wwwroot", "yard-images");
+        // Save to WebRootPath (wwwroot) so it's served correctly
+        var folder = Path.Combine(env.WebRootPath ?? AppContext.BaseDirectory, "yard-images");
         Directory.CreateDirectory(folder);
         var ext = Path.GetExtension(file.FileName);
         var fileName = $"yard{id}{ext}";

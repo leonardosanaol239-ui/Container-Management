@@ -33,8 +33,11 @@ class _CustomerYardViewScreenState extends State<CustomerYardViewScreen> {
   List<Block> _blocks = [];
   Map<int, List<Bay>> _baysByBlock = {};
   Map<int, List<RowModel>> _rowsByBay = {};
-  // Only customer's containers, keyed by rowId
   Map<int, List<ContainerModel>> _containersByRow = {};
+
+  // Lookup maps for full details dialog
+  Map<int, Bay> _baysById = {};
+  Map<int, RowModel> _rowsById = {};
 
   double _scale = 3.0;
 
@@ -51,12 +54,10 @@ class _CustomerYardViewScreenState extends State<CustomerYardViewScreen> {
       final blocks = await _api.getBlocks(widget.yard.yardId);
       final allContainers = await _api.getContainersByPort(widget.portId);
 
-      // Filter to only this customer's containers
       final myContainers = allContainers
           .where((c) => c.customerId == widget.customerId && !c.isMovedOut)
           .toList();
 
-      // Fetch bays and rows in parallel
       final bayResults = await Future.wait(
         blocks.map((b) => _api.getBays(b.blockId)),
       );
@@ -74,7 +75,15 @@ class _CustomerYardViewScreenState extends State<CustomerYardViewScreen> {
         rowsByBay[allBays[i].bayId] = rowResults[i];
       }
 
-      // Build containersByRow from customer containers only
+      // Build flat lookup maps
+      final Map<int, Bay> baysById = {
+        for (final bay in allBays) bay.bayId: bay,
+      };
+      final Map<int, RowModel> rowsById = {
+        for (final rows in rowsByBay.values)
+          for (final row in rows) row.rowId: row,
+      };
+
       final Map<int, List<ContainerModel>> byRow = {};
       for (final c in myContainers) {
         if (c.rowId != null) {
@@ -90,6 +99,8 @@ class _CustomerYardViewScreenState extends State<CustomerYardViewScreen> {
         _baysByBlock = baysByBlock;
         _rowsByBay = rowsByBay;
         _containersByRow = byRow;
+        _baysById = baysById;
+        _rowsById = rowsById;
         _loading = false;
       });
     } catch (e) {
@@ -97,122 +108,58 @@ class _CustomerYardViewScreenState extends State<CustomerYardViewScreen> {
     }
   }
 
-  void _showContainerDetails(ContainerModel c) {
+  // Step 1: Show tier list popup (if multiple containers stacked)
+  void _showSlotTap(List<ContainerModel> stacked, Offset globalPos) {
+    if (stacked.isEmpty) return;
+    if (stacked.length == 1) {
+      _showQuickView(stacked.first, globalPos);
+      return;
+    }
+    // Multiple containers — show tier list
     showDialog(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: const Color(0xFF1E1E2E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 80),
-        child: SizedBox(
-          width: 320,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'CONTAINER DETAILS',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: const Icon(Icons.close, color: Colors.redAccent),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.amber,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    c.containerNumber,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 17,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _detailRow('Status:', c.statusId == 1 ? 'Laden' : 'Empty'),
-                _detailRow('Type:', c.type ?? '-'),
-                _detailRow(
-                  'Size:',
-                  c.containerSizeId == 1
-                      ? '20ft'
-                      : c.containerSizeId == 2
-                      ? '40ft'
-                      : '-',
-                ),
-                if (c.containerDesc != null && c.containerDesc!.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: const Text(
-                      'Description:',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      c.containerDesc!,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
+      barrierColor: Colors.transparent,
+      builder: (ctx) => _TierPopup(
+        containers: stacked,
+        onClose: () => Navigator.pop(ctx),
+        onSelect: (c) {
+          Navigator.pop(ctx);
+          _showQuickView(c, globalPos);
+        },
       ),
     );
   }
 
-  Widget _detailRow(String label, String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
-    child: Row(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          value,
-          style: const TextStyle(color: Colors.white60, fontSize: 13),
-        ),
-      ],
-    ),
-  );
+  // Step 2: Quick view card (matches admin _buildDetails)
+  void _showQuickView(ContainerModel c, Offset globalPos) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (ctx) => _QuickViewPopup(
+        container: c,
+        onClose: () => Navigator.pop(ctx),
+        onViewFull: () {
+          Navigator.pop(ctx);
+          _showFullDetails(c);
+        },
+      ),
+    );
+  }
+
+  // Step 3: Full details dialog (matches admin YardContainerDetailsDialog)
+  void _showFullDetails(ContainerModel c) {
+    showDialog(
+      context: context,
+      builder: (_) => _FullDetailsDialog(
+        container: c,
+        portName: widget.portName,
+        yardNumber: widget.yard.yardNumber,
+        blocks: _blocks,
+        baysById: _baysById,
+        rowsById: _rowsById,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -245,7 +192,7 @@ class _CustomerYardViewScreenState extends State<CustomerYardViewScreen> {
           if (_loading)
             Positioned.fill(
               child: Container(
-                color: Colors.white.withOpacity(0.45),
+                color: Colors.white.withValues(alpha: 0.45),
                 child: const Center(
                   child: CircularProgressIndicator(
                     color: AppColors.yellow,
@@ -352,7 +299,7 @@ class _CustomerYardViewScreenState extends State<CustomerYardViewScreen> {
       cellH: cellH,
       isVert: isVert,
       scale: _scale,
-      onContainerTap: _showContainerDetails,
+      onSlotTap: _showSlotTap,
     );
 
     return Positioned(
@@ -373,7 +320,7 @@ class _ReadOnlyBlockWidget extends StatelessWidget {
   final double cellW, cellH;
   final bool isVert;
   final double scale;
-  final void Function(ContainerModel) onContainerTap;
+  final void Function(List<ContainerModel> stacked, Offset globalPos) onSlotTap;
 
   const _ReadOnlyBlockWidget({
     required this.block,
@@ -384,22 +331,16 @@ class _ReadOnlyBlockWidget extends StatelessWidget {
     required this.cellH,
     required this.isVert,
     required this.scale,
-    required this.onContainerTap,
+    required this.onSlotTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final blockName = block.blockName ?? 'Block ${block.blockNumber}';
-
-    // Match admin view gaps exactly: 2.5ft between bays, 1ft between rows
     final bayGap = 2.5 * scale;
     final rowGap = 1.0 * scale;
 
     if (isVert) {
-      // VERTICAL: matches YardBlockWidget vertical layout
-      // - Block name as teal pill rotated on the LEFT (outside block)
-      // - Bays stacked top-to-bottom; each bay = row of slots + bay label on right
-      // - White border around the bays grid
       final bayRows = bays.map((bay) {
         final rows = (rowsByBay[bay.bayId] ?? []).reversed.toList();
         final slotWidgets = <Widget>[];
@@ -411,11 +352,10 @@ class _ReadOnlyBlockWidget extends StatelessWidget {
               containers: containersByRow[rows[i].rowId] ?? [],
               width: cellW,
               height: cellH,
-              onContainerTap: onContainerTap,
+              onSlotTap: onSlotTap,
             ),
           );
         }
-        // Bay label on the right
         slotWidgets.add(
           Container(
             width: 14,
@@ -446,7 +386,6 @@ class _ReadOnlyBlockWidget extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Block name as teal pill rotated on the left (matches admin)
           RotatedBox(
             quarterTurns: 3,
             child: Container(
@@ -466,7 +405,6 @@ class _ReadOnlyBlockWidget extends StatelessWidget {
               ),
             ),
           ),
-          // Bays grid with white border (matches admin)
           Container(
             decoration: BoxDecoration(
               border: Border.all(color: Colors.white, width: 1.5),
@@ -480,10 +418,6 @@ class _ReadOnlyBlockWidget extends StatelessWidget {
         ],
       );
     } else {
-      // HORIZONTAL: matches YardBlockWidget horizontal layout
-      // - Bay labels above each column
-      // - White border around the block
-      // - Block name as blueGrey pill BELOW the block (matches admin)
       final cols = bays.map((bay) {
         final rows = rowsByBay[bay.bayId] ?? [];
         final slotWidgets = <Widget>[
@@ -510,7 +444,7 @@ class _ReadOnlyBlockWidget extends StatelessWidget {
               containers: containersByRow[rows[i].rowId] ?? [],
               width: cellW,
               height: cellH,
-              onContainerTap: onContainerTap,
+              onSlotTap: onSlotTap,
             ),
           );
         }
@@ -523,7 +457,6 @@ class _ReadOnlyBlockWidget extends StatelessWidget {
         colsWithGaps.add(cols[i]);
       }
 
-      // Block grid with white border (matches admin)
       final blockGrid = Container(
         decoration: BoxDecoration(
           border: Border.all(color: Colors.white, width: 1.5),
@@ -537,7 +470,6 @@ class _ReadOnlyBlockWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           blockGrid,
-          // Block name as blueGrey pill below (matches admin)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
@@ -565,14 +497,14 @@ class _ReadOnlySlot extends StatelessWidget {
   final RowModel row;
   final List<ContainerModel> containers;
   final double width, height;
-  final void Function(ContainerModel) onContainerTap;
+  final void Function(List<ContainerModel> stacked, Offset globalPos) onSlotTap;
 
   const _ReadOnlySlot({
     required this.row,
     required this.containers,
     required this.width,
     required this.height,
-    required this.onContainerTap,
+    required this.onSlotTap,
   });
 
   @override
@@ -634,14 +566,470 @@ class _ReadOnlySlot extends StatelessWidget {
             ),
     );
 
-    if (topContainer != null) {
+    if (inYard.isNotEmpty) {
       cell = GestureDetector(
-        onTap: () => onContainerTap(topContainer),
+        onTapUp: (d) => onSlotTap(inYard, d.globalPosition),
         child: cell,
       );
     }
 
     return cell;
+  }
+}
+
+// ── Tier list popup (Step 1) ──────────────────────────────────────────────────
+
+class _TierPopup extends StatelessWidget {
+  final List<ContainerModel> containers;
+  final VoidCallback onClose;
+  final void Function(ContainerModel) onSelect;
+
+  const _TierPopup({
+    required this.containers,
+    required this.onClose,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: Material(
+        elevation: 10,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 230,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A2E),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Tier',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: onClose,
+                    child: const Icon(Icons.close, color: Colors.red, size: 18),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...containers.map(
+                (c) => GestureDetector(
+                  onTap: () => onSelect(c),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[800],
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          '${c.tier}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          width: 16,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: c.statusId == 1 ? Colors.amber : Colors.red,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            c.containerNumber,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Quick view popup (Step 2) ─────────────────────────────────────────────────
+
+class _QuickViewPopup extends StatelessWidget {
+  final ContainerModel container;
+  final VoidCallback onClose;
+  final VoidCallback onViewFull;
+
+  const _QuickViewPopup({
+    required this.container,
+    required this.onClose,
+    required this.onViewFull,
+  });
+
+  String _fmtDate(String? iso) {
+    if (iso == null) return '-';
+    try {
+      final dt = DateTime.parse(iso);
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return '-';
+    }
+  }
+
+  String _fmtDays(String? iso) {
+    if (iso == null) return '-';
+    try {
+      final days = DateTime.now().difference(DateTime.parse(iso)).inDays;
+      return '$days day${days != 1 ? "s" : ""}';
+    } catch (_) {
+      return '-';
+    }
+  }
+
+  Widget _infoRow(String label, String value) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final c = container;
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: Material(
+        elevation: 10,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 230,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A2E),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: onClose,
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white70,
+                      size: 18,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: onClose,
+                    child: const Icon(Icons.close, color: Colors.red, size: 18),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.amber,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  c.containerNumber,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              _infoRow('Status:', c.statusId == 1 ? 'Laden' : 'Empty'),
+              _infoRow(
+                'Type:',
+                c.containerSizeId == 1
+                    ? '20ft'
+                    : c.containerSizeId == 2
+                    ? '40ft'
+                    : (c.type ?? '-'),
+              ),
+              _infoRow('Tier:', '${c.tier ?? '-'}'),
+              _infoRow('Date Moved:', _fmtDate(c.moveConfirmedDate)),
+              _infoRow('Days in Slot:', _fmtDays(c.moveConfirmedDate)),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: onViewFull,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  child: const Text(
+                    'View Full Details',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Full details dialog (Step 3) ──────────────────────────────────────────────
+
+class _FullDetailsDialog extends StatelessWidget {
+  final ContainerModel container;
+  final String portName;
+  final int yardNumber;
+  final List<Block> blocks;
+  final Map<int, Bay> baysById;
+  final Map<int, RowModel> rowsById;
+
+  const _FullDetailsDialog({
+    required this.container,
+    required this.portName,
+    required this.yardNumber,
+    required this.blocks,
+    required this.baysById,
+    required this.rowsById,
+  });
+
+  String _fmt(String? iso) {
+    if (iso == null) return '-';
+    try {
+      final dt = DateTime.parse(iso);
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return '-';
+    }
+  }
+
+  String _days(String? iso) {
+    if (iso == null) return '-';
+    try {
+      final d = DateTime.now().difference(DateTime.parse(iso)).inDays;
+      return '$d day${d != 1 ? "s" : ""}';
+    } catch (_) {
+      return '-';
+    }
+  }
+
+  Widget _row(String label, String value, {Color? valueColor}) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 130,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textDark,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              color: valueColor ?? Colors.grey.shade700,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _section(String title) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(
+      title,
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.bold,
+        color: Colors.grey.shade500,
+        letterSpacing: 1,
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final c = container;
+    final block = c.blockId != null
+        ? blocks.where((b) => b.blockId == c.blockId).firstOrNull
+        : null;
+    final blockLabel =
+        block?.blockName ??
+        (block != null ? 'Block ${block.blockNumber}' : '-');
+    final bay = c.bayId != null ? baysById[c.bayId] : null;
+    final row = c.rowId != null ? rowsById[c.rowId] : null;
+    final typeLabel = c.containerSizeId == 1
+        ? '20ft'
+        : c.containerSizeId == 2
+        ? '40ft'
+        : (c.type ?? '-');
+    final statusLabel = c.statusId == 1 ? 'Laden' : 'Empty';
+    final statusColor = c.statusId == 1
+        ? Colors.amber.shade700
+        : Colors.red.shade600;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+          maxWidth: 360,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+              decoration: const BoxDecoration(
+                color: Color(0xFF1E1E2E),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'CONTAINER DETAILS',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.amber,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            c.containerNumber,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.redAccent,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Body
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _section('GENERAL'),
+                    _row('Status:', statusLabel, valueColor: statusColor),
+                    _row('Date Moved:', _fmt(c.moveConfirmedDate)),
+                    _row('Days in Slot:', _days(c.moveConfirmedDate)),
+                    _row('Date in Yard:', _fmt(c.yardEntryDate)),
+                    _row('Days in Yard:', _days(c.yardEntryDate)),
+                    _row('Container Type:', typeLabel),
+                    _row('Description:', c.containerDesc ?? '-'),
+                    const SizedBox(height: 12),
+                    _section('LOCATION'),
+                    _row('Port:', portName),
+                    _row('Yard:', 'Yard $yardNumber'),
+                    _row('Block:', blockLabel),
+                    _row('Bay:', bay?.bayNumber ?? '-'),
+                    _row('Row:', row != null ? '${row.rowNumber}' : '-'),
+                    _row('Tier:', c.tier != null ? '${c.tier}' : '-'),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -665,7 +1053,7 @@ class _GridPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
-// Constants (same as yard_screen)
+// Constants
 const double kContainerHeight = 8.0;
 const double k20ftWidth = 20.0;
 const double k40ftWidth = 40.0;

@@ -6,14 +6,8 @@ import 'customer_dashboard_screen.dart';
 import 'driver_dashboard_screen.dart';
 import 'checker_dashboard_screen.dart';
 
-const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer', 'Checker'];
-const _roleTypeIds = {
-  'Admin': 1,
-  'Port Manager': 2,
-  'Driver': 3,
-  'Customer': 4,
-  'Checker': 5,
-};
+const _roles = ['Admin', 'Driver', 'Customer', 'Checker'];
+const _roleTypeIds = {'Admin': 1, 'Driver': 3, 'Customer': 4, 'Checker': 5};
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -77,7 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
           (_) => false,
         );
       } else {
-        // Admin and Port Manager
+        // Admin
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => DashboardScreen(session: session)),

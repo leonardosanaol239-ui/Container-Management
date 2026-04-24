@@ -5,7 +5,7 @@ import '../models/port.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
-const _roles = ['Admin', 'Port Manager', 'Driver', 'Customer', 'Checker'];
+const _roles = ['Admin', 'Driver', 'Customer', 'Checker'];
 
 // Fallback port list used when API is unavailable
 final _fallbackPorts = [
@@ -98,8 +98,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (_filterRole != null) {
       list = list.where((u) => u.role == _filterRole).toList();
     }
-    if ((_filterRole == 'Port Manager' || _filterRole == 'Driver') &&
-        _filterPortId != null) {
+    if ((_filterRole == 'Driver') && _filterPortId != null) {
       list = list.where((u) => u.assignedPortId == _filterPortId).toList();
     }
     final q = _searchQuery.trim().toLowerCase();
@@ -129,200 +128,133 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     _applyFilter();
   });
 
-  Future<void> _showReassignDialog(UserModel user) async {
-    int? selected = user.assignedPortId;
-    // Drivers can share ports freely — only Port Managers have exclusivity
-    final takenPortIds = user.role == 'Port Manager'
-        ? _users
-              .where(
-                (u) =>
-                    u.role == 'Port Manager' &&
-                    u.assignedPortId != null &&
-                    u.userId != user.userId,
-              )
-              .map((u) => u.assignedPortId!)
-              .toSet()
-        : <int>{};
-
-    final newPortId = await showDialog<int>(
+  void _showUserInfo(UserModel user) {
+    final color = _roleColor(user.role);
+    showDialog(
       context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: Row(
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
+              // Header
               Container(
-                padding: const EdgeInsets.all(8),
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
                 decoration: BoxDecoration(
-                  color: AppColors.yellow,
-                  borderRadius: BorderRadius.circular(8),
+                  color: color,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
                 ),
-                child: const Icon(
-                  Icons.swap_horiz_rounded,
-                  color: AppColors.textDark,
-                  size: 18,
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: Colors.white.withValues(alpha: 0.25),
+                      child: const Icon(
+                        Icons.person_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        user.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white70,
+                        size: 20,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
+              // Body
+              Padding(
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Reassign Port',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
+                    _infoRow(Icons.badge_rounded, 'User Code', user.userCode),
+                    _infoRow(Icons.work_rounded, 'Role', user.role),
+                    if (user.contactNumber != null)
+                      _infoRow(
+                        Icons.phone_rounded,
+                        'Contact',
+                        user.contactNumber!,
                       ),
-                    ),
-                    Text(
-                      user.name,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textGrey,
+                    if (user.assignedPortName != null)
+                      _infoRow(
+                        Icons.location_on_rounded,
+                        'Assigned Port',
+                        user.assignedPortName!,
                       ),
+                    _infoRow(
+                      Icons.circle_rounded,
+                      'Status',
+                      user.statusLabel,
+                      valueColor: user.isActive
+                          ? AppColors.green
+                          : AppColors.red,
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          content: SizedBox(
-            width: 320,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Select new port:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12,
-                      color: AppColors.textDark,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ..._ports.map((p) {
-                    final taken = takenPortIds.contains(p.portId);
-                    final isCurrent = p.portId == user.assignedPortId;
-                    final isSel = p.portId == selected;
-                    return GestureDetector(
-                      onTap: taken
-                          ? null
-                          : () => setS(() => selected = p.portId),
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSel
-                              ? AppColors.green.withValues(alpha: 0.1)
-                              : taken
-                              ? Colors.grey.withValues(alpha: 0.05)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: isSel
-                                ? AppColors.green
-                                : taken
-                                ? Colors.grey.withValues(alpha: 0.3)
-                                : AppColors.yellow.withValues(alpha: 0.4),
-                            width: isSel ? 2 : 1,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.location_on_rounded,
-                              size: 16,
-                              color: taken
-                                  ? AppColors.textGrey
-                                  : isSel
-                                  ? AppColors.green
-                                  : AppColors.textDark,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                p.portDesc,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: isSel
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: taken
-                                      ? AppColors.textGrey
-                                      : AppColors.textDark,
-                                ),
-                              ),
-                            ),
-                            if (isCurrent) _tag('Current', AppColors.green),
-                            if (taken && !isCurrent)
-                              _tag('Taken', AppColors.textGrey),
-                            if (isSel)
-                              const Padding(
-                                padding: EdgeInsets.only(left: 6),
-                                child: Icon(
-                                  Icons.check_circle_rounded,
-                                  size: 16,
-                                  color: AppColors.green,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.green,
-                foregroundColor: AppColors.yellow,
-              ),
-              onPressed: selected == null || selected == user.assignedPortId
-                  ? null
-                  : () => Navigator.pop(ctx, selected),
-              child: const Text('Reassign'),
-            ),
-          ],
         ),
       ),
     );
-    if (newPortId == null) return;
-    final newPort = _ports.firstWhere((p) => p.portId == newPortId);
-    final updated = user.copyWith(
-      assignedPortIds: [newPortId],
-      assignedPortNames: [newPort.portDesc],
-    );
-    try {
-      final saved = await _api.updateUser(updated);
-      setState(() {
-        final idx = _users.indexWhere((u) => u.userId == user.userId);
-        if (idx != -1) _users[idx] = saved;
-        _applyFilter();
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to reassign port. Please try again.'),
-            backgroundColor: AppColors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
   }
+
+  Widget _infoRow(
+    IconData icon,
+    String label,
+    String value, {
+    Color? valueColor,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: AppColors.textGrey),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 100,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textGrey,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: valueColor ?? AppColors.textDark,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   Future<void> _showUserDialog({UserModel? existing}) async {
     final result = await showDialog<UserModel>(
@@ -330,15 +262,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       builder: (_) => _UserDialog(
         existing: existing,
         ports: _ports,
-        takenPortIds: _users
-            .where(
-              (u) =>
-                  u.role == 'Port Manager' &&
-                  u.assignedPortId != null &&
-                  u.userId != existing?.userId,
-            )
-            .map((u) => u.assignedPortId!)
-            .toSet(),
+        takenPortIds: const {},
         // Pass all existing codes (excluding the current user's own code when editing)
         existingCodes: _users
             .where((u) => u.userId != existing?.userId)
@@ -352,7 +276,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (existing == null) {
         final created = await _api.createUser(result);
         setState(() {
-          _users.add(created);
+          _users.insert(0, created);
           _applyFilter();
           _loading = false;
         });
@@ -530,15 +454,79 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.yellow,
         foregroundColor: AppColors.textDark,
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'User Management',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'User Management',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                color: AppColors.textDark,
+              ),
+            ),
+            Text(
+              'Container Management',
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 11,
+                color: AppColors.green,
+              ),
+            ),
+          ],
         ),
         actions: [
+          // Search bar in AppBar (matches port management style)
+          SizedBox(
+            width: 220,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: _onSearch,
+                decoration: InputDecoration(
+                  hintText: 'Search by user code or name...',
+                  hintStyle: const TextStyle(fontSize: 12),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none,
+                  ),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded, size: 16),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            _onSearch('');
+                          },
+                        )
+                      : const Icon(Icons.search, size: 18),
+                ),
+              ),
+            ),
+          ),
+          // Filter dropdown inline with search
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            child: _FilterDropdown(
+              ports: _ports,
+              selectedRole: _filterRole,
+              selectedPortId: _filterPortId,
+              onRoleChanged: _setRoleFilter,
+              onPortChanged: _setPortFilter,
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh',
@@ -562,54 +550,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       ),
       body: Column(
         children: [
-          // ── Search + Filter row ──
-          Container(
-            color: AppColors.yellow,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchCtrl,
-                    onChanged: _onSearch,
-                    decoration: InputDecoration(
-                      hintText: 'Search by user code or name…',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear_rounded, size: 18),
-                              onPressed: () {
-                                _searchCtrl.clear();
-                                _onSearch('');
-                              },
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: Colors.white,
-                      isDense: true,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                _FilterDropdown(
-                  ports: _ports,
-                  selectedRole: _filterRole,
-                  selectedPortId: _filterPortId,
-                  onRoleChanged: _setRoleFilter,
-                  onPortChanged: _setPortFilter,
-                ),
-              ],
-            ),
-          ),
-
           // ── Count strip ──
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -660,15 +600,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (_, i) => _UserTile(
                       user: _filtered[i],
+                      onTap: () => _showUserInfo(_filtered[i]),
                       onEdit: _filtered[i].isDeleted
                           ? null
                           : () => _showUserDialog(existing: _filtered[i]),
                       onDelete: () => _confirmDelete(_filtered[i]),
-                      onReassign:
-                          _filtered[i].role == 'Port Manager' &&
-                              !_filtered[i].isDeleted
-                          ? () => _showReassignDialog(_filtered[i])
-                          : null,
                     ),
                   ),
           ),
@@ -687,18 +623,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 }
-
-Widget _tag(String label, Color color) => Container(
-  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-  decoration: BoxDecoration(
-    color: color.withValues(alpha: 0.15),
-    borderRadius: BorderRadius.circular(6),
-  ),
-  child: Text(
-    label,
-    style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w700),
-  ),
-);
 
 // ── Filter Dropdown ──────────────────────────────────────────────────────────
 
@@ -721,8 +645,7 @@ class _FilterDropdown extends StatelessWidget {
 
   String get _label {
     if (selectedRole == null) return 'Filter';
-    if ((selectedRole == 'Port Manager' || selectedRole == 'Driver') &&
-        selectedPortId != null) {
+    if ((selectedRole == 'Driver') && selectedPortId != null) {
       final port = ports.firstWhere(
         (p) => p.portId == selectedPortId,
         orElse: () => Port(portId: 0, portDesc: ''),
@@ -841,8 +764,7 @@ class _FilterDropdown extends StatelessWidget {
         ),
       );
     }
-    if ((selectedRole == 'Port Manager' || selectedRole == 'Driver') &&
-        ports.isNotEmpty) {
+    if ((selectedRole == 'Driver') && ports.isNotEmpty) {
       items.add(const PopupMenuDivider());
       items.add(
         const PopupMenuItem<String>(
@@ -962,7 +884,7 @@ class _UserDialogState extends State<_UserDialog> {
     );
     _codeCtrl = TextEditingController(text: widget.existing?.userCode ?? '');
     _passCtrl = TextEditingController();
-    _role = widget.existing?.role ?? 'Port Manager';
+    _role = widget.existing?.role ?? 'Driver';
     _selectedPortIds = List.of(widget.existing?.assignedPortIds ?? []);
     _statusId = widget.existing?.statusId ?? userStatusActive;
   }
@@ -998,13 +920,11 @@ class _UserDialogState extends State<_UserDialog> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
-    if ((_role == 'Port Manager' || _role == 'Checker') &&
-        _selectedPortIds.isEmpty) {
+    if ((_role == 'Checker') && _selectedPortIds.isEmpty) {
       setState(() {}); // triggers the inline error message to show
       return;
     }
-    final needsPort =
-        _role == 'Port Manager' || _role == 'Driver' || _role == 'Checker';
+    final needsPort = _role == 'Driver' || _role == 'Checker';
     final portNames = _selectedPortIds
         .map((id) {
           final match = widget.ports.where((p) => p.portId == id).toList();
@@ -1088,18 +1008,14 @@ class _UserDialogState extends State<_UserDialog> {
                       .toList(),
                   onChanged: (v) => setState(() {
                     _role = v!;
-                    if (_role != 'Port Manager' &&
-                        _role != 'Driver' &&
-                        _role != 'Checker') {
+                    if (_role != 'Driver' && _role != 'Checker') {
                       _selectedPortIds = [];
                     }
                   }),
                 ),
 
-                // ── Port (Port Manager, Driver & Checker) ──
-                if (_role == 'Port Manager' ||
-                    _role == 'Driver' ||
-                    _role == 'Checker') ...[
+                // ── Port (Driver & Checker) ──
+                if (_role == 'Driver' || _role == 'Checker') ...[
                   const SizedBox(height: 14),
                   _lbl('Assigned Port'),
                   const SizedBox(height: 6),
@@ -1109,8 +1025,7 @@ class _UserDialogState extends State<_UserDialog> {
                     onChanged: (ids) => setState(() => _selectedPortIds = ids),
                     multiSelect: false,
                   ),
-                  if ((_role == 'Port Manager' || _role == 'Checker') &&
-                      _selectedPortIds.isEmpty)
+                  if ((_role == 'Checker') && _selectedPortIds.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 6, left: 12),
                       child: Text(
@@ -1641,14 +1556,14 @@ Widget _lbl(String text) => Text(
 
 class _UserTile extends StatelessWidget {
   final UserModel user;
-  final VoidCallback? onEdit; // null = disabled (deleted user)
+  final VoidCallback onTap;
+  final VoidCallback? onEdit;
   final VoidCallback onDelete;
-  final VoidCallback? onReassign;
   const _UserTile({
     required this.user,
+    required this.onTap,
     required this.onEdit,
     required this.onDelete,
-    this.onReassign,
   });
 
   @override
@@ -1657,131 +1572,92 @@ class _UserTile extends StatelessWidget {
     final isDeleted = user.isDeleted;
     return Opacity(
       opacity: isDeleted ? 0.55 : 1.0,
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDeleted ? const Color(0xFFF5F5F5) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: isDeleted
-              ? Border.all(color: AppColors.red.withValues(alpha: 0.25))
-              : null,
-          boxShadow: isDeleted
-              ? null
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: color.withValues(alpha: 0.15),
-                child: Icon(Icons.person_rounded, color: color, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDeleted ? const Color(0xFFF5F5F5) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: isDeleted
+                ? Border.all(color: AppColors.red.withValues(alpha: 0.25))
+                : null,
+            boxShadow: isDeleted
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
                     ),
-                    Text(
-                      'Code: ${user.userCode}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textGrey,
-                      ),
-                    ),
-                    if (user.contactNumber != null)
+                  ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: color.withValues(alpha: 0.15),
+                  child: Icon(Icons.person_rounded, color: color, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        user.contactNumber!,
+                        user.name,
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        'Code: ${user.userCode}',
+                        style: const TextStyle(
+                          fontSize: 12,
                           color: AppColors.textGrey,
                         ),
                       ),
-                    if ((user.role == 'Port Manager' ||
-                            user.role == 'Driver') &&
-                        user.assignedPortName != null)
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.location_on_rounded,
-                            size: 12,
-                            color: AppColors.green,
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            user.assignedPortName!,
-                            style: const TextStyle(
-                              fontSize: 11,
+                      if (user.assignedPortName != null)
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.location_on_rounded,
+                              size: 12,
                               color: AppColors.green,
-                              fontWeight: FontWeight.w600,
                             ),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Status badge
-              _StatusBadge(statusId: user.statusId),
-              const SizedBox(width: 6),
-              if (onReassign != null)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: OutlinedButton.icon(
-                    onPressed: onReassign,
-                    icon: const Icon(Icons.swap_horiz_rounded, size: 14),
-                    label: const Text(
-                      'Reassign',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1565C0),
-                      side: const BorderSide(
-                        color: Color(0xFF1565C0),
-                        width: 1.5,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
+                            const SizedBox(width: 3),
+                            Text(
+                              user.assignedPortName!,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.green,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
                   ),
                 ),
-              _RoleBadge(role: user.role),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 20),
-                color: onEdit != null ? AppColors.green : AppColors.textGrey,
-                tooltip: onEdit != null ? 'Edit' : 'Cannot edit deleted user',
-                onPressed: onEdit,
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, size: 20),
-                color: AppColors.red,
-                tooltip: 'Delete',
-                onPressed: onDelete,
-              ),
-            ],
+                const SizedBox(width: 8),
+                _StatusBadge(statusId: user.statusId),
+                const SizedBox(width: 6),
+                _RoleBadge(role: user.role),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  color: onEdit != null ? AppColors.green : AppColors.textGrey,
+                  tooltip: onEdit != null ? 'Edit' : 'Cannot edit deleted user',
+                  onPressed: onEdit,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                  color: AppColors.red,
+                  tooltip: 'Delete',
+                  onPressed: onDelete,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1953,8 +1829,6 @@ Color _roleColor(String role) {
   switch (role) {
     case 'Admin':
       return AppColors.green;
-    case 'Port Manager':
-      return const Color(0xFF1565C0);
     default:
       return const Color(0xFFE65100);
   }

@@ -3,8 +3,8 @@ class Session {
   final int userId;
   final String userCode;
   final String fullName;
-  final String role; // 'Admin' | 'Port Manager' | 'Driver' | 'Customer'
-  final int userTypeId; // 1 | 2 | 3 | 4
+  final String role; // 'Admin' | 'Driver' | 'Customer' | 'Checker'
+  final int userTypeId; // 1 | 3 | 4 | 5
   final int? portId;
   final String? portDesc;
   final int? customerId; // populated when userTypeId == 4
@@ -21,11 +21,10 @@ class Session {
   });
 
   bool get isAdmin => userTypeId == 1;
-  bool get isPortManager => userTypeId == 2;
   bool get isDriver => userTypeId == 3;
   bool get isCustomer => userTypeId == 4;
   bool get isChecker => userTypeId == 5;
-  bool get canMoveRequest => isAdmin || isPortManager || isChecker;
+  bool get canMoveRequest => isAdmin || isChecker;
 
   factory Session.fromJson(Map<String, dynamic> json) => Session(
     userId: json['userId'] as int,

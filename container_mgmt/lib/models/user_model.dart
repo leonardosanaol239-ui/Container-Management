@@ -1,18 +1,6 @@
 // Maps role display names ↔ UserTypeId in dbo.UserTypes
-const _roleToTypeId = {
-  'Admin': 1,
-  'Port Manager': 2,
-  'Driver': 3,
-  'Customer': 4,
-  'Checker': 5,
-};
-const _typeIdToRole = {
-  1: 'Admin',
-  2: 'Port Manager',
-  3: 'Driver',
-  4: 'Customer',
-  5: 'Checker',
-};
+const _roleToTypeId = {'Admin': 1, 'Driver': 3, 'Customer': 4, 'Checker': 5};
+const _typeIdToRole = {1: 'Admin', 3: 'Driver', 4: 'Customer', 5: 'Checker'};
 
 // User status values from dbo.Status
 const userStatusActive = 3;
@@ -121,7 +109,7 @@ class UserModel {
     };
     if (userId != null) map['userId'] = userId;
     if (password != null && password!.isNotEmpty) map['password'] = password;
-    if (role == 'Port Manager' || role == 'Driver' || role == 'Checker') {
+    if (role == 'Driver' || role == 'Checker') {
       map['portIds'] = assignedPortIds;
       map['portId'] = assignedPortIds.isNotEmpty ? assignedPortIds.first : null;
     }

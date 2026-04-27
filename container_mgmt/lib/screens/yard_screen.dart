@@ -145,16 +145,20 @@ class _YardScreenState extends State<YardScreen>
       final Map<int, List<ContainerModel>> requestByRow = {};
       for (final c in containers) {
         if (c.rowId != null && !c.isMovedOut) {
-          if (c.locationStatusId == 1)
+          if (c.locationStatusId == 1) {
             confirmedByRow.putIfAbsent(c.rowId!, () => []).add(c);
-          if (c.locationStatusId == 3 || c.locationStatusId == 1)
+          }
+          if (c.locationStatusId == 3 || c.locationStatusId == 1) {
             requestByRow.putIfAbsent(c.rowId!, () => []).add(c);
+          }
         }
       }
-      for (final list in confirmedByRow.values)
+      for (final list in confirmedByRow.values) {
         list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
-      for (final list in requestByRow.values)
+      }
+      for (final list in requestByRow.values) {
         list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
+      }
 
       if (!mounted) return;
       setState(() {
@@ -318,7 +322,7 @@ class _YardScreenState extends State<YardScreen>
     if (slotSizeId != null &&
         containerSizeId != null &&
         slotSizeId != containerSizeId) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -327,6 +331,7 @@ class _YardScreenState extends State<YardScreen>
             duration: const Duration(seconds: 2),
           ),
         );
+      }
       return;
     }
     int? blockId, bayId;
@@ -553,10 +558,11 @@ class _YardScreenState extends State<YardScreen>
         setState(() => _selectedSlotId = null);
         await _loadAll();
       } catch (_) {
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Cannot delete: row has containers')),
           );
+        }
       }
     }
   }
@@ -728,7 +734,7 @@ class _YardScreenState extends State<YardScreen>
                     shrinkWrap: true,
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     itemCount: _movedOutContainers.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (ctx, i) {
                       final c = _movedOutContainers[i];
                       return ListTile(
@@ -820,8 +826,9 @@ class _YardScreenState extends State<YardScreen>
                 .toList(),
             onChanged: (v) {
               setState(() => _selectedOrientationId = v);
-              if (v != null && _selectedSlotId != null)
+              if (v != null && _selectedSlotId != null) {
                 _applyOrientationChange(_selectedSlotId!, v);
+              }
             },
           ),
           const SizedBox(width: 8),
@@ -842,8 +849,9 @@ class _YardScreenState extends State<YardScreen>
                 .toList(),
             onChanged: (v) {
               setState(() => _selectedSizeId = v);
-              if (v != null && _selectedSlotId != null)
+              if (v != null && _selectedSlotId != null) {
                 _applySizeChange(_selectedSlotId!, v);
+              }
             },
           ),
           const SizedBox(width: 8),
@@ -882,12 +890,13 @@ class _YardScreenState extends State<YardScreen>
                       setState(() => _selectedSlotId = null);
                       await _loadAll();
                     } catch (_) {
-                      if (mounted)
+                      if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('Cannot delete: slot has containers'),
                           ),
                         );
+                      }
                     }
                   }
                 : null,
@@ -1487,10 +1496,11 @@ class _YardScreenState extends State<YardScreen>
                 await _api.removeBay(block.blockId);
                 await _loadAll();
               } catch (_) {
-                if (mounted)
+                if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Cannot remove bay')),
                   );
+                }
               }
             }
           : null,
@@ -1502,10 +1512,11 @@ class _YardScreenState extends State<YardScreen>
                 setState(() => _selectedSlotId = null);
                 await _loadAll();
               } catch (e) {
-                if (mounted)
+                if (mounted) {
                   ScaffoldMessenger.of(
                     context,
                   ).showSnackBar(SnackBar(content: Text('Cannot delete: $e')));
+                }
               }
             }
           : null,
@@ -1516,13 +1527,14 @@ class _YardScreenState extends State<YardScreen>
                 await _api.addRow(block.blockId);
                 await _loadAll();
               } catch (e) {
-                if (mounted)
+                if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Cannot add row: ' + e.toString()),
+                      content: Text('Cannot add row: $e'),
                       duration: const Duration(seconds: 4),
                     ),
                   );
+                }
               }
             }
           : null,
@@ -1533,13 +1545,14 @@ class _YardScreenState extends State<YardScreen>
                 await _api.removeRow(block.blockId);
                 await _loadAll();
               } catch (e) {
-                if (mounted)
+                if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Cannot remove row: ' + e.toString()),
+                      content: Text('Cannot remove row: $e'),
                       duration: const Duration(seconds: 4),
                     ),
                   );
+                }
               }
             }
           : null,
@@ -1582,12 +1595,13 @@ class _YardScreenState extends State<YardScreen>
           : null,
     );
 
-    if (!_editMode)
+    if (!_editMode) {
       return Positioned(
         left: offset.dx,
         top: offset.dy,
         child: Transform.rotate(angle: rotation, child: bw),
       );
+    }
     return Positioned(
       left: offset.dx,
       top: offset.dy,
@@ -1639,13 +1653,14 @@ class _YardScreenState extends State<YardScreen>
                       (block.posY ?? 10).toDouble(),
                     ),
                   );
-                  if (mounted)
+                  if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Slot areas cannot overlap'),
                         duration: Duration(seconds: 1),
                       ),
                     );
+                  }
                   return;
                 }
                 try {
@@ -1746,7 +1761,7 @@ class YardBlockWidget extends StatelessWidget {
   final VoidCallback? onAddRow;
   final VoidCallback? onRemoveRow;
 
-  const YardBlockWidget({
+  const YardBlockWidget({super.key, 
     required this.block,
     required this.baysByBlock,
     required this.rowsByBay,
@@ -2070,7 +2085,7 @@ class YardBlockWidget extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    if (rotateHandle != null) rotateHandle!,
+                    ?rotateHandle,
                   ],
                 ),
               ],
@@ -2359,7 +2374,7 @@ class _SlotCell extends StatelessWidget {
           return isHighlighted
               ? AnimatedBuilder(
                   animation: blinkCtrl,
-                  builder: (_, __) {
+                  builder: (_, _) {
                     final t = blinkCtrl.value;
                     // Use custom color if provided, otherwise default yellow/orange
                     final Color pulseColor;
@@ -2410,7 +2425,7 @@ class YardHighlightSlot extends StatelessWidget {
   final AnimationController blinkCtrl;
   final double scaleX, scaleY;
 
-  const YardHighlightSlot({
+  const YardHighlightSlot({super.key, 
     required this.bays,
     required this.rowsByBay,
     required this.highlightedRowId,
@@ -2477,7 +2492,7 @@ class YardHighlightSlot extends StatelessWidget {
                 top: dy,
                 child: AnimatedBuilder(
                   animation: blinkCtrl,
-                  builder: (_, __) => Container(
+                  builder: (_, _) => Container(
                     width: slotW,
                     height: slotH,
                     decoration: BoxDecoration(
@@ -2632,7 +2647,7 @@ class _AddBlockDialogState extends State<_AddBlockDialog> {
                           ),
                         ),
                         DropdownButtonFormField<int>(
-                          value: _orientId,
+                          initialValue: _orientId,
                           isDense: true,
                           decoration: const InputDecoration(
                             isDense: true,
@@ -2675,7 +2690,7 @@ class _AddBlockDialogState extends State<_AddBlockDialog> {
                           ),
                         ),
                         DropdownButtonFormField<int>(
-                          value: _sizeId,
+                          initialValue: _sizeId,
                           isDense: true,
                           decoration: const InputDecoration(
                             isDense: true,
@@ -2783,8 +2798,9 @@ class _AddBlockDialogState extends State<_AddBlockDialog> {
         bays < 1 ||
         rows < 1 ||
         _orientId == null ||
-        _sizeId == null)
+        _sizeId == null) {
       return;
+    }
     setState(() => _loading = true);
     await widget.onConfirm(name, bays, rows, _orientId!, _sizeId!, stack);
     if (mounted) Navigator.pop(context);
@@ -2802,7 +2818,7 @@ class YardTierPopup extends StatefulWidget {
   final Map<int, Bay> baysById;
   final Map<int, RowModel> rowsById;
 
-  const YardTierPopup({
+  const YardTierPopup({super.key, 
     required this.containers,
     required this.onClose,
     required this.customers,
@@ -3040,7 +3056,7 @@ class YardContainerDetailsDialog extends StatelessWidget {
   final Map<int, Bay> baysById;
   final Map<int, RowModel> rowsById;
 
-  const YardContainerDetailsDialog({
+  const YardContainerDetailsDialog({super.key, 
     required this.container,
     required this.customers,
     required this.portName,
@@ -3462,8 +3478,9 @@ class _TransferDialogState extends State<_TransferDialog> {
     if (_selYard == null ||
         _selBlock == null ||
         _selBay == null ||
-        _selRow == null)
+        _selRow == null) {
       return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -3640,7 +3657,7 @@ class _TransferDialogState extends State<_TransferDialog> {
     required String Function(T) display,
     required ValueChanged<T?> onChanged,
   }) => DropdownButtonFormField<T>(
-    value: value,
+    initialValue: value,
     isDense: true,
     decoration: const InputDecoration(
       isDense: true,
@@ -4228,7 +4245,7 @@ class _YardContainersDialogState extends State<_YardContainersDialog>
                         )
                       : ListView.separated(
                           itemCount: containers.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          separatorBuilder: (_, _) => const Divider(height: 1),
                           itemBuilder: (ctx, i) => _YardContainerTile(
                             c: containers[i],
                             onTap: () => _showDetails(ctx, containers[i]),

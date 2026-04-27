@@ -112,8 +112,9 @@ class _DriverYardScreenState extends State<DriverYardScreen>
             ..sort((a, b) {
               final da = a.moveRequestDate;
               final db = b.moveRequestDate;
-              if (da == null && db == null)
+              if (da == null && db == null) {
                 return a.containerId.compareTo(b.containerId);
+              }
               if (da == null) return 1;
               if (db == null) return -1;
               return da.compareTo(db);
@@ -185,8 +186,9 @@ class _DriverYardScreenState extends State<DriverYardScreen>
             ..sort((a, b) {
               final da = a.moveRequestDate;
               final db = b.moveRequestDate;
-              if (da == null && db == null)
+              if (da == null && db == null) {
                 return a.containerId.compareTo(b.containerId);
+              }
               if (da == null) return 1;
               if (db == null) return -1;
               return da.compareTo(db);
@@ -605,7 +607,7 @@ class _MoveRequestItem extends StatelessWidget {
               width: 8,
               height: 40,
               decoration: BoxDecoration(
-                color: isLaden ? AppColors.yellow : AppColors.red,
+                color: isLaden ? AppColors.yellow : AppColors.empty,
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -623,7 +625,7 @@ class _MoveRequestItem extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: isLaden ? AppColors.yellow : AppColors.red,
+                          color: isLaden ? AppColors.yellow : AppColors.empty,
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(

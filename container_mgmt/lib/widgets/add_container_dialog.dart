@@ -182,7 +182,7 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
                           _StatusButton(
                             label: 'Empty',
                             selected: _statusId == 2,
-                            color: AppColors.red,
+                            color: AppColors.empty,
                             onTap: () => setState(() => _statusId = 2),
                           ),
                           const SizedBox(width: 10),

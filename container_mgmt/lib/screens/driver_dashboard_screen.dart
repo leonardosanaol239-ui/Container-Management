@@ -69,8 +69,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
             ..sort((a, b) {
               final da = a.moveRequestDate;
               final db = b.moveRequestDate;
-              if (da == null && db == null)
+              if (da == null && db == null) {
                 return a.containerId.compareTo(b.containerId);
+              }
               if (da == null) return 1;
               if (db == null) return -1;
               return da.compareTo(db);
@@ -111,8 +112,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
             ..sort((a, b) {
               final da = a.moveRequestDate;
               final db = b.moveRequestDate;
-              if (da == null && db == null)
+              if (da == null && db == null) {
                 return a.containerId.compareTo(b.containerId);
+              }
               if (da == null) return 1;
               if (db == null) return -1;
               return da.compareTo(db);
@@ -429,7 +431,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: containers.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (ctx, i) => _MoveRequestTile(
                 c: containers[i],
                 onConfirm: () => _confirmRequest(containers[i]),

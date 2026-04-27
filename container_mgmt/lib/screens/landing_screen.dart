@@ -293,7 +293,7 @@ class _LandingScreenState extends State<LandingScreen>
               child: Image.asset(
                 'assets/gothong_logo.png',
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(
+                errorBuilder: (_, _, _) => const Icon(
                   Icons.directions_boat_filled,
                   size: 48,
                   color: AppColors.green,
@@ -367,8 +367,8 @@ class _LandingScreenState extends State<LandingScreen>
               onTap: () => Navigator.push(
                 context,
                 PageRouteBuilder(
-                  pageBuilder: (_, __, ___) => const LoginScreen(),
-                  transitionsBuilder: (_, anim, __, child) =>
+                  pageBuilder: (_, _, _) => const LoginScreen(),
+                  transitionsBuilder: (_, anim, _, child) =>
                       FadeTransition(opacity: anim, child: child),
                   transitionDuration: const Duration(milliseconds: 400),
                 ),

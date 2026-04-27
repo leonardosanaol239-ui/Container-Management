@@ -136,7 +136,7 @@ class ApiService {
         'containerSizeId': containerSizeId,
         'containerDesc': desc,
         'currentPortId': portId,
-        if (customerId != null) 'customerId': customerId,
+        'customerId': ?customerId,
       }),
     );
     _check(res);
@@ -161,7 +161,7 @@ class ApiService {
         'bayId': bayId,
         'rowId': rowId,
         'tier': tier,
-        if (locationStatusId != null) 'locationStatusId': locationStatusId,
+        'locationStatusId': ?locationStatusId,
       }),
     );
     _check(res);
@@ -454,9 +454,9 @@ class ApiService {
       Uri.parse('$baseUrl/Layout/rows/$rowId'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        if (sizeId != null) 'sizeId': sizeId,
-        if (orientationId != null) 'orientationId': orientationId,
-        if (maxStack != null) 'maxStack': maxStack,
+        'sizeId': ?sizeId,
+        'orientationId': ?orientationId,
+        'maxStack': ?maxStack,
       }),
     );
     _check(res);

@@ -44,7 +44,7 @@ class _ContainerDetailsDialogState extends State<ContainerDetailsDialog> {
   Widget build(BuildContext context) {
     final container = widget.container;
     final isLaden = container.statusId == 1;
-    final statusColor = isLaden ? AppColors.yellow : AppColors.red;
+    final statusColor = isLaden ? AppColors.yellow : AppColors.empty;
     final statusTextColor = isLaden ? AppColors.textDark : AppColors.white;
 
     return Dialog(

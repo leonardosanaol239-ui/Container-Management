@@ -530,7 +530,7 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen>
                       )
                     : ListView.separated(
                         itemCount: containers.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (ctx, i) => _ContainerListTile(
                           c: containers[i],
                           myYards: _myYards,

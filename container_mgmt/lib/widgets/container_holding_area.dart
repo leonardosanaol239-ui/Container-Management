@@ -51,8 +51,11 @@ class ContainerHoldingArea extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.inbox_rounded,
-                    color: AppColors.yellow, size: 16),
+                const Icon(
+                  Icons.inbox_rounded,
+                  color: AppColors.yellow,
+                  size: 16,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   'HOLDING AREA',
@@ -65,8 +68,10 @@ class ContainerHoldingArea extends StatelessWidget {
                 ),
                 const Spacer(),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.yellow,
                     borderRadius: BorderRadius.circular(10),
@@ -117,14 +122,18 @@ class ContainerHoldingArea extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.inbox_outlined,
-                            size: 40,
-                            color: AppColors.textGrey.withOpacity(0.4)),
+                        Icon(
+                          Icons.inbox_outlined,
+                          size: 40,
+                          color: AppColors.textGrey.withOpacity(0.4),
+                        ),
                         const SizedBox(height: 8),
                         const Text(
                           'No containers',
                           style: TextStyle(
-                              color: AppColors.textGrey, fontSize: 12),
+                            color: AppColors.textGrey,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -138,8 +147,7 @@ class ContainerHoldingArea extends StatelessWidget {
                         container: c,
                         onTap: () => showDialog(
                           context: ctx,
-                          builder: (_) =>
-                              ContainerDetailsDialog(container: c),
+                          builder: (_) => ContainerDetailsDialog(container: c),
                         ),
                       );
                     },
@@ -150,16 +158,18 @@ class ContainerHoldingArea extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 8),
             decoration: BoxDecoration(
               color: AppColors.yellow.withOpacity(0.15),
-              borderRadius:
-                  const BorderRadius.vertical(bottom: Radius.circular(11)),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(11),
+              ),
             ),
             child: const Text(
               'Drag to move containers',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: AppColors.textGrey,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500),
+                color: AppColors.textGrey,
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -219,7 +229,7 @@ class _ContainerListItem extends StatelessWidget {
             width: 8,
             height: 40,
             decoration: BoxDecoration(
-              color: isLaden ? AppColors.yellow : AppColors.red,
+              color: isLaden ? AppColors.yellow : AppColors.empty,
               borderRadius: BorderRadius.circular(4),
             ),
           ),
@@ -233,10 +243,11 @@ class _ContainerListItem extends StatelessWidget {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
-                        color:
-                            isLaden ? AppColors.yellow : AppColors.red,
+                        color: isLaden ? AppColors.yellow : AppColors.empty,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -244,9 +255,7 @@ class _ContainerListItem extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: isLaden
-                              ? AppColors.textDark
-                              : AppColors.white,
+                          color: isLaden ? AppColors.textDark : AppColors.white,
                         ),
                       ),
                     ),

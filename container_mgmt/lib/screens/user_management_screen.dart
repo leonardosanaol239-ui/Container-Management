@@ -455,136 +455,383 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         backgroundColor: AppColors.yellow,
         foregroundColor: AppColors.textDark,
         elevation: 0,
+        toolbarHeight: 70,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           onPressed: () => Navigator.pop(context),
+          color: AppColors.green,
         ),
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(
-              'User Management',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-                color: AppColors.textDark,
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.green,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.people_rounded,
+                color: AppColors.yellow,
+                size: 22,
               ),
             ),
-            Text(
-              'Container Management',
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 11,
-                color: AppColors.green,
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'User Management',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      color: AppColors.textDark,
+                      letterSpacing: 0.3,
+                      height: 1.2,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Manage system users and permissions',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                      color: AppColors.green,
+                      letterSpacing: 0.1,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
         actions: [
-          // Search bar in AppBar (matches port management style)
-          SizedBox(
-            width: 220,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-              child: TextField(
-                controller: _searchCtrl,
-                onChanged: _onSearch,
-                decoration: InputDecoration(
-                  hintText: 'Search by user code or name...',
-                  hintStyle: const TextStyle(fontSize: 12),
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
-                  ),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear_rounded, size: 16),
-                          onPressed: () {
-                            _searchCtrl.clear();
-                            _onSearch('');
-                          },
-                        )
-                      : const Icon(Icons.search, size: 18),
+          // Search bar
+          Container(
+            constraints: const BoxConstraints(maxWidth: 280),
+            margin: const EdgeInsets.only(right: 8),
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: _onSearch,
+              decoration: InputDecoration(
+                hintText: 'Search by name or code',
+                hintStyle: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textGrey.withValues(alpha: 0.5),
                 ),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(
+                    color: AppColors.green,
+                    width: 1.5,
+                  ),
+                ),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  size: 18,
+                  color: AppColors.green,
+                ),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded, size: 16),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          _onSearch('');
+                        },
+                        color: AppColors.textGrey,
+                        padding: const EdgeInsets.all(4),
+                      )
+                    : null,
               ),
             ),
           ),
-          // Filter dropdown inline with search
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            child: _FilterDropdown(
-              ports: _ports,
-              selectedRole: _filterRole,
-              selectedPortId: _filterPortId,
-              onRoleChanged: _setRoleFilter,
-              onPortChanged: _setPortFilter,
-            ),
-          ),
+          // Add User button
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
-            onPressed: _load,
-          ),
-          IconButton(
-            icon: Icon(
-              _showDeleted
-                  ? Icons.visibility_off_rounded
-                  : Icons.delete_sweep_rounded,
-              color: _showDeleted ? AppColors.red : AppColors.textDark,
+            onPressed: () => _showUserDialog(),
+            style: IconButton.styleFrom(
+              backgroundColor: AppColors.green,
+              foregroundColor: AppColors.yellow,
+              padding: const EdgeInsets.all(10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 2,
             ),
-            tooltip: _showDeleted ? 'Hide deleted users' : 'Show deleted users',
+            icon: const Icon(Icons.person_add_rounded, size: 20),
+            tooltip: 'Add New User',
+          ),
+          const SizedBox(width: 8),
+          // View Deleted button
+          IconButton(
             onPressed: () => setState(() {
               _showDeleted = !_showDeleted;
               _applyFilter();
             }),
+            style: IconButton.styleFrom(
+              backgroundColor: _showDeleted ? AppColors.red : Colors.white,
+              foregroundColor: _showDeleted ? Colors.white : AppColors.red,
+              padding: const EdgeInsets.all(10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: _showDeleted ? 2 : 0,
+            ),
+            icon: Icon(
+              _showDeleted
+                  ? Icons.delete_rounded
+                  : Icons.delete_outline_rounded,
+              size: 20,
+            ),
+            tooltip: _showDeleted ? 'Hide Deleted Users' : 'View Deleted Users',
           ),
           const SizedBox(width: 8),
+          // Filter button
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            child: PopupMenuButton<String>(
+              icon: Icon(
+                _filterRole != null || _filterPortId != null
+                    ? Icons.filter_alt_rounded
+                    : Icons.filter_alt_outlined,
+                size: 20,
+                color: _filterRole != null || _filterPortId != null
+                    ? AppColors.green
+                    : AppColors.textDark,
+              ),
+              tooltip: 'Filter Users',
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              offset: const Offset(0, 48),
+              color: Colors.white,
+              elevation: 4,
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white,
+                padding: const EdgeInsets.all(10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              itemBuilder: (context) => [
+                const PopupMenuItem<String>(
+                  enabled: false,
+                  child: Text(
+                    'Filter by Role',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 11,
+                      color: AppColors.textGrey,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'clear_role',
+                  child: Row(
+                    children: [
+                      Icon(
+                        _filterRole == null
+                            ? Icons.radio_button_checked_rounded
+                            : Icons.radio_button_unchecked_rounded,
+                        size: 16,
+                        color: _filterRole == null
+                            ? AppColors.green
+                            : AppColors.textGrey,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text('All Roles', style: TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                ),
+                ..._roles.map(
+                  (role) => PopupMenuItem<String>(
+                    value: 'role_$role',
+                    child: Row(
+                      children: [
+                        Icon(
+                          _filterRole == role
+                              ? Icons.radio_button_checked_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          size: 16,
+                          color: _filterRole == role
+                              ? AppColors.green
+                              : AppColors.textGrey,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(role, style: const TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
+                if (_filterRole == 'Driver') ...[
+                  const PopupMenuDivider(),
+                  const PopupMenuItem<String>(
+                    enabled: false,
+                    child: Text(
+                      'Filter by Port',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 11,
+                        color: AppColors.textGrey,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'clear_port',
+                    child: Row(
+                      children: [
+                        Icon(
+                          _filterPortId == null
+                              ? Icons.radio_button_checked_rounded
+                              : Icons.radio_button_unchecked_rounded,
+                          size: 16,
+                          color: _filterPortId == null
+                              ? AppColors.green
+                              : AppColors.textGrey,
+                        ),
+                        const SizedBox(width: 8),
+                        const Text('All Ports', style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  ..._ports.map(
+                    (port) => PopupMenuItem<String>(
+                      value: 'port_${port.portId}',
+                      child: Row(
+                        children: [
+                          Icon(
+                            _filterPortId == port.portId
+                                ? Icons.radio_button_checked_rounded
+                                : Icons.radio_button_unchecked_rounded,
+                            size: 16,
+                            color: _filterPortId == port.portId
+                                ? AppColors.green
+                                : AppColors.textGrey,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              port.portDesc,
+                              style: const TextStyle(fontSize: 12),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+              onSelected: (value) {
+                if (value == 'clear_role') {
+                  _setRoleFilter(null);
+                } else if (value.startsWith('role_')) {
+                  _setRoleFilter(value.substring(5));
+                } else if (value == 'clear_port') {
+                  _setPortFilter(null);
+                } else if (value.startsWith('port_')) {
+                  _setPortFilter(int.parse(value.substring(5)));
+                }
+              },
+            ),
+          ),
         ],
       ),
       body: Column(
         children: [
-          // ── Count strip ──
+          // ── Summary Bar ──
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.white,
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              color: _showDeleted ? AppColors.red : AppColors.green,
+              boxShadow: [
+                BoxShadow(
+                  color: (_showDeleted ? AppColors.red : AppColors.green)
+                      .withValues(alpha: 0.2),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
             child: Row(
               children: [
+                Icon(
+                  _showDeleted ? Icons.delete_rounded : Icons.people_rounded,
+                  color: AppColors.yellow,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
                 Text(
                   () {
-                    final active = _users.where((u) => u.isActive).length;
-                    final total = _users.length;
-                    return '$active active · $total total';
+                    if (_showDeleted) {
+                      final deleted = _users.where((u) => u.isDeleted).length;
+                      return '$deleted Deleted Users';
+                    } else {
+                      final active = _users.where((u) => u.isActive).length;
+                      final inactive = _users.where((u) => u.isInactive).length;
+                      final total = _users.where((u) => !u.isDeleted).length;
+                      return '$active Active · $inactive Inactive · $total Total';
+                    }
                   }(),
                   style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                    color: AppColors.textGrey,
+                    color: AppColors.yellow,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
                   ),
                 ),
                 const Spacer(),
-                ..._roles.map((r) {
-                  final count = _users
-                      .where((u) => u.role == r && !u.isDeleted)
-                      .length;
-                  if (count == 0) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(left: 6),
-                    child: _RoleBadge(role: r, count: count),
-                  );
-                }),
+                if (!_showDeleted)
+                  ..._roles.map((r) {
+                    final count = _users
+                        .where((u) => u.role == r && !u.isDeleted)
+                        .length;
+                    if (count == 0) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.yellow.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.yellow.withValues(alpha: 0.5),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          '$r ($count)',
+                          style: const TextStyle(
+                            color: AppColors.yellow,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
               ],
             ),
           ),
-          const Divider(height: 1),
-
-          // ── List ──
+          // ── Table ──
           Expanded(
             child: _loading
                 ? const Center(
@@ -594,31 +841,255 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 ? _EmptyState(
                     hasSearch: _searchQuery.isNotEmpty || _filterRole != null,
                   )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 80),
-                    itemCount: _filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (_, i) => _UserTile(
-                      user: _filtered[i],
-                      onTap: () => _showUserInfo(_filtered[i]),
-                      onEdit: _filtered[i].isDeleted
-                          ? null
-                          : () => _showUserDialog(existing: _filtered[i]),
-                      onDelete: () => _confirmDelete(_filtered[i]),
-                    ),
+                : Column(
+                    children: [
+                      // Column headers
+                      Container(
+                        color: AppColors.green,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        child: const Row(
+                          children: [
+                            SizedBox(width: 30),
+                            SizedBox(width: 10),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                'NAME',
+                                style: TextStyle(
+                                  color: AppColors.yellow,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 11,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                'CODE',
+                                style: TextStyle(
+                                  color: AppColors.yellow,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 11,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                'ROLE',
+                                style: TextStyle(
+                                  color: AppColors.yellow,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 11,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                'PORT',
+                                style: TextStyle(
+                                  color: AppColors.yellow,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 11,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 2,
+                              child: Text(
+                                'STATUS',
+                                style: TextStyle(
+                                  color: AppColors.yellow,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 11,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 80),
+                          ],
+                        ),
+                      ),
+                      // Table rows
+                      Expanded(
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          itemCount: _filtered.length,
+                          itemBuilder: (_, i) {
+                            final user = _filtered[i];
+                            final color = _roleColor(user.role);
+                            final isEven = i.isEven;
+                            return GestureDetector(
+                              onTap: () => _showUserInfo(user),
+                              child: Opacity(
+                                opacity: user.isDeleted ? 0.5 : 1.0,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: isEven
+                                        ? Colors.white
+                                        : AppColors.surface,
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: AppColors.yellow.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 14,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 18,
+                                        backgroundColor: color.withValues(
+                                          alpha: 0.15,
+                                        ),
+                                        child: Icon(
+                                          Icons.person_rounded,
+                                          color: color,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        flex: 3,
+                                        child: Text(
+                                          user.name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 2,
+                                        child: Text(
+                                          user.userCode,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: AppColors.textGrey,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 2,
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: _RoleBadge(role: user.role),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 2,
+                                        child: user.assignedPortName != null
+                                            ? Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  const Icon(
+                                                    Icons.location_on_rounded,
+                                                    size: 14,
+                                                    color: AppColors.green,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Flexible(
+                                                    child: Text(
+                                                      user.assignedPortName!,
+                                                      style: const TextStyle(
+                                                        fontSize: 13,
+                                                        color: AppColors.green,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                            : const Text(
+                                                '—',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: AppColors.textGrey,
+                                                ),
+                                              ),
+                                      ),
+                                      Expanded(
+                                        flex: 2,
+                                        child: Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: _StatusBadge(
+                                            statusId: user.statusId,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 80,
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.end,
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.edit_outlined,
+                                                size: 20,
+                                              ),
+                                              color: user.isDeleted
+                                                  ? AppColors.textGrey
+                                                  : AppColors.green,
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(
+                                                minWidth: 36,
+                                                minHeight: 36,
+                                              ),
+                                              onPressed: user.isDeleted
+                                                  ? null
+                                                  : () => _showUserDialog(
+                                                      existing: user,
+                                                    ),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.delete_outline_rounded,
+                                                size: 20,
+                                              ),
+                                              color: AppColors.red,
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(
+                                                minWidth: 36,
+                                                minHeight: 36,
+                                              ),
+                                              onPressed: () =>
+                                                  _confirmDelete(user),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showUserDialog(),
-        backgroundColor: AppColors.green,
-        foregroundColor: AppColors.yellow,
-        icon: const Icon(Icons.person_add_rounded),
-        label: const Text(
-          'ADD USER',
-          style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.8),
-        ),
       ),
     );
   }
@@ -902,18 +1373,21 @@ class _UserDialogState extends State<_UserDialog> {
 
   String? _nameVal(String? v, String field) {
     if (v == null || v.trim().isEmpty) return '$field is required';
-    if (RegExp(r'[0-9]').hasMatch(v))
+    if (RegExp(r'[0-9]').hasMatch(v)) {
       return 'Numbers not allowed — letters and dots (.) only';
-    if (RegExp(r'[^a-zA-Z. ]').hasMatch(v))
+    }
+    if (RegExp(r'[^a-zA-Z. ]').hasMatch(v)) {
       return 'Only letters and dots (.) allowed';
+    }
     return null;
   }
 
   String? _miVal(String? v) {
     if (v == null || v.trim().isEmpty) return null;
     if (RegExp(r'[0-9]').hasMatch(v)) return 'Numbers not allowed';
-    if (RegExp(r'[^a-zA-Z.]').hasMatch(v))
+    if (RegExp(r'[^a-zA-Z.]').hasMatch(v)) {
       return 'Only a letter or letter + dot';
+    }
     if (v.trim().length > 2) return 'Max 2 characters (e.g. M or M.)';
     return null;
   }
@@ -990,7 +1464,7 @@ class _UserDialogState extends State<_UserDialog> {
                 // ── Role ──
                 _lbl('Role'), const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
-                  value: _role,
+                  initialValue: _role,
                   decoration: const InputDecoration(isDense: true),
                   items: _roles
                       .map(
@@ -1137,8 +1611,9 @@ class _UserDialogState extends State<_UserDialog> {
                   ],
                   validator: (value) {
                     if (value == null || value.isEmpty) return null;
-                    if (value.trim().length < 10)
+                    if (value.trim().length < 10) {
                       return 'Enter a valid contact number';
+                    }
                     return null;
                   },
                 ),
@@ -1203,8 +1678,9 @@ class _UserDialogState extends State<_UserDialog> {
                     ),
                   ),
                   validator: (v) {
-                    if (!isEdit && (v == null || v.trim().isEmpty))
+                    if (!isEdit && (v == null || v.trim().isEmpty)) {
                       return 'Password is required';
+                    }
                     return null;
                   },
                 ),
@@ -1230,14 +1706,6 @@ class _UserDialogState extends State<_UserDialog> {
                         selected: _statusId == userStatusInactive,
                         onTap: () =>
                             setState(() => _statusId = userStatusInactive),
-                      ),
-                      const SizedBox(width: 8),
-                      _StatusOption(
-                        label: 'Deleted',
-                        statusId: userStatusDeleted,
-                        selected: _statusId == userStatusDeleted,
-                        onTap: () =>
-                            setState(() => _statusId = userStatusDeleted),
                       ),
                     ],
                   ),
@@ -1552,118 +2020,7 @@ Widget _lbl(String text) => Text(
   ),
 );
 
-// ── Shared tile / badge / dot / empty ────────────────────────────────────────
-
-class _UserTile extends StatelessWidget {
-  final UserModel user;
-  final VoidCallback onTap;
-  final VoidCallback? onEdit;
-  final VoidCallback onDelete;
-  const _UserTile({
-    required this.user,
-    required this.onTap,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _roleColor(user.role);
-    final isDeleted = user.isDeleted;
-    return Opacity(
-      opacity: isDeleted ? 0.55 : 1.0,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDeleted ? const Color(0xFFF5F5F5) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: isDeleted
-                ? Border.all(color: AppColors.red.withValues(alpha: 0.25))
-                : null,
-            boxShadow: isDeleted
-                ? null
-                : [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: color.withValues(alpha: 0.15),
-                  child: Icon(Icons.person_rounded, color: color, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user.name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        'Code: ${user.userCode}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textGrey,
-                        ),
-                      ),
-                      if (user.assignedPortName != null)
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.location_on_rounded,
-                              size: 12,
-                              color: AppColors.green,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              user.assignedPortName!,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.green,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _StatusBadge(statusId: user.statusId),
-                const SizedBox(width: 6),
-                _RoleBadge(role: user.role),
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 20),
-                  color: onEdit != null ? AppColors.green : AppColors.textGrey,
-                  tooltip: onEdit != null ? 'Edit' : 'Cannot edit deleted user',
-                  onPressed: onEdit,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded, size: 20),
-                  color: AppColors.red,
-                  tooltip: 'Delete',
-                  onPressed: onDelete,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+// ── Shared badge / dot / empty ────────────────────────────────────────────────
 
 class _RoleBadge extends StatelessWidget {
   final String role;
@@ -1673,16 +2030,16 @@ class _RoleBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = _roleColor(role);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 0.5),
       ),
       child: Text(
         count != null ? '$role ($count)' : role,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
           color: color,
         ),
@@ -1757,7 +2114,7 @@ class _StatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
       ),
       child: Text(
         label,

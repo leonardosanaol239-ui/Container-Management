@@ -75,7 +75,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 'empty':
         filtered = _inYardContainers.where((c) => c.statusId == 2).toList();
         title = 'Empty Containers';
-        accent = AppColors.red;
+        accent = AppColors.empty;
         break;
       default:
         filtered = _inYardContainers;
@@ -127,39 +127,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildStatsSection() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 5,
-                height: 22,
+                width: 4,
+                height: 24,
                 decoration: BoxDecoration(
-                  color: AppColors.red,
+                  color: AppColors.green,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               const Text(
                 'OVERVIEW',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 18,
                   fontWeight: FontWeight.w900,
                   color: AppColors.textDark,
-                  letterSpacing: 1.2,
+                  letterSpacing: 1.0,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           _loading
               ? const Center(
                   child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
+                    padding: EdgeInsets.symmetric(vertical: 48),
                     child: CircularProgressIndicator(
-                      color: AppColors.yellow,
+                      color: AppColors.green,
                       strokeWidth: 3,
                     ),
                   ),
@@ -169,13 +169,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _StatCard(
-                        label: 'Total\nContainers',
+                        label: 'Total Containers',
                         value: '$_totalContainers',
                         icon: Icons.inventory_2_rounded,
                         accent: AppColors.green,
                         onTap: () => _showContainerList('all'),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 16),
                       _StatCard(
                         label: 'Laden',
                         value: '$_laden',
@@ -184,7 +184,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         accentText: AppColors.textDark,
                         onTap: () => _showContainerList('laden'),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 16),
                       _StatCard(
                         label: 'Empty',
                         value: '$_empty',
@@ -192,9 +192,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         accent: AppColors.red,
                         onTap: () => _showContainerList('empty'),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 16),
                       _StatCard(
-                        label: 'Active\nPorts',
+                        label: 'Active Ports',
                         value: '$_activePorts',
                         icon: Icons.location_on_rounded,
                         accent: AppColors.green,
@@ -416,59 +416,68 @@ class _StatCard extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: AppColors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: onTap != null
-                  ? accent.withValues(alpha: 0.5)
-                  : accent.withValues(alpha: 0.25),
-              width: 1.5,
-            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: accent.withValues(alpha: 0.3), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withValues(alpha: 0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: accentText, size: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(icon, color: accent, size: 24),
+                  ),
+                  if (onTap != null)
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 16,
+                        color: accent,
+                      ),
+                    ),
+                ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Text(
                 value,
-                style: const TextStyle(
-                  fontSize: 28,
+                style: TextStyle(
+                  fontSize: 36,
                   fontWeight: FontWeight.w900,
-                  color: AppColors.textDark,
+                  color: accent,
                   height: 1,
                 ),
               ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textGrey,
-                        fontWeight: FontWeight.w600,
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
-                  if (onTap != null)
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 10,
-                      color: accent.withValues(alpha: 0.6),
-                    ),
-                ],
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textGrey,
+                  fontWeight: FontWeight.w600,
+                  height: 1.2,
+                  letterSpacing: 0.2,
+                ),
               ),
             ],
           ),
@@ -581,7 +590,7 @@ class _ContainerListDialog extends StatelessWidget {
                         horizontal: 16,
                       ),
                       itemCount: containers.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, _) => const Divider(height: 1),
                       itemBuilder: (_, i) {
                         final c = containers[i];
                         final isLaden = c.statusId == 1;

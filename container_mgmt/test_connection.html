@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Backend Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-box {
+            border: 2px solid #ddd;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .success { border-color: #4CAF50; background: #f1f8f4; }
+        .error { border-color: #f44336; background: #fef1f0; }
+        button {
+            background: #0B560D;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { background: #1A7A1C; }
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        input {
+            padding: 8px;
+            width: 300px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Backend Connection Test</h1>
+    
+    <div class="test-box">
+        <h2>Step 1: Configure Backend URL</h2>
+        <label>Backend URL:</label><br>
+        <input type="text" id="backendUrl" value="http://localhost:5000/api" placeholder="http://localhost:5000/api">
+        <p style="color: #666; font-size: 14px;">
+            Common URLs:<br>
+            • http://localhost:5000/api<br>
+            • http://127.0.0.1:5000/api<br>
+            • http://localhost:5001/api (if using HTTPS backend)
+        </p>
+    </div>
+
+    <div class="test-box">
+        <h2>Step 2: Test Basic Connection</h2>
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connectionResult"></div>
+    </div>
+
+    <div class="test-box">
+        <h2>Step 3: Test Login Endpoint</h2>
+        <label>User Code:</label><br>
+        <input type="text" id="userCode" value="ADM002"><br>
+        <label>Password:</label><br>
+        <input type="password" id="password" value="Admin@123"><br>
+        <label>User Type ID:</label><br>
+        <input type="number" id="userTypeId" value="1"><br><br>
+        <button onclick="testLogin()">Test Login</button>
+        <div id="loginResult"></div>
+    </div>
+
+    <script>
+        async function testConnection() {
+            const resultDiv = document.getElementById('connectionResult');
+            const url = document.getElementById('backendUrl').value;
+            
+            resultDiv.innerHTML = '<p>⏳ Testing connection...</p>';
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                const text = await response.text();
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h3>✅ Connection Successful!</h3>
+                        <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                        <p><strong>Response:</strong></p>
+                        <pre>${text || '(empty response)'}</pre>
+                        <p style="color: green;">✓ Backend is reachable</p>
+                        <p style="color: green;">✓ CORS is configured correctly</p>
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Connection Failed</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <h4>Possible Issues:</h4>
+                        <ul>
+                            <li>Backend is not running</li>
+                            <li>Wrong URL or port</li>
+                            <li>CORS not configured on backend</li>
+                            <li>Firewall blocking connection</li>
+                        </ul>
+                        <h4>Solutions:</h4>
+                        <ol>
+                            <li>Verify backend is running</li>
+                            <li>Check the port number (5000, 5001, 3000, etc.)</li>
+                            <li>Configure CORS on your backend</li>
+                            <li>Try different URL format (localhost vs 127.0.0.1)</li>
+                        </ol>
+                    </div>
+                `;
+            }
+        }
+
+        async function testLogin() {
+            const resultDiv = document.getElementById('loginResult');
+            const url = document.getElementById('backendUrl').value + '/Auth/login';
+            const userCode = document.getElementById('userCode').value;
+            const password = document.getElementById('password').value;
+            const userTypeId = parseInt(document.getElementById('userTypeId').value);
+            
+            resultDiv.innerHTML = '<p>⏳ Testing login...</p>';
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userCode: userCode,
+                        password: password,
+                        userTypeId: userTypeId
+                    })
+                });
+                
+                const text = await response.text();
+                let jsonData;
+                try {
+                    jsonData = JSON.parse(text);
+                } catch (e) {
+                    jsonData = text;
+                }
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h3>✅ Login Successful!</h3>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                            <p><strong>Response:</strong></p>
+                            <pre>${JSON.stringify(jsonData, null, 2)}</pre>
+                            <p style="color: green; font-weight: bold;">✓ Backend is working correctly!</p>
+                            <p style="color: green;">✓ Login endpoint is accessible</p>
+                            <p style="color: green;">✓ Credentials are valid</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h3>❌ Login Failed</h3>
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                            <p><strong>Response:</strong></p>
+                            <pre>${JSON.stringify(jsonData, null, 2)}</pre>
+                            <h4>Possible Issues:</h4>
+                            <ul>
+                                <li>Invalid credentials</li>
+                                <li>Wrong user type ID</li>
+                                <li>Backend authentication error</li>
+                            </ul>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Request Failed</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <h4>This means:</h4>
+                        <ul>
+                            <li>Backend is not reachable</li>
+                            <li>CORS is not configured</li>
+                            <li>Network/firewall issue</li>
+                        </ul>
+                        <p><strong>Action:</strong> Go back to Step 2 and test basic connection first.</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -13,9 +13,10 @@ import '../models/truck.dart';
 import '../models/user_model.dart';
 import '../models/session.dart';
 import '../models/customer_model.dart';
+import '../config/api_config.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.118.161:5000/api';
+  static String get baseUrl => ApiConfig.baseUrl;
 
   // ── Ports ────────────────────────────────────────────────
   Future<List<Port>> getPorts() async {
@@ -246,15 +247,22 @@ class ApiService {
     required int userTypeId,
   }) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/Auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'userCode': userCode.trim(),
-          'password': password,
-          'userTypeId': userTypeId,
-        }),
-      );
+      final res = await http
+          .post(
+            Uri.parse('$baseUrl/Auth/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'userCode': userCode.trim(),
+              'password': password,
+              'userTypeId': userTypeId,
+            }),
+          )
+          .timeout(
+            Duration(seconds: ApiConfig.connectionTimeout),
+            onTimeout: () => throw Exception(
+              'Connection timeout. Please check if the server is running.',
+            ),
+          );
       if (res.statusCode == 200) {
         return Session.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
       }
@@ -269,9 +277,20 @@ class ApiService {
     } on Exception {
       rethrow;
     } catch (e) {
-      throw Exception(
-        'Could not reach the server. Please check your connection.',
-      );
+      // Network errors, connection refused, etc.
+      final errorMsg = e.toString().toLowerCase();
+      if (errorMsg.contains('failed host lookup') ||
+          errorMsg.contains('network is unreachable')) {
+        throw Exception(
+          'Cannot reach server at $baseUrl.\nPlease check your network connection.',
+        );
+      } else if (errorMsg.contains('connection refused') ||
+          errorMsg.contains('failed to fetch')) {
+        throw Exception(
+          'Server is not responding.\nPlease verify the backend is running at:\n$baseUrl',
+        );
+      }
+      throw Exception('Connection error: ${e.toString()}\n\nServer: $baseUrl');
     }
   }
 

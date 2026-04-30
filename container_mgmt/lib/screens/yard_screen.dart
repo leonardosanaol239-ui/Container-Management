@@ -71,11 +71,13 @@ class _YardScreenState extends State<YardScreen>
   bool _showMoveOutList = false;
   bool _showCheckerView = true;
   double _scale = 3.0;
+  double _actualScaleX = 1.0;
+  double _actualScaleY = 1.0;
   Timer? _pollTimer;
   double get _canvasW => (_yard.yardWidth ?? 300) * _scale;
   double get _canvasH => (_yard.yardHeight ?? 170) * _scale;
-  double get _scaleX => _scale;
-  double get _scaleY => _scale;
+  double get _scaleX => _actualScaleX;
+  double get _scaleY => _actualScaleY;
   late AnimationController _blinkCtrl;
 
   @override
@@ -460,8 +462,8 @@ class _YardScreenState extends State<YardScreen>
               _statRow('Number of Blocks', '${_blocks.length}'),
               _statRow('Containers in Yard', '${inYard.length}'),
               const SizedBox(height: 8),
-              _statRow('Laden', '$laden', color: Colors.amber.shade700),
-              _statRow('Empty', '$empty', color: Colors.red.shade400),
+              _statRow('Laden', '$laden', color: Colors.yellow.shade700),
+              _statRow('Empty', '$empty', color: Colors.red.shade600),
               const SizedBox(height: 8),
               _statRow('20ft', '$ft20', color: Colors.blue.shade600),
               _statRow('40ft', '$ft40', color: Colors.teal.shade600),
@@ -1232,8 +1234,14 @@ class _YardScreenState extends State<YardScreen>
           // Set immediately so all child widgets use the correct scale on first frame
           _scale = fitScale;
         }
-        final cw = yardW * _scale;
-        final ch = yardH * _scale;
+
+        // Make all yards fill the entire viewport
+        final cw = availW;
+        final ch = availH;
+
+        // Update scale to match the filled viewport for proper block positioning
+        _actualScaleX = availW / yardW;
+        _actualScaleY = availH / yardH;
         // Fixed frame � InteractiveViewer zooms/pans only inside it
         return Stack(
           children: [
@@ -1263,7 +1271,11 @@ class _YardScreenState extends State<YardScreen>
                       height: ch,
                       decoration: BoxDecoration(
                         color:
-                            (_yard.imagePath != null || _yard.yardNumber == 4)
+                            (_yard.imagePath != null ||
+                                _yard.yardNumber == 1 ||
+                                _yard.yardNumber == 2 ||
+                                _yard.yardNumber == 3 ||
+                                _yard.yardNumber == 4)
                             ? null
                             : Colors.grey[300],
                         border: Border.all(color: Colors.grey, width: 1),
@@ -1273,12 +1285,27 @@ class _YardScreenState extends State<YardScreen>
                                 image: NetworkImage(
                                   '${ApiService.baseUrl.replaceAll('/api', '')}${_yard.imagePath}',
                                 ),
-                                fit: BoxFit.cover,
+                                fit: BoxFit.fill,
+                              )
+                            : _yard.yardNumber == 1
+                            ? const DecorationImage(
+                                image: AssetImage('assets/Y1.png'),
+                                fit: BoxFit.fill,
+                              )
+                            : _yard.yardNumber == 2
+                            ? const DecorationImage(
+                                image: AssetImage('assets/Y2.png'),
+                                fit: BoxFit.fill,
+                              )
+                            : _yard.yardNumber == 3
+                            ? const DecorationImage(
+                                image: AssetImage('assets/Y3.png'),
+                                fit: BoxFit.fill,
                               )
                             : _yard.yardNumber == 4
                             ? const DecorationImage(
                                 image: AssetImage('assets/Y4.png'),
-                                fit: BoxFit.cover,
+                                fit: BoxFit.fill,
                               )
                             : null,
                       ),
@@ -1461,7 +1488,10 @@ class _YardScreenState extends State<YardScreen>
     final offsetFt =
         _blockOffsets[block.blockId] ??
         Offset((block.posX ?? 10).toDouble(), (block.posY ?? 10).toDouble());
-    final offset = Offset(offsetFt.dx * _scale, offsetFt.dy * _scale);
+    final offset = Offset(
+      offsetFt.dx * _actualScaleX,
+      offsetFt.dy * _actualScaleY,
+    );
     final rotation = _blockRotations[block.blockId] ?? block.rotation;
     final blockKey = _blockKeys.putIfAbsent(block.blockId, () => GlobalKey());
 
@@ -2245,7 +2275,7 @@ class _SlotCell extends StatelessWidget {
                     .blue
                     .shade300 // Move Request � pending confirmation
               : (topContainer.statusId == 1
-                    ? Colors.amber.shade300
+                    ? Colors.yellow.shade700
                     : Colors.red.shade300);
 
           Widget cellContent = Container(
@@ -2327,7 +2357,7 @@ class _SlotCell extends StatelessWidget {
                         (topContainer.locationStatusId == 3
                                 ? Colors.blue.shade300
                                 : topContainer.statusId == 1
-                                ? Colors.amber.shade300
+                                ? Colors.yellow.shade700
                                 : Colors.red.shade300)
                             .withAlpha(200),
 
@@ -2908,7 +2938,7 @@ class _YardTierPopupState extends State<YardTierPopup> {
                     width: 16,
                     height: 16,
                     decoration: BoxDecoration(
-                      color: c.statusId == 1 ? Colors.amber : Colors.red,
+                      color: c.statusId == 1 ? Colors.yellow : Colors.red,
                       borderRadius: BorderRadius.circular(3),
                     ),
                   ),
@@ -3159,7 +3189,7 @@ class YardContainerDetailsDialog extends StatelessWidget {
         : (c.type ?? '-');
     final statusLabel = c.statusId == 1 ? 'Laden' : 'Empty';
     final statusColor = c.statusId == 1
-        ? Colors.amber.shade700
+        ? Colors.yellow.shade700
         : Colors.red.shade600;
 
     return Dialog(
@@ -3721,6 +3751,8 @@ class _FullScreenYardView extends StatefulWidget {
 class _FullScreenYardViewState extends State<_FullScreenYardView>
     with SingleTickerProviderStateMixin {
   late double _scale;
+  double _actualScaleX = 1.0;
+  double _actualScaleY = 1.0;
   late AnimationController _blinkCtrl;
 
   @override
@@ -3823,8 +3855,14 @@ class _FullScreenYardViewState extends State<_FullScreenYardView>
               ? (availW / yardW)
               : (availH / yardH);
           if (_scale == widget.scale) _scale = fitScale;
-          final cw = yardW * _scale;
-          final ch = yardH * _scale;
+
+          // Make all yards fill the entire viewport
+          final cw = availW;
+          final ch = availH;
+
+          // Update scale to match the filled viewport for proper block positioning
+          _actualScaleX = availW / yardW;
+          _actualScaleY = availH / yardH;
 
           return InteractiveViewer(
             minScale: 0.2,
@@ -3844,6 +3882,9 @@ class _FullScreenYardViewState extends State<_FullScreenYardView>
                   decoration: BoxDecoration(
                     color:
                         (widget.yard.imagePath != null ||
+                            widget.yard.yardNumber == 1 ||
+                            widget.yard.yardNumber == 2 ||
+                            widget.yard.yardNumber == 3 ||
                             widget.yard.yardNumber == 4)
                         ? null
                         : Colors.grey[300],
@@ -3854,12 +3895,27 @@ class _FullScreenYardViewState extends State<_FullScreenYardView>
                             image: NetworkImage(
                               '${ApiService.baseUrl.replaceAll('/api', '')}${widget.yard.imagePath}',
                             ),
-                            fit: BoxFit.cover,
+                            fit: BoxFit.fill,
+                          )
+                        : widget.yard.yardNumber == 1
+                        ? const DecorationImage(
+                            image: AssetImage('assets/Y1.png'),
+                            fit: BoxFit.fill,
+                          )
+                        : widget.yard.yardNumber == 2
+                        ? const DecorationImage(
+                            image: AssetImage('assets/Y2.png'),
+                            fit: BoxFit.fill,
+                          )
+                        : widget.yard.yardNumber == 3
+                        ? const DecorationImage(
+                            image: AssetImage('assets/Y3.png'),
+                            fit: BoxFit.fill,
                           )
                         : widget.yard.yardNumber == 4
                         ? const DecorationImage(
                             image: AssetImage('assets/Y4.png'),
-                            fit: BoxFit.cover,
+                            fit: BoxFit.fill,
                           )
                         : null,
                   ),
@@ -3873,8 +3929,8 @@ class _FullScreenYardViewState extends State<_FullScreenYardView>
                         (b.posY ?? 10).toDouble(),
                       );
                   final offset = Offset(
-                    offsetFt.dx * _scale,
-                    offsetFt.dy * _scale,
+                    offsetFt.dx * _actualScaleX,
+                    offsetFt.dy * _actualScaleY,
                   );
                   final rotation =
                       widget.blockRotations[b.blockId] ?? b.rotation;
@@ -3893,8 +3949,8 @@ class _FullScreenYardViewState extends State<_FullScreenYardView>
                         blinkCtrl: _blinkCtrl,
                         editMode: false,
                         selectedRowId: null,
-                        scaleX: _scale,
-                        scaleY: _scale,
+                        scaleX: _actualScaleX,
+                        scaleY: _actualScaleY,
                         onSlotTap: null,
                         onSlotDrop: null,
                         onSelectRow: null,
@@ -3986,7 +4042,7 @@ class _YardContainersDialogState extends State<_YardContainersDialog>
         : (c.type ?? '-');
     final statusLabel = c.statusId == 1 ? 'Laden' : 'Empty';
     final statusColor = c.statusId == 1
-        ? Colors.amber.shade700
+        ? Colors.yellow.shade700
         : Colors.red.shade600;
     final customer = c.customerId != null
         ? widget.customers
@@ -4304,7 +4360,7 @@ class _YardContainerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = c.statusId == 1
-        ? Colors.amber.shade700
+        ? Colors.yellow.shade700
         : Colors.red.shade600;
     final statusLabel = c.statusId == 1 ? 'Laden' : 'Empty';
     final typeLabel = c.containerSizeId == 1

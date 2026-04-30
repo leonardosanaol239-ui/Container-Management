@@ -61,6 +61,9 @@ flutter:
 
   assets:
     - assets/yard1_bg.png
+    - assets/Y1.png
+    - assets/Y2.png
+    - assets/Y3.png
     - assets/Y4.png
     - assets/gothong_logo.png
 

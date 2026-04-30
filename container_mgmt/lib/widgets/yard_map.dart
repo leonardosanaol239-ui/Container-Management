@@ -52,15 +52,25 @@ class _YardMapState extends State<YardMap> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    // Use imagePath from database, fallback to Y4.png based on yard number
+    // Use imagePath from database, fallback to yard-specific images
     String backgroundImage;
 
     if (widget.yardImagePath != null && widget.yardImagePath!.isNotEmpty) {
       // Use the image path from database
       backgroundImage = 'assets/${widget.yardImagePath}';
     } else {
-      // Fallback: Use Y4.png for all yards as default
-      backgroundImage = 'assets/Y4.png';
+      // Fallback: Use yard-specific images based on yard number
+      if (widget.yardNumber == 1) {
+        backgroundImage = 'assets/Y1.png';
+      } else if (widget.yardNumber == 2) {
+        backgroundImage = 'assets/Y2.png';
+      } else if (widget.yardNumber == 3) {
+        backgroundImage = 'assets/Y3.png';
+      } else if (widget.yardNumber == 4) {
+        backgroundImage = 'assets/Y4.png';
+      } else {
+        backgroundImage = 'assets/Y4.png'; // Default fallback
+      }
     }
 
     print('🖼️ Loading yard background: $backgroundImage');
@@ -73,31 +83,66 @@ class _YardMapState extends State<YardMap> with SingleTickerProviderStateMixin {
         children: [
           // ── Aerial photo background ──
           Positioned.fill(
-            child: RotatedBox(
-              quarterTurns: 1,
-              child: Image.asset(
-                backgroundImage,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: Colors.grey[300],
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.error, size: 48, color: Colors.red),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Failed to load: $backgroundImage',
-                            style: const TextStyle(color: Colors.red),
+            child:
+                widget.yardNumber == 1 ||
+                    widget.yardNumber == 2 ||
+                    widget.yardNumber == 3 ||
+                    widget.yardNumber == 4
+                ? Image.asset(
+                    backgroundImage,
+                    fit: BoxFit.fill,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey[300],
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.error,
+                                size: 48,
+                                color: Colors.red,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Failed to load: $backgroundImage',
+                                style: const TextStyle(color: Colors.red),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      );
+                    },
+                  )
+                : RotatedBox(
+                    quarterTurns: 1,
+                    child: Image.asset(
+                      backgroundImage,
+                      fit: BoxFit.fill,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey[300],
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.error,
+                                  size: 48,
+                                  color: Colors.red,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Failed to load: $backgroundImage',
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
-            ),
+                  ),
           ),
           // ── Grid content ──
           Positioned.fill(
@@ -375,7 +420,7 @@ class _SlotCell extends StatelessWidget {
               color: isDragOver
                   ? Colors.blue.withValues(alpha: 0.5)
                   : isOccupied
-                  ? (isLaden ? Colors.amber[400] : Colors.red[400])
+                  ? (isLaden ? Colors.yellow[700] : Colors.red[400])
                   : Colors.transparent,
               border: Border.all(color: Colors.white, width: 0.8),
               borderRadius: BorderRadius.circular(2),
@@ -411,7 +456,7 @@ class _SlotCell extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: isLaden ? Colors.amber[300] : Colors.red[300],
+                    color: isLaden ? Colors.yellow[700] : Colors.red[300],
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(

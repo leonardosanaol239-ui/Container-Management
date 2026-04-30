@@ -30,7 +30,7 @@ class AppColors {
 
   // Status colors (using primary palette)
   static const Color laden = yellow; // Yellow for laden
-  static const Color empty = Color(0xFF2196F3); // Blue for empty
+  static const Color empty = red; // Red for empty
   static const Color active = green; // Green for active
 }
 

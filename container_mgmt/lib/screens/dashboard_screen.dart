@@ -1135,7 +1135,7 @@ class _ReportDialogState extends State<_ReportDialog>
           pw.Text(
             'GOTHONG SOUTHERN — CONTAINER REPORT',
             style: pw.TextStyle(
-              color: PdfColors.amber,
+              color: PdfColors.yellow,
               fontWeight: pw.FontWeight.bold,
               fontSize: 14,
             ),
@@ -1150,7 +1150,7 @@ class _ReportDialogState extends State<_ReportDialog>
             children: [
               summaryBox('Total', '${all.length}', PdfColors.green800),
               pw.SizedBox(width: 6),
-              summaryBox('Laden', '${laden.length}', PdfColors.amber700),
+              summaryBox('Laden', '${laden.length}', PdfColors.yellow800),
               pw.SizedBox(width: 6),
               summaryBox('Empty', '${empty.length}', PdfColors.red700),
               pw.SizedBox(width: 6),
@@ -1202,7 +1202,7 @@ class _ReportDialogState extends State<_ReportDialog>
               c.statusId == 1 ? 'Laden' : 'Empty',
               style: pw.TextStyle(
                 fontSize: 9,
-                color: c.statusId == 1 ? PdfColors.amber800 : PdfColors.red700,
+                color: c.statusId == 1 ? PdfColors.yellow800 : PdfColors.red700,
               ),
             ),
           ),
@@ -1286,7 +1286,7 @@ class _ReportDialogState extends State<_ReportDialog>
             style: pw.TextStyle(
               fontWeight: pw.FontWeight.bold,
               fontSize: 11,
-              color: PdfColors.amber800,
+              color: PdfColors.yellow800,
             ),
           ),
           pw.SizedBox(height: 6),
@@ -1367,7 +1367,7 @@ class _ReportDialogState extends State<_ReportDialog>
                       '${pc.where((c) => c.statusId == 1).length}',
                       style: pw.TextStyle(
                         fontSize: 9,
-                        color: PdfColors.amber800,
+                        color: PdfColors.yellow800,
                       ),
                     ),
                   ),
@@ -1519,7 +1519,7 @@ class _ReportDialogState extends State<_ReportDialog>
                       _SummaryTile(
                         label: 'Laden',
                         value: '${laden.length}',
-                        color: Colors.amber.shade600,
+                        color: Colors.yellow.shade700,
                         textColor: Colors.black,
                       ),
                       const SizedBox(width: 8),

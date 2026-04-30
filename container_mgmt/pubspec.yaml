@@ -61,6 +61,7 @@ flutter:
 
   assets:
     - assets/yard1_bg.png
+    - assets/Y4.png
     - assets/gothong_logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see

@@ -5,6 +5,8 @@ import '../models/row_model.dart';
 import '../models/container_model.dart';
 
 class YardMap extends StatefulWidget {
+  final int yardNumber; // Add yard number to determine background
+  final String? yardImagePath; // Optional image path from database
   final List<Block> blocks;
   final Map<int, List<Bay>> baysByBlock;
   final Map<int, List<RowModel>> rowsByBay;
@@ -15,6 +17,8 @@ class YardMap extends StatefulWidget {
 
   const YardMap({
     super.key,
+    required this.yardNumber,
+    this.yardImagePath,
     required this.blocks,
     required this.baysByBlock,
     required this.rowsByBay,
@@ -48,13 +52,52 @@ class _YardMapState extends State<YardMap> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    // Use imagePath from database, fallback to Y4.png based on yard number
+    String backgroundImage;
+
+    if (widget.yardImagePath != null && widget.yardImagePath!.isNotEmpty) {
+      // Use the image path from database
+      backgroundImage = 'assets/${widget.yardImagePath}';
+    } else {
+      // Fallback: Use Y4.png for all yards as default
+      backgroundImage = 'assets/Y4.png';
+    }
+
+    print('🖼️ Loading yard background: $backgroundImage');
+    print('🖼️ Yard Number: ${widget.yardNumber}');
+    print('🖼️ Yard Image Path from DB: ${widget.yardImagePath}');
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Stack(
         children: [
           // ── Aerial photo background ──
           Positioned.fill(
-            child: Image.asset('assets/yard1_bg.png', fit: BoxFit.cover),
+            child: RotatedBox(
+              quarterTurns: 1,
+              child: Image.asset(
+                backgroundImage,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.grey[300],
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error, size: 48, color: Colors.red),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Failed to load: $backgroundImage',
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
           // ── Grid content ──
           Positioned.fill(

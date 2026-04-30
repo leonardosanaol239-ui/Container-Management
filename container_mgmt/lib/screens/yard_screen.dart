@@ -1262,7 +1262,8 @@ class _YardScreenState extends State<YardScreen>
                       width: cw,
                       height: ch,
                       decoration: BoxDecoration(
-                        color: _yard.imagePath != null
+                        color:
+                            (_yard.imagePath != null || _yard.yardNumber == 4)
                             ? null
                             : Colors.grey[300],
                         border: Border.all(color: Colors.grey, width: 1),
@@ -1272,6 +1273,11 @@ class _YardScreenState extends State<YardScreen>
                                 image: NetworkImage(
                                   '${ApiService.baseUrl.replaceAll('/api', '')}${_yard.imagePath}',
                                 ),
+                                fit: BoxFit.cover,
+                              )
+                            : _yard.yardNumber == 4
+                            ? const DecorationImage(
+                                image: AssetImage('assets/Y4.png'),
                                 fit: BoxFit.cover,
                               )
                             : null,
@@ -1761,7 +1767,8 @@ class YardBlockWidget extends StatelessWidget {
   final VoidCallback? onAddRow;
   final VoidCallback? onRemoveRow;
 
-  const YardBlockWidget({super.key, 
+  const YardBlockWidget({
+    super.key,
     required this.block,
     required this.baysByBlock,
     required this.rowsByBay,
@@ -2425,7 +2432,8 @@ class YardHighlightSlot extends StatelessWidget {
   final AnimationController blinkCtrl;
   final double scaleX, scaleY;
 
-  const YardHighlightSlot({super.key, 
+  const YardHighlightSlot({
+    super.key,
     required this.bays,
     required this.rowsByBay,
     required this.highlightedRowId,
@@ -2818,7 +2826,8 @@ class YardTierPopup extends StatefulWidget {
   final Map<int, Bay> baysById;
   final Map<int, RowModel> rowsById;
 
-  const YardTierPopup({super.key, 
+  const YardTierPopup({
+    super.key,
     required this.containers,
     required this.onClose,
     required this.customers,
@@ -3056,7 +3065,8 @@ class YardContainerDetailsDialog extends StatelessWidget {
   final Map<int, Bay> baysById;
   final Map<int, RowModel> rowsById;
 
-  const YardContainerDetailsDialog({super.key, 
+  const YardContainerDetailsDialog({
+    super.key,
     required this.container,
     required this.customers,
     required this.portName,
@@ -3832,7 +3842,9 @@ class _FullScreenYardViewState extends State<_FullScreenYardView>
                   width: cw,
                   height: ch,
                   decoration: BoxDecoration(
-                    color: widget.yard.imagePath != null
+                    color:
+                        (widget.yard.imagePath != null ||
+                            widget.yard.yardNumber == 4)
                         ? null
                         : Colors.grey[300],
                     border: Border.all(color: Colors.grey, width: 1),
@@ -3842,6 +3854,11 @@ class _FullScreenYardViewState extends State<_FullScreenYardView>
                             image: NetworkImage(
                               '${ApiService.baseUrl.replaceAll('/api', '')}${widget.yard.imagePath}',
                             ),
+                            fit: BoxFit.cover,
+                          )
+                        : widget.yard.yardNumber == 4
+                        ? const DecorationImage(
+                            image: AssetImage('assets/Y4.png'),
                             fit: BoxFit.cover,
                           )
                         : null,

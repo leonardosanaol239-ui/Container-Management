@@ -6,12 +6,14 @@ import '../theme/app_theme.dart';
 
 class ContainerHoldingArea extends StatelessWidget {
   final int portId;
+  final int? yardId;
   final List<ContainerModel> containers;
   final VoidCallback onRefresh;
 
   const ContainerHoldingArea({
     super.key,
     required this.portId,
+    this.yardId,
     required this.containers,
     required this.onRefresh,
   });
@@ -19,7 +21,15 @@ class ContainerHoldingArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final holding = containers
-        .where((c) => c.yardId == null && !c.isMovedOut)
+        .where(
+          (c) =>
+              !c.isMovedOut &&
+              (
+              // Unassigned (no yard yet)
+              c.yardId == null ||
+                  // Transferred to this yard's holding area (yardId set, no slot)
+                  (yardId != null && c.yardId == yardId && c.rowId == null)),
+        )
         .toList()
         .reversed
         .toList();

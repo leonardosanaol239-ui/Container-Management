@@ -11,4 +11,5 @@ public class UpdateContainerLocationDto
 
     [Range(1, 5)]
     public int? Tier { get; set; }
+    public int? LocationStatusId { get; set; }
 }

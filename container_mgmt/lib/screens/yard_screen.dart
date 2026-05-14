@@ -1073,6 +1073,7 @@ class _YardScreenState extends State<YardScreen>
                                         : null,
                                     child: ContainerHoldingArea(
                                       portId: widget.portId,
+                                      yardId: widget.yard.yardId,
                                       containers: _containers,
                                       onRefresh: _refreshContainers,
                                     ),
@@ -4318,14 +4319,7 @@ class _TransferDialog extends StatefulWidget {
 
 class _TransferDialogState extends State<_TransferDialog> {
   List<Yard> _yards = [];
-  List<Block> _blocks = [];
-  List<Bay> _bays = [];
-  List<RowModel> _rows = [];
-
   Yard? _selYard;
-  Block? _selBlock;
-  Bay? _selBay;
-  RowModel? _selRow;
   bool _loading = true;
   bool _saving = false;
   String? _error;
@@ -4346,77 +4340,30 @@ class _TransferDialogState extends State<_TransferDialog> {
     });
   }
 
-  Future<void> _onYardSelected(Yard yard) async {
-    setState(() {
-      _selYard = yard;
-      _selBlock = null;
-      _selBay = null;
-      _selRow = null;
-      _blocks = [];
-      _bays = [];
-      _rows = [];
-    });
-    final blocks = await widget.api.getBlocks(yard.yardId);
-    setState(() => _blocks = blocks);
-  }
-
-  Future<void> _onBlockSelected(Block block) async {
-    setState(() {
-      _selBlock = block;
-      _selBay = null;
-      _selRow = null;
-      _bays = [];
-      _rows = [];
-    });
-    final bays = await widget.api.getBays(block.blockId);
-    setState(() => _bays = bays);
-  }
-
-  Future<void> _onBaySelected(Bay bay) async {
-    setState(() {
-      _selBay = bay;
-      _selRow = null;
-      _rows = [];
-    });
-    final rows = await widget.api.getRows(bay.bayId);
-    setState(() => _rows = rows.where((r) => !r.isDeleted).toList());
-  }
-
   Future<void> _confirm() async {
-    if (_selYard == null ||
-        _selBlock == null ||
-        _selBay == null ||
-        _selRow == null) {
-      return;
-    }
+    if (_selYard == null) return;
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      // Find next available tier in target row
-      final existing = await widget.api.getContainersByLocation(
-        yardId: _selYard!.yardId,
-        blockId: _selBlock!.blockId,
-        bayId: _selBay!.bayId,
-        rowId: _selRow!.rowId,
+      // Transfer to holding area: set new yardId, clear all slot fields
+      await widget.api.transferToYardHolding(
+        widget.container.containerId,
+        _selYard!.yardId,
       );
-      final nextTier = existing.length + 1;
-      if (nextTier > _selRow!.maxStack) throw Exception('Target slot is full');
-      await widget.api.moveContainer(
-        containerId: widget.container.containerId,
-        yardId: _selYard!.yardId,
-        blockId: _selBlock!.blockId,
-        bayId: _selBay!.bayId,
-        rowId: _selRow!.rowId,
-        tier: nextTier,
-      );
-      // Transfer creates a move request � driver at destination yard must confirm
-      try {
-        await widget.api.setMoveRequest(widget.container.containerId);
-      } catch (_) {}
       widget.onTransferred();
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${widget.container.containerNumber} transferred to Yard ${_selYard!.yardNumber} holding area',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -4464,49 +4411,18 @@ class _TransferDialogState extends State<_TransferDialog> {
                       ),
                     ),
                     const Divider(height: 20),
+                    const Text(
+                      'The container will be moved to the holding area of the selected yard.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
                     _label('Select Yard'),
                     _drop<Yard>(
                       value: _selYard,
                       items: _yards,
                       display: (y) => 'Yard ${y.yardNumber}',
-                      onChanged: (y) {
-                        if (y != null) _onYardSelected(y);
-                      },
+                      onChanged: (y) => setState(() => _selYard = y),
                     ),
-                    if (_blocks.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      _label('Select Block'),
-                      _drop<Block>(
-                        value: _selBlock,
-                        items: _blocks,
-                        display: (b) => b.blockName ?? 'Block ${b.blockNumber}',
-                        onChanged: (b) {
-                          if (b != null) _onBlockSelected(b);
-                        },
-                      ),
-                    ],
-                    if (_bays.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      _label('Select Bay'),
-                      _drop<Bay>(
-                        value: _selBay,
-                        items: _bays,
-                        display: (b) => 'Bay ${b.bayNumber}',
-                        onChanged: (b) {
-                          if (b != null) _onBaySelected(b);
-                        },
-                      ),
-                    ],
-                    if (_rows.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      _label('Select Row'),
-                      _drop<RowModel>(
-                        value: _selRow,
-                        items: _rows,
-                        display: (r) => 'Row ${r.rowNumber}',
-                        onChanged: (r) => setState(() => _selRow = r),
-                      ),
-                    ],
                     if (_error != null) ...[
                       const SizedBox(height: 8),
                       Text(
@@ -4518,7 +4434,7 @@ class _TransferDialogState extends State<_TransferDialog> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: (_selRow != null && !_saving)
+                        onPressed: (_selYard != null && !_saving)
                             ? _confirm
                             : null,
                         style: ElevatedButton.styleFrom(

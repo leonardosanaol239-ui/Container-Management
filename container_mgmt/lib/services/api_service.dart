@@ -229,6 +229,28 @@ class ApiService {
     return ContainerModel.fromJson(jsonDecode(res.body));
   }
 
+  /// Transfer container to the holding area of another yard within the same port.
+  /// Clears slot assignment (block/bay/row/tier) and sets the new yardId.
+  Future<ContainerModel> transferToYardHolding(
+    int containerId,
+    int destYardId,
+  ) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/Containers/$containerId/location'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'yardId': destYardId,
+        'blockId': null,
+        'bayId': null,
+        'rowId': null,
+        'tier': null,
+        'locationStatusId': 1,
+      }),
+    );
+    _check(res);
+    return ContainerModel.fromJson(jsonDecode(res.body));
+  }
+
   // ── Trucks ───────────────────────────────────────────────
   Future<List<Truck>> getTrucks() async {
     final res = await http.get(Uri.parse('$baseUrl/Trucks'));

@@ -147,6 +147,21 @@ public class ContainerService : IContainerService
             container.LocationStatusId = 4; // Back to Holding Area
             container.YardEntryDate = null; // Clear yard entry date
         }
+        // Transfer to another yard's holding area (yardId set, slot fields null)
+        else if (updateDto.YardId != null && updateDto.BlockId == null &&
+                 updateDto.BayId == null && updateDto.RowId == null && updateDto.Tier == null)
+        {
+            var destYard = await _context.Yards.FirstOrDefaultAsync(y => y.YardId == updateDto.YardId);
+            if (destYard == null) throw new ArgumentException("Invalid destination YardId");
+
+            container.YardId = updateDto.YardId;
+            container.BlockId = null;
+            container.BayId = null;
+            container.RowId = null;
+            container.Tier = null;
+            container.LocationStatusId = updateDto.LocationStatusId ?? 1; // In Yard / Holding
+            container.YardEntryDate = DateTime.UtcNow;
+        }
         else
         {
             // Validate all location fields are provided for slot assignment

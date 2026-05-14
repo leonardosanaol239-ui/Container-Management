@@ -140,7 +140,9 @@ class _DriverYardScreenState extends State<DriverYardScreen>
   }
 
   Future<void> _loadAll() async {
-    setState(() => _loading = true);
+    // Only show overlay on first load; subsequent calls run silently
+    final isFirstLoad = _blocks.isEmpty;
+    if (isFirstLoad) setState(() => _loading = true);
     try {
       final blocks = await _api.getBlocks(widget.yard.yardId);
       final allContainers = await _api.getContainersByPort(widget.portId);
@@ -208,10 +210,56 @@ class _DriverYardScreenState extends State<DriverYardScreen>
     }
   }
 
+  /// Lightweight refresh — only re-fetches containers (2 API calls).
+  /// Used after confirm so the map updates instantly without re-fetching
+  /// blocks, bays, rows, and customers.
+  Future<void> _refreshContainers() async {
+    if (!mounted) return;
+    try {
+      final allContainers = await _api.getContainersByPort(widget.portId);
+
+      final Map<int, List<ContainerModel>> confirmedByRow = {};
+      for (final c in allContainers) {
+        if (c.rowId != null &&
+            c.yardId == widget.yard.yardId &&
+            c.locationStatusId == 1) {
+          confirmedByRow.putIfAbsent(c.rowId!, () => []).add(c);
+        }
+      }
+      for (final list in confirmedByRow.values) {
+        list.sort((a, b) => (a.tier ?? 0).compareTo(b.tier ?? 0));
+      }
+
+      final moveRequests =
+          allContainers
+              .where(
+                (c) =>
+                    c.locationStatusId == 3 && c.yardId == widget.yard.yardId,
+              )
+              .toList()
+            ..sort((a, b) {
+              final da = a.moveRequestDate;
+              final db = b.moveRequestDate;
+              if (da == null && db == null) {
+                return a.containerId.compareTo(b.containerId);
+              }
+              if (da == null) return 1;
+              if (db == null) return -1;
+              return da.compareTo(db);
+            });
+
+      if (!mounted) return;
+      setState(() {
+        _confirmedByRow = confirmedByRow;
+        _moveRequests = moveRequests;
+      });
+    } catch (_) {}
+  }
+
   Future<void> _confirmRequest(ContainerModel c) async {
     try {
       await _api.confirmMoveRequest(c.containerId);
-      await _loadAll();
+      await _refreshContainers();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -286,15 +334,14 @@ class _DriverYardScreenState extends State<DriverYardScreen>
             ),
           ),
           if (_loading)
-            Positioned.fill(
-              child: Container(
-                color: Colors.white.withValues(alpha: 0.45),
-                child: const Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.yellow,
-                    strokeWidth: 3,
-                  ),
-                ),
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: LinearProgressIndicator(
+                color: AppColors.yellow,
+                backgroundColor: Colors.transparent,
+                minHeight: 3,
               ),
             ),
           // Tier popup overlay
@@ -804,7 +851,7 @@ class _MoveRequestDetailDialogState extends State<_MoveRequestDetailDialog>
                   Text(
                     c.containerNumber,
                     style: const TextStyle(
-                      color: Colors.amber,
+                      color: AppColors.laden,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                     ),

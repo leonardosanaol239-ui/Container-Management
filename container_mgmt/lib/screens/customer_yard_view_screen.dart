@@ -515,9 +515,7 @@ class _ReadOnlySlot extends StatelessWidget {
 
     final bgColor = topContainer == null
         ? Colors.transparent
-        : (topContainer.statusId == 1
-              ? Colors.amber.shade300
-              : Colors.red.shade300);
+        : (topContainer.statusId == 1 ? AppColors.laden : AppColors.empty);
 
     Widget cell = Container(
       width: width,
@@ -654,7 +652,9 @@ class _TierPopup extends StatelessWidget {
                           width: 16,
                           height: 16,
                           decoration: BoxDecoration(
-                            color: c.statusId == 1 ? Colors.amber : Colors.red,
+                            color: c.statusId == 1
+                                ? AppColors.laden
+                                : AppColors.empty,
                             borderRadius: BorderRadius.circular(3),
                           ),
                         ),
@@ -801,8 +801,15 @@ class _QuickViewPopup extends StatelessWidget {
                     : (c.type ?? '-'),
               ),
               _infoRow('Tier:', '${c.tier ?? '-'}'),
-              _infoRow('Date Moved:', _fmtDate(c.moveConfirmedDate)),
-              _infoRow('Days in Slot:', _fmtDays(c.moveConfirmedDate)),
+              _infoRow('Date Added:', _fmtDate(c.createdDate)),
+              _infoRow(
+                'Date Moved:',
+                _fmtDate(c.moveConfirmedDate ?? c.createdDate),
+              ),
+              _infoRow(
+                'Days in Slot:',
+                _fmtDays(c.moveConfirmedDate ?? c.createdDate),
+              ),
               const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
@@ -928,9 +935,7 @@ class _FullDetailsDialog extends StatelessWidget {
         ? '40ft'
         : (c.type ?? '-');
     final statusLabel = c.statusId == 1 ? 'Laden' : 'Empty';
-    final statusColor = c.statusId == 1
-        ? Colors.amber.shade700
-        : Colors.red.shade600;
+    final statusColor = c.statusId == 1 ? AppColors.laden : AppColors.empty;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1008,10 +1013,23 @@ class _FullDetailsDialog extends StatelessWidget {
                   children: [
                     _section('GENERAL'),
                     _row('Status:', statusLabel, valueColor: statusColor),
-                    _row('Date Moved:', _fmt(c.moveConfirmedDate)),
-                    _row('Days in Slot:', _days(c.moveConfirmedDate)),
-                    _row('Date in Yard:', _fmt(c.yardEntryDate)),
-                    _row('Days in Yard:', _days(c.yardEntryDate)),
+                    _row('Date Added:', _fmt(c.createdDate)),
+                    _row(
+                      'Date Moved:',
+                      _fmt(c.moveConfirmedDate ?? c.createdDate),
+                    ),
+                    _row(
+                      'Days in Slot:',
+                      _days(c.moveConfirmedDate ?? c.createdDate),
+                    ),
+                    _row(
+                      'Date in Yard:',
+                      _fmt(c.yardEntryDate ?? c.createdDate),
+                    ),
+                    _row(
+                      'Days in Yard:',
+                      _days(c.yardEntryDate ?? c.createdDate),
+                    ),
                     _row('Container Type:', typeLabel),
                     _row('Description:', c.containerDesc ?? '-'),
                     const SizedBox(height: 12),

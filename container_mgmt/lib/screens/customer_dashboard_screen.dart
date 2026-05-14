@@ -671,9 +671,7 @@ class _ContainerListTile extends StatelessWidget {
         ? '40ft'
         : (c.type ?? '-');
     final statusLabel = c.statusId == 1 ? 'Laden' : 'Empty';
-    final statusColor = c.statusId == 1
-        ? Colors.amber.shade700
-        : Colors.red.shade600;
+    final statusColor = c.statusId == 1 ? AppColors.laden : AppColors.empty;
 
     showDialog(
       context: context,
@@ -749,10 +747,23 @@ class _ContainerListTile extends StatelessWidget {
                   children: [
                     _section('GENERAL'),
                     _row('Status:', statusLabel, valueColor: statusColor),
-                    _row('Date Moved:', _formatDate(c.moveConfirmedDate)),
-                    _row('Days in Slot:', _daysInSlot(c.moveConfirmedDate)),
-                    _row('Date in Yard:', _formatDate(c.yardEntryDate)),
-                    _row('Days in Yard:', _daysInSlot(c.yardEntryDate)),
+                    _row('Date Added:', _formatDate(c.createdDate)),
+                    _row(
+                      'Date Moved:',
+                      _formatDate(c.moveConfirmedDate ?? c.createdDate),
+                    ),
+                    _row(
+                      'Days in Slot:',
+                      _daysInSlot(c.moveConfirmedDate ?? c.createdDate),
+                    ),
+                    _row(
+                      'Date in Yard:',
+                      _formatDate(c.yardEntryDate ?? c.createdDate),
+                    ),
+                    _row(
+                      'Days in Yard:',
+                      _daysInSlot(c.yardEntryDate ?? c.createdDate),
+                    ),
                     _row('Container Type:', typeLabel),
                     if (c.containerDesc != null && c.containerDesc!.isNotEmpty)
                       _row('Description:', c.containerDesc!),
@@ -839,9 +850,7 @@ class _ContainerListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = c.statusId == 1
-        ? Colors.amber.shade700
-        : Colors.red.shade600;
+    final statusColor = c.statusId == 1 ? AppColors.laden : AppColors.empty;
     final statusLabel = c.statusId == 1 ? 'Laden' : 'Empty';
     String location = 'Not in yard';
     if (c.isMovedOut) {
@@ -920,4 +929,3 @@ class _ContainerListTile extends StatelessWidget {
     );
   }
 }
-

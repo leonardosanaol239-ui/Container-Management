@@ -1230,13 +1230,13 @@ class _ReportDialogState extends State<_ReportDialog>
           ),
           pw.Expanded(
             child: pw.Text(
-              _fmt(c.moveConfirmedDate),
+              _fmt(c.moveConfirmedDate ?? c.createdDate),
               style: const pw.TextStyle(fontSize: 9),
             ),
           ),
           pw.Expanded(
             child: pw.Text(
-              _days(c.moveConfirmedDate),
+              _days(c.moveConfirmedDate ?? c.createdDate),
               style: const pw.TextStyle(fontSize: 9),
             ),
           ),
@@ -1680,10 +1680,13 @@ class _ContainerTable extends StatelessWidget {
                           : '-',
                       center: true,
                     ),
-                    _td(fmt(c.yardEntryDate)),
-                    _td(days(c.yardEntryDate), center: true),
-                    _td(fmt(c.moveConfirmedDate)),
-                    _td(days(c.moveConfirmedDate), center: true),
+                    _td(fmt(c.yardEntryDate ?? c.createdDate)),
+                    _td(days(c.yardEntryDate ?? c.createdDate), center: true),
+                    _td(fmt(c.moveConfirmedDate ?? c.createdDate)),
+                    _td(
+                      days(c.moveConfirmedDate ?? c.createdDate),
+                      center: true,
+                    ),
                   ],
                 );
               }),

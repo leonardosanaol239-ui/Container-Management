@@ -8,4 +8,5 @@ public interface IYardService
     Task<Yard?> GetYardByIdAsync(int yardId);
     Task UpdateYardImageAsync(int yardId, string imagePath);
     Task<Yard> CreateYardAsync(int portId, double yardWidth, double yardHeight);
+    Task<bool> DeleteYardAsync(int yardId);
 }

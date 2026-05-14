@@ -57,6 +57,14 @@ class ApiService {
     return Yard.fromJson(jsonDecode(res.body));
   }
 
+  /// Returns true if deleted, false if the yard has containers or doesn't exist.
+  Future<bool> deleteYard(int yardId) async {
+    final res = await http.delete(Uri.parse('$baseUrl/Yards/$yardId'));
+    if (res.statusCode == 400 || res.statusCode == 404) return false;
+    _check(res);
+    return true;
+  }
+
   // ── Blocks ──────────────────────────────────────────────
   Future<List<Block>> getBlocks(int yardId) async {
     final res = await http.get(Uri.parse('$baseUrl/Blocks?yardId=$yardId'));
@@ -128,6 +136,7 @@ class ApiService {
     required int portId,
     int? customerId,
   }) async {
+    final now = DateTime.now().toUtc().toIso8601String();
     final res = await http.post(
       Uri.parse('$baseUrl/Containers'),
       headers: {'Content-Type': 'application/json'},
@@ -138,6 +147,7 @@ class ApiService {
         'containerDesc': desc,
         'currentPortId': portId,
         'customerId': ?customerId,
+        'createdDate': now,
       }),
     );
     _check(res);

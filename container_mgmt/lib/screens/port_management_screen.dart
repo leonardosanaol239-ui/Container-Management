@@ -78,6 +78,40 @@ class _PortManagementScreenState extends State<PortManagementScreen>
     }
   }
 
+  void _showDeleteYardDialog() {
+    if (_yards.isEmpty) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => _DeleteYardDialog(
+        yards: _yards,
+        onDelete: (yard) async {
+          Navigator.pop(ctx);
+          final deleted = await _api.deleteYard(yard.yardId);
+          if (!mounted) return;
+          if (deleted) {
+            await _loadAll();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Yard ${yard.yardNumber} deleted.'),
+                backgroundColor: AppColors.green,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Cannot delete Yard ${yard.yardNumber}: it still has containers.',
+                ),
+                backgroundColor: Colors.red.shade700,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
   void _openYard(Yard yard) {
     Navigator.push(
       context,
@@ -97,12 +131,46 @@ class _PortManagementScreenState extends State<PortManagementScreen>
     if (q.isEmpty) return;
     final container = await _api.searchContainer(q);
     if (!mounted) return;
-    if (container == null || container.yardId == null) {
+
+    // Container not found at all
+    if (container == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Container not found or not in a yard')),
+        SnackBar(
+          content: Text('Container "$q" not found.'),
+          backgroundColor: Colors.red.shade700,
+        ),
       );
       return;
     }
+
+    // Container exists but belongs to a different port
+    if (container.currentPortId != widget.portId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '"$q" is not in ${widget.portName}. '
+            'Please search within the correct port.',
+          ),
+          backgroundColor: Colors.orange.shade800,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
+    // Container found but not placed in any yard
+    if (container.yardId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '"$q" is in ${widget.portName} but not placed in a yard.',
+          ),
+          backgroundColor: Colors.orange.shade700,
+        ),
+      );
+      return;
+    }
+
     // Blink the yard card
     setState(() => _blinkingYardId = container.yardId);
     // Resolve names
@@ -278,21 +346,24 @@ class _PortManagementScreenState extends State<PortManagementScreen>
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.yellow,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  '${_yards.length}',
-                                  style: const TextStyle(
-                                    color: AppColors.textDark,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 13,
+                              GestureDetector(
+                                onTap: _showDeleteYardDialog,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.yellow,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    '${_yards.length}',
+                                    style: const TextStyle(
+                                      color: AppColors.textDark,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -525,7 +596,7 @@ class _MiniYardPainter extends CustomPainter {
   bool shouldRepaint(_) => false;
 }
 
-class _ContainerLocationDialog extends StatelessWidget {
+class _ContainerLocationDialog extends StatefulWidget {
   final ContainerModel container;
   final Yard yard;
   final int portId;
@@ -538,6 +609,53 @@ class _ContainerLocationDialog extends StatelessWidget {
     required this.portName,
     this.onViewInYard,
   });
+
+  @override
+  State<_ContainerLocationDialog> createState() =>
+      _ContainerLocationDialogState();
+}
+
+class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
+  final _api = ApiService();
+  String _blockLabel = '-';
+  String _bayLabel = '-';
+  String _rowLabel = '-';
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveLabels();
+  }
+
+  Future<void> _resolveLabels() async {
+    final c = widget.container;
+    if (c.yardId == null || c.blockId == null) return;
+
+    try {
+      // Fetch all blocks for this yard to resolve the block name
+      final blocks = await _api.getBlocks(c.yardId!);
+      final block = blocks.where((b) => b.blockId == c.blockId).firstOrNull;
+      if (block != null && mounted) {
+        setState(
+          () => _blockLabel = block.blockName ?? 'Block ${block.blockNumber}',
+        );
+      }
+
+      // Fetch bays for this block to resolve the bay number
+      final bays = await _api.getBays(c.blockId!);
+      final bay = bays.where((b) => b.bayId == c.bayId).firstOrNull;
+      if (bay != null && mounted) {
+        setState(() => _bayLabel = bay.bayNumber);
+
+        // Fetch rows for this bay to resolve the row number
+        final rows = await _api.getRows(bay.bayId);
+        final row = rows.where((r) => r.rowId == c.rowId).firstOrNull;
+        if (row != null && mounted) {
+          setState(() => _rowLabel = '${row.rowNumber}');
+        }
+      }
+    } catch (_) {}
+  }
 
   Widget _row(String label, String value) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 4),
@@ -570,6 +688,8 @@ class _ContainerLocationDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final container = widget.container;
+    final yard = widget.yard;
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: SizedBox(
@@ -643,20 +763,9 @@ class _ContainerLocationDialog extends StatelessWidget {
                   const Divider(),
                   const SizedBox(height: 8),
                   _row('Yard:', 'Yard ${yard.yardNumber}'),
-                  _row(
-                    'Block:',
-                    container.blockId != null
-                        ? 'Block ${container.blockId}'
-                        : '-',
-                  ),
-                  _row(
-                    'Bay:',
-                    container.bayId != null ? '${container.bayId}' : '-',
-                  ),
-                  _row(
-                    'Row:',
-                    container.rowId != null ? '${container.rowId}' : '-',
-                  ),
+                  _row('Block:', _blockLabel),
+                  _row('Bay:', _bayLabel),
+                  _row('Row:', _rowLabel),
                   _row(
                     'Tier:',
                     container.tier != null ? '${container.tier}' : '-',
@@ -672,13 +781,13 @@ class _ContainerLocationDialog extends StatelessWidget {
                           MaterialPageRoute(
                             builder: (_) => YardScreen(
                               yard: yard,
-                              portId: portId,
-                              portName: portName,
+                              portId: widget.portId,
+                              portName: widget.portName,
                               highlightRowId: container.rowId,
                             ),
                           ),
                         );
-                        onViewInYard?.call();
+                        widget.onViewInYard?.call();
                       },
                       icon: const Icon(Icons.location_searching, size: 16),
                       label: const Text(
@@ -696,6 +805,179 @@ class _ContainerLocationDialog extends StatelessWidget {
                     ),
                   ),
                 ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Delete Yard Dialog ────────────────────────────────────────────────────────
+
+class _DeleteYardDialog extends StatelessWidget {
+  final List<Yard> yards;
+  final void Function(Yard yard) onDelete;
+
+  const _DeleteYardDialog({required this.yards, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SizedBox(
+        width: 340,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              decoration: const BoxDecoration(
+                color: AppColors.green,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.delete_outline,
+                    color: AppColors.yellow,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Delete a Yard',
+                    style: TextStyle(
+                      color: AppColors.yellow,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(
+                      Icons.close,
+                      color: AppColors.yellow,
+                      size: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text(
+                'Select a yard to delete. Yards with active containers cannot be deleted.',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const Divider(height: 16),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                itemCount: yards.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemBuilder: (ctx, i) {
+                  final yard = yards[i];
+                  return ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    tileColor: Colors.grey.shade50,
+                    leading: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.yellow.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.warehouse_outlined,
+                        color: AppColors.green,
+                        size: 18,
+                      ),
+                    ),
+                    title: Text(
+                      'Yard ${yard.yardNumber}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    trailing: GestureDetector(
+                      onTap: () => showDialog(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          title: const Text('Confirm Delete'),
+                          content: Text(
+                            'Are you sure you want to delete Yard ${yard.yardNumber}? '
+                            'This cannot be undone.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.pop(context); // close confirm
+                                onDelete(yard);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.shade600,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.delete_outline,
+                              size: 13,
+                              color: Colors.red.shade600,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Delete',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.red.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],

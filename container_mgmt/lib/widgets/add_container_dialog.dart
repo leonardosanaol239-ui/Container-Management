@@ -17,12 +17,41 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
   final _customerCtrl = TextEditingController();
   int _statusId = 2;
   int _sizeId = 1;
+  String? _containerType; // Food, Non-Food, FSL, etc.
   bool _loading = false;
   String? _error;
   List<CustomerModel> _customers = [];
   List<CustomerModel> _filtered = [];
   CustomerModel? _selectedCustomer;
   bool _showDropdown = false;
+
+  static const List<Map<String, dynamic>> _containerTypes = [
+    {
+      'label': 'Food',
+      'icon': Icons.restaurant_rounded,
+      'color': Color(0xFF2E7D32),
+    },
+    {
+      'label': 'Non-Food',
+      'icon': Icons.no_food_rounded,
+      'color': Color(0xFFB71C1C),
+    },
+    {
+      'label': 'FSL',
+      'icon': Icons.inventory_2_rounded,
+      'color': Color(0xFF1565C0),
+    },
+    {
+      'label': 'Stripping',
+      'icon': Icons.content_cut_rounded,
+      'color': Color(0xFFE65100),
+    },
+    {
+      'label': 'Repair',
+      'icon': Icons.build_rounded,
+      'color': Color(0xFF6A1B9A),
+    },
+  ];
 
   @override
   void initState() {
@@ -60,15 +89,24 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
   }
 
   Future<void> _submit() async {
+    if (_containerType == null) {
+      setState(() => _error = 'Please select a container type.');
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
+    // Combine type + optional extra description
+    final extra = _descCtrl.text.trim();
+    final fullDesc = extra.isEmpty
+        ? _containerType!
+        : '$_containerType — $extra';
     try {
       await _api.createContainer(
         statusId: _statusId,
         containerSizeId: _sizeId,
-        desc: _descCtrl.text.trim(),
+        desc: fullDesc,
         portId: widget.portId,
         customerId: _selectedCustomer?.customerId,
       );
@@ -219,6 +257,66 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
                         ],
                       ),
                       const SizedBox(height: 18),
+                      // ── Container Type ──────────────────────────────
+                      _FieldLabel(
+                        icon: Icons.category_rounded,
+                        label: 'Container Type',
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _containerTypes.map((t) {
+                          final label = t['label'] as String;
+                          final icon = t['icon'] as IconData;
+                          final typeColor = t['color'] as Color;
+                          final selected = _containerType == label;
+                          return GestureDetector(
+                            onTap: () => setState(() => _containerType = label),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 160),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? typeColor
+                                    : typeColor.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: selected
+                                      ? typeColor
+                                      : typeColor.withValues(alpha: 0.35),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    icon,
+                                    size: 14,
+                                    color: selected ? Colors.white : typeColor,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    label,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: selected
+                                          ? Colors.white
+                                          : typeColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 18),
                       _FieldLabel(
                         icon: Icons.person_rounded,
                         label: 'Customer (Optional)',
@@ -292,14 +390,14 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
                       const SizedBox(height: 18),
                       _FieldLabel(
                         icon: Icons.notes_rounded,
-                        label: 'Container Description',
+                        label: 'Additional Notes (Optional)',
                       ),
                       const SizedBox(height: 8),
                       TextField(
                         controller: _descCtrl,
                         maxLines: 3,
                         decoration: const InputDecoration(
-                          hintText: 'Optional description…',
+                          hintText: 'Any extra notes…',
                           hintStyle: TextStyle(
                             color: AppColors.textGrey,
                             fontSize: 13,

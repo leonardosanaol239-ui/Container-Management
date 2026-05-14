@@ -50,4 +50,20 @@ public class YardService : IYardService
         await _context.SaveChangesAsync();
         return yard;
     }
+
+    public async Task<bool> DeleteYardAsync(int yardId)
+    {
+        var yard = await _context.Yards
+            .FirstOrDefaultAsync(y => y.YardId == yardId);
+        if (yard == null) return false;
+
+        // Prevent deletion if the yard has containers currently placed in it
+        var hasContainers = await _context.Containers
+            .AnyAsync(c => c.YardId == yardId && c.LocationStatusId != 2);
+        if (hasContainers) return false;
+
+        _context.Yards.Remove(yard);
+        await _context.SaveChangesAsync();
+        return true;
+    }
 }

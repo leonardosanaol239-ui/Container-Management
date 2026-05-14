@@ -60,4 +60,13 @@ public class YardsController : ControllerBase
         await _yardService.UpdateYardImageAsync(id, imagePath);
         return Ok(new { imagePath });
     }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteYard(int id)
+    {
+        var deleted = await _yardService.DeleteYardAsync(id);
+        if (!deleted)
+            return BadRequest("Cannot delete yard: it may not exist or still has containers.");
+        return NoContent();
+    }
 }

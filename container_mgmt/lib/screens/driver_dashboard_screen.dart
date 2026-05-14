@@ -154,7 +154,8 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   Future<void> _confirmRequest(ContainerModel c) async {
     try {
       await _api.confirmMoveRequest(c.containerId);
-      await _loadData();
+      // Use silent refresh — no loading overlay, no flicker
+      await _silentRefresh();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -616,9 +617,7 @@ class _MoveRequestTile extends StatelessWidget {
         ? '40ft'
         : (c.type ?? '-');
     final statusLabel = c.statusId == 1 ? 'Laden' : 'Empty';
-    final statusColor = c.statusId == 1
-        ? Colors.amber.shade700
-        : Colors.red.shade600;
+    final statusColor = c.statusId == 1 ? AppColors.laden : AppColors.empty;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

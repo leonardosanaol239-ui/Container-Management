@@ -93,11 +93,6 @@ public class LayoutService : ILayoutService
             .Select(r => r.RowId)
             .ToListAsync();
 
-        // Block deletion if any container is actively sitting in a slot in this block
-        var hasContainers = rowIds.Any() && await _ctx.Containers
-            .AnyAsync(c => c.RowId != null && rowIds.Contains(c.RowId.Value) && c.LocationStatusId != 2);
-        if (hasContainers) return false;
-
         // Step 1: clear all container FK references to this block's rows/bays and save first
         // so FK constraints don't fire when we delete rows/bays below
         var allRowIds = rowIds.ToHashSet();

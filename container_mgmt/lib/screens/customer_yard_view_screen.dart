@@ -207,8 +207,8 @@ class _CustomerYardViewScreenState extends State<CustomerYardViewScreen> {
   }
 
   Widget _buildCanvas() {
-    final yardW = (_yard.yardWidth ?? 300).toDouble();
-    final yardH = (_yard.yardHeight ?? 170).toDouble();
+    final yardW = (_yard.yardWidth ?? 550).toDouble();
+    final yardH = (_yard.yardHeight ?? 238).toDouble();
 
     return LayoutBuilder(
       builder: (ctx, constraints) {

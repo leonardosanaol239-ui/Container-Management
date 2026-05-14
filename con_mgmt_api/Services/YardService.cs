@@ -26,6 +26,15 @@ public class YardService : IYardService
             .FirstOrDefaultAsync(y => y.YardId == yardId);
     }
 
+    public async Task UpdateYardDimensionsAsync(int yardId, double width, double height)
+    {
+        var yard = await _context.Yards.FindAsync(yardId);
+        if (yard == null) return;
+        yard.YardWidth = width;
+        yard.YardHeight = height;
+        await _context.SaveChangesAsync();
+    }
+
     public async Task UpdateYardImageAsync(int yardId, string imagePath)
     {
         var yard = await _context.Yards.FindAsync(yardId);

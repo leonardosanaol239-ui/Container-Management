@@ -38,6 +38,17 @@ public class YardsController : ControllerBase
         return Ok(yard);
     }
 
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateYard(int id, [FromBody] UpdateYardRequest request)
+    {
+        var yard = await _yardService.GetYardByIdAsync(id);
+        if (yard == null) return NotFound();
+        await _yardService.UpdateYardDimensionsAsync(id, request.YardWidth, request.YardHeight);
+        return Ok(await _yardService.GetYardByIdAsync(id));
+    }
+
+    public record UpdateYardRequest(double YardWidth, double YardHeight);
+
     [HttpPost("{id}/image")]
     public async Task<IActionResult> UploadYardImage(int id, IFormFile file,
         [FromServices] Microsoft.AspNetCore.Hosting.IWebHostEnvironment env)

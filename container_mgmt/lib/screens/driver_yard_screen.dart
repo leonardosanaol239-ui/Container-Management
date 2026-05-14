@@ -283,6 +283,7 @@ class _DriverYardScreenState extends State<DriverYardScreen>
       builder: (_) => _MoveRequestDetailDialog(
         container: c,
         yard: _yard,
+        portId: widget.portId,
         blocks: _blocks,
         baysByBlock: _baysByBlock,
         rowsByBay: _rowsByBay,
@@ -494,8 +495,8 @@ class _DriverYardScreenState extends State<DriverYardScreen>
   }
 
   Widget _buildCanvas() {
-    final yardW = (_yard.yardWidth ?? 300).toDouble();
-    final yardH = (_yard.yardHeight ?? 170).toDouble();
+    final yardW = (_yard.yardWidth ?? 550).toDouble();
+    final yardH = (_yard.yardHeight ?? 238).toDouble();
 
     return LayoutBuilder(
       builder: (ctx, constraints) {
@@ -537,15 +538,43 @@ class _DriverYardScreenState extends State<DriverYardScreen>
                   width: cw,
                   height: ch,
                   decoration: BoxDecoration(
-                    color: _yard.imagePath != null ? null : Colors.grey[300],
+                    color:
+                        (_yard.imagePath != null &&
+                            _yard.imagePath!.startsWith('/'))
+                        ? null
+                        : (widget.portId == 2 && _yard.yardNumber <= 4)
+                        ? null
+                        : Colors.grey[300],
                     border: Border.all(color: Colors.grey, width: 1),
                     borderRadius: BorderRadius.circular(8),
-                    image: _yard.imagePath != null
+                    image:
+                        (_yard.imagePath != null &&
+                            _yard.imagePath!.startsWith('/'))
                         ? DecorationImage(
                             image: NetworkImage(
                               '${ApiService.baseUrl.replaceAll('/api', '')}${_yard.imagePath}',
                             ),
-                            fit: BoxFit.cover,
+                            fit: BoxFit.fill,
+                          )
+                        : widget.portId == 2 && _yard.yardNumber == 1
+                        ? const DecorationImage(
+                            image: AssetImage('assets/Y1.png'),
+                            fit: BoxFit.fill,
+                          )
+                        : widget.portId == 2 && _yard.yardNumber == 2
+                        ? const DecorationImage(
+                            image: AssetImage('assets/Y2.png'),
+                            fit: BoxFit.fill,
+                          )
+                        : widget.portId == 2 && _yard.yardNumber == 3
+                        ? const DecorationImage(
+                            image: AssetImage('assets/Y3.png'),
+                            fit: BoxFit.fill,
+                          )
+                        : widget.portId == 2 && _yard.yardNumber == 4
+                        ? const DecorationImage(
+                            image: AssetImage('assets/Y4.png'),
+                            fit: BoxFit.fill,
                           )
                         : null,
                   ),
@@ -737,6 +766,7 @@ class _GridPainter extends CustomPainter {
 class _MoveRequestDetailDialog extends StatefulWidget {
   final ContainerModel container;
   final Yard yard;
+  final int portId;
   final List<Block> blocks;
   final Map<int, List<Bay>> baysByBlock;
   final Map<int, List<RowModel>> rowsByBay;
@@ -747,6 +777,7 @@ class _MoveRequestDetailDialog extends StatefulWidget {
   const _MoveRequestDetailDialog({
     required this.container,
     required this.yard,
+    required this.portId,
     required this.blocks,
     required this.baysByBlock,
     required this.rowsByBay,
@@ -764,6 +795,7 @@ class _MoveRequestDetailDialogState extends State<_MoveRequestDetailDialog>
     with SingleTickerProviderStateMixin {
   late AnimationController _blinkCtrl;
   double _scale = 3.0;
+  Offset _dragOffset = Offset.zero;
 
   @override
   void initState() {
@@ -830,159 +862,184 @@ class _MoveRequestDetailDialogState extends State<_MoveRequestDetailDialog>
         : (c.type ?? '-');
 
     return Dialog(
-      backgroundColor: const Color(0xFF1A1A2E),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: double.infinity,
-        height: MediaQuery.of(context).size.height * 0.85,
-        child: Column(
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 16, 0),
-              child: Row(
-                children: [
-                  const Text(
-                    'Move Request for:',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    c.containerNumber,
-                    style: const TextStyle(
-                      color: AppColors.laden,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(
-                      Icons.close,
-                      color: Colors.redAccent,
-                      size: 20,
-                    ),
-                  ),
-                ],
-              ),
+      backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.zero,
+      child: Transform.translate(
+        offset: _dragOffset,
+        child: GestureDetector(
+          onPanUpdate: (d) => setState(() => _dragOffset += d.delta),
+          child: Container(
+            width: MediaQuery.of(context).size.width - 48,
+            height: MediaQuery.of(context).size.height * 0.85,
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A2E),
+              borderRadius: BorderRadius.circular(14),
             ),
-            const SizedBox(height: 12),
-            // Body: left panel + map
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Left: details panel
-                  SizedBox(
-                    width: 220,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 12, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Move To
-                          _sectionHeader('Move To', Colors.red.shade600),
-                          const SizedBox(height: 8),
-                          _locRow('Yard:', 'Yard ${widget.yard.yardNumber}'),
-                          _locRow(
-                            'Block:',
-                            toBlock?.blockName ??
-                                (toBlock != null
-                                    ? 'Block ${toBlock.blockNumber}'
-                                    : '-'),
-                          ),
-                          _locRow('Bay:', toBay?.bayNumber ?? '-'),
-                          _locRow(
-                            'Row:',
-                            toRow != null ? '${toRow.rowNumber}' : '-',
-                          ),
-                          _locRow('Tier:', c.tier != null ? '${c.tier}' : '-'),
-                          const SizedBox(height: 16),
-                          // Move From
-                          _sectionHeader(
-                            'Move From',
-                            fromHolding ? Colors.grey.shade600 : Colors.green,
-                          ),
-                          const SizedBox(height: 8),
-                          if (fromHolding) ...[
-                            _locRow('Yard:', '-', grayed: true),
-                            _locRow('Block:', '-', grayed: true),
-                            _locRow('Bay:', '-', grayed: true),
-                            _locRow('Row:', '-', grayed: true),
-                            _locRow('Tier:', '-', grayed: true),
-                            const Text(
-                              '(Holding Area)',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 10,
-                                fontStyle: FontStyle.italic,
+            child: Column(
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 16, 0),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Move Request for:',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        c.containerNumber,
+                        style: const TextStyle(
+                          color: AppColors.laden,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.redAccent,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Body: left panel + map
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Left: details panel
+                      SizedBox(
+                        width: 220,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 12, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Move To
+                              _sectionHeader('Move To', Colors.red.shade600),
+                              const SizedBox(height: 8),
+                              _locRow(
+                                'Yard:',
+                                'Yard ${widget.yard.yardNumber}',
                               ),
-                            ),
-                          ] else ...[
-                            _locRow('Yard:', 'Yard ${widget.yard.yardNumber}'),
-                            _locRow(
-                              'Block:',
-                              fromBlock?.blockName ??
-                                  (fromBlock != null
-                                      ? 'Block ${fromBlock.blockNumber}'
-                                      : '-'),
-                            ),
-                            _locRow('Bay:', fromBay?.bayNumber ?? '-'),
-                            _locRow(
-                              'Row:',
-                              fromRow != null ? '${fromRow.rowNumber}' : '-',
-                            ),
-                            _locRow(
-                              'Tier:',
-                              c.prevTier != null ? '${c.prevTier}' : '-',
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-                          _locRow('Customer:', customer?.fullName ?? '-'),
-                          _locRow('Type:', typeLabel),
-                          _locRow('Desc:', c.containerDesc ?? '-'),
-                        ],
+                              _locRow(
+                                'Block:',
+                                toBlock?.blockName ??
+                                    (toBlock != null
+                                        ? 'Block ${toBlock.blockNumber}'
+                                        : '-'),
+                              ),
+                              _locRow('Bay:', toBay?.bayNumber ?? '-'),
+                              _locRow(
+                                'Row:',
+                                toRow != null ? '${toRow.rowNumber}' : '-',
+                              ),
+                              _locRow(
+                                'Tier:',
+                                c.tier != null ? '${c.tier}' : '-',
+                              ),
+                              const SizedBox(height: 16),
+                              // Move From
+                              _sectionHeader(
+                                'Move From',
+                                fromHolding
+                                    ? Colors.grey.shade600
+                                    : Colors.green,
+                              ),
+                              const SizedBox(height: 8),
+                              if (fromHolding) ...[
+                                _locRow('Yard:', '-', grayed: true),
+                                _locRow('Block:', '-', grayed: true),
+                                _locRow('Bay:', '-', grayed: true),
+                                _locRow('Row:', '-', grayed: true),
+                                _locRow('Tier:', '-', grayed: true),
+                                const Text(
+                                  '(Holding Area)',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 10,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ] else ...[
+                                _locRow(
+                                  'Yard:',
+                                  'Yard ${widget.yard.yardNumber}',
+                                ),
+                                _locRow(
+                                  'Block:',
+                                  fromBlock?.blockName ??
+                                      (fromBlock != null
+                                          ? 'Block ${fromBlock.blockNumber}'
+                                          : '-'),
+                                ),
+                                _locRow('Bay:', fromBay?.bayNumber ?? '-'),
+                                _locRow(
+                                  'Row:',
+                                  fromRow != null
+                                      ? '${fromRow.rowNumber}'
+                                      : '-',
+                                ),
+                                _locRow(
+                                  'Tier:',
+                                  c.prevTier != null ? '${c.prevTier}' : '-',
+                                ),
+                              ],
+                              const SizedBox(height: 16),
+                              _locRow('Customer:', customer?.fullName ?? '-'),
+                              _locRow('Type:', typeLabel),
+                              _locRow('Desc:', c.containerDesc ?? '-'),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Right: interactive map
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(0, 0, 16, 0),
+                          child: _buildMap(c),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Confirm button
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        widget.onConfirm();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        'Confirm',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                   ),
-                  // Right: interactive map
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(0, 0, 16, 0),
-                      child: _buildMap(c),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Confirm button
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    widget.onConfirm();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    'Confirm',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1036,8 +1093,8 @@ class _MoveRequestDetailDialogState extends State<_MoveRequestDetailDialog>
   );
 
   Widget _buildMap(ContainerModel c) {
-    final yardW = (widget.yard.yardWidth ?? 300).toDouble();
-    final yardH = (widget.yard.yardHeight ?? 170).toDouble();
+    final yardW = (widget.yard.yardWidth ?? 550).toDouble();
+    final yardH = (widget.yard.yardHeight ?? 238).toDouble();
 
     return LayoutBuilder(
       builder: (ctx, constraints) {
@@ -1074,16 +1131,42 @@ class _MoveRequestDetailDialogState extends State<_MoveRequestDetailDialog>
                   width: cw,
                   height: ch,
                   decoration: BoxDecoration(
-                    color: widget.yard.imagePath != null
+                    color:
+                        (widget.yard.imagePath != null &&
+                            widget.yard.imagePath!.startsWith('/'))
+                        ? null
+                        : (widget.portId == 2 && widget.yard.yardNumber <= 4)
                         ? null
                         : Colors.grey[800],
                     borderRadius: BorderRadius.circular(8),
-                    image: widget.yard.imagePath != null
+                    image:
+                        (widget.yard.imagePath != null &&
+                            widget.yard.imagePath!.startsWith('/'))
                         ? DecorationImage(
                             image: NetworkImage(
                               '${ApiService.baseUrl.replaceAll('/api', '')}${widget.yard.imagePath}',
                             ),
-                            fit: BoxFit.cover,
+                            fit: BoxFit.fill,
+                          )
+                        : widget.portId == 2 && widget.yard.yardNumber == 1
+                        ? const DecorationImage(
+                            image: AssetImage('assets/Y1.png'),
+                            fit: BoxFit.fill,
+                          )
+                        : widget.portId == 2 && widget.yard.yardNumber == 2
+                        ? const DecorationImage(
+                            image: AssetImage('assets/Y2.png'),
+                            fit: BoxFit.fill,
+                          )
+                        : widget.portId == 2 && widget.yard.yardNumber == 3
+                        ? const DecorationImage(
+                            image: AssetImage('assets/Y3.png'),
+                            fit: BoxFit.fill,
+                          )
+                        : widget.portId == 2 && widget.yard.yardNumber == 4
+                        ? const DecorationImage(
+                            image: AssetImage('assets/Y4.png'),
+                            fit: BoxFit.fill,
                           )
                         : null,
                   ),

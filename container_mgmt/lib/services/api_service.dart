@@ -34,8 +34,8 @@ class ApiService {
 
   Future<Yard> createYard(
     int portId, {
-    double width = 300,
-    double height = 170,
+    double width = 550,
+    double height = 238,
   }) async {
     final res = await http.post(
       Uri.parse('$baseUrl/Yards'),
@@ -63,6 +63,20 @@ class ApiService {
     if (res.statusCode == 400 || res.statusCode == 404) return false;
     _check(res);
     return true;
+  }
+
+  Future<Yard> updateYardDimensions(
+    int yardId,
+    double width,
+    double height,
+  ) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/Yards/$yardId'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'yardWidth': width, 'yardHeight': height}),
+    );
+    _check(res);
+    return Yard.fromJson(jsonDecode(res.body));
   }
 
   // ── Blocks ──────────────────────────────────────────────

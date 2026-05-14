@@ -75,8 +75,8 @@ class _YardScreenState extends State<YardScreen>
   double _actualScaleX = 1.0;
   double _actualScaleY = 1.0;
   Timer? _pollTimer;
-  double get _canvasW => (_yard.yardWidth ?? 300) * _scale;
-  double get _canvasH => (_yard.yardHeight ?? 170) * _scale;
+  double get _canvasW => (_yard.yardWidth ?? 550) * _scale;
+  double get _canvasH => (_yard.yardHeight ?? 238) * _scale;
   double get _scaleX => _actualScaleX;
   double get _scaleY => _actualScaleY;
   late AnimationController _blinkCtrl;
@@ -218,12 +218,13 @@ class _YardScreenState extends State<YardScreen>
         _sizes = sizes;
         _orientations = orientations;
         _customers = customers;
-        // Sync block positions
+        // Sync block positions — clamp any out-of-bounds blocks back onto the canvas
         for (final b in blocks) {
-          _blockOffsets[b.blockId] = Offset(
+          final raw = Offset(
             (b.posX ?? 10).toDouble(),
             (b.posY ?? 10).toDouble(),
           );
+          _blockOffsets[b.blockId] = _clampBlock(b, raw);
           _blockRotations[b.blockId] = b.rotation;
         }
       });
@@ -312,12 +313,13 @@ class _YardScreenState extends State<YardScreen>
         _orientations = orientations;
         _customers = customers;
         _loading = false;
-        // Always sync offsets from DB so saved positions are reflected
+        // Always sync offsets from DB so saved positions are reflected — clamp out-of-bounds blocks
         for (final b in blocks) {
-          _blockOffsets[b.blockId] = Offset(
+          final raw = Offset(
             (b.posX ?? 10).toDouble(),
             (b.posY ?? 10).toDouble(),
           );
+          _blockOffsets[b.blockId] = _clampBlock(b, raw);
           _blockRotations[b.blockId] = b.rotation;
         }
       });
@@ -625,6 +627,211 @@ class _YardScreenState extends State<YardScreen>
           );
           await _loadAll();
         },
+      ),
+    );
+  }
+
+  void _showResizeYardDialog() {
+    final wCtrl = TextEditingController(
+      text: (_yard.yardWidth ?? 550).toStringAsFixed(0),
+    );
+    final hCtrl = TextEditingController(
+      text: (_yard.yardHeight ?? 238).toStringAsFixed(0),
+    );
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Resize Yard'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Set yard dimensions in feet.\n'
+              'Manila standard: 300 × 170 ft.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: wCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Width (ft)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: hCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Height (ft)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              icon: const Icon(Icons.copy, size: 14),
+              label: const Text('Use Manila standard (300 × 170)'),
+              onPressed: () {
+                wCtrl.text = '300';
+                hCtrl.text = '170';
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00695C),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final w = double.tryParse(wCtrl.text.trim());
+              final h = double.tryParse(hCtrl.text.trim());
+              if (w == null || h == null || w < 50 || h < 50) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Enter valid dimensions (min 50ft)'),
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              try {
+                final updated = await _api.updateYardDimensions(
+                  widget.yard.yardId,
+                  w,
+                  h,
+                );
+                setState(() {
+                  _yard = updated;
+                  _scale = 3.0; // reset scale so fitScale recalculates
+                });
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Yard resized to ${w.toInt()} × ${h.toInt()} ft',
+                      ),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+                }
+              }
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showManageBlocksDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          title: const Text('Manage Blocks'),
+          content: SizedBox(
+            width: 320,
+            child: _blocks.isEmpty
+                ? const Text('No blocks in this yard.')
+                : ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _blocks.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final b = _blocks[i];
+                      return ListTile(
+                        dense: true,
+                        title: Text(
+                          b.blockName ?? 'Block ${b.blockId}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          'ID: ${b.blockId}  •  '
+                          '${(_baysByBlock[b.blockId] ?? []).length} bays  •  '
+                          '${b.isVertical ? "Vertical" : "Horizontal"}',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(
+                            Icons.delete_forever,
+                            color: Colors.red,
+                          ),
+                          tooltip: 'Delete block',
+                          onPressed: () async {
+                            final confirm = await showDialog<bool>(
+                              context: ctx,
+                              builder: (_) => AlertDialog(
+                                title: const Text('Delete Block?'),
+                                content: Text(
+                                  'Delete "${b.blockName ?? 'Block ${b.blockId}'}"?\n'
+                                  'Any containers referencing this block will be unlinked.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: const Text('Delete'),
+                                  ),
+                                ],
+                              ),
+                            );
+                            if (confirm != true) return;
+                            try {
+                              await _api.deleteBlock(b.blockId);
+                              if (mounted) {
+                                setState(() => _selectedSlotId = null);
+                                await _loadAll();
+                                // Refresh the dialog list
+                                setDlgState(() {});
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Cannot delete: $e')),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1076,6 +1283,42 @@ class _YardScreenState extends State<YardScreen>
               bg: const Color(0xFF1565C0),
               fg: Colors.white,
               onTap: _showAddBlockDialog,
+            ),
+            const SizedBox(width: 8),
+            toolBtn(
+              icon: Icons.filter_center_focus_rounded,
+              label: 'Snap to Canvas',
+              bg: const Color(0xFF6A1B9A),
+              fg: Colors.white,
+              onTap: () {
+                setState(() {
+                  for (final b in _blocks) {
+                    final cur =
+                        _blockOffsets[b.blockId] ??
+                        Offset(
+                          (b.posX ?? 10).toDouble(),
+                          (b.posY ?? 10).toDouble(),
+                        );
+                    _blockOffsets[b.blockId] = _clampBlock(b, cur);
+                  }
+                });
+              },
+            ),
+            const SizedBox(width: 8),
+            toolBtn(
+              icon: Icons.aspect_ratio_rounded,
+              label: 'Resize Yard',
+              bg: const Color(0xFF00695C),
+              fg: Colors.white,
+              onTap: _showResizeYardDialog,
+            ),
+            const SizedBox(width: 8),
+            toolBtn(
+              icon: Icons.table_chart_rounded,
+              label: 'Manage Blocks',
+              bg: const Color(0xFFB71C1C),
+              fg: Colors.white,
+              onTap: _showManageBlocksDialog,
             ),
             const SizedBox(width: 8),
             _ToolbarDropdown<int>(
@@ -1726,8 +1969,8 @@ class _YardScreenState extends State<YardScreen>
   );
 
   Widget _buildCanvas() {
-    final yardW = (_yard.yardWidth ?? 300).toDouble();
-    final yardH = (_yard.yardHeight ?? 170).toDouble();
+    final yardW = (_yard.yardWidth ?? 550).toDouble();
+    final yardH = (_yard.yardHeight ?? 238).toDouble();
     return LayoutBuilder(
       builder: (ctx, constraints) {
         final availW = constraints.maxWidth == double.infinity
@@ -1786,38 +2029,38 @@ class _YardScreenState extends State<YardScreen>
                       height: availH,
                       decoration: BoxDecoration(
                         color:
-                            (_yard.imagePath != null ||
-                                _yard.yardNumber == 1 ||
-                                _yard.yardNumber == 2 ||
-                                _yard.yardNumber == 3 ||
-                                _yard.yardNumber == 4)
+                            (_yard.imagePath != null &&
+                                    _yard.imagePath!.startsWith('/')) ||
+                                (widget.portId == 2 && _yard.yardNumber <= 4)
                             ? null
                             : Colors.grey[300],
                         border: Border.all(color: Colors.grey, width: 1),
                         borderRadius: BorderRadius.circular(8),
-                        image: _yard.imagePath != null
+                        image:
+                            (_yard.imagePath != null &&
+                                _yard.imagePath!.startsWith('/'))
                             ? DecorationImage(
                                 image: NetworkImage(
                                   '${ApiService.baseUrl.replaceAll('/api', '')}${_yard.imagePath}',
                                 ),
                                 fit: BoxFit.fill,
                               )
-                            : _yard.yardNumber == 1
+                            : widget.portId == 2 && _yard.yardNumber == 1
                             ? const DecorationImage(
                                 image: AssetImage('assets/Y1.png'),
                                 fit: BoxFit.fill,
                               )
-                            : _yard.yardNumber == 2
+                            : widget.portId == 2 && _yard.yardNumber == 2
                             ? const DecorationImage(
                                 image: AssetImage('assets/Y2.png'),
                                 fit: BoxFit.fill,
                               )
-                            : _yard.yardNumber == 3
+                            : widget.portId == 2 && _yard.yardNumber == 3
                             ? const DecorationImage(
                                 image: AssetImage('assets/Y3.png'),
                                 fit: BoxFit.fill,
                               )
-                            : _yard.yardNumber == 4
+                            : widget.portId == 2 && _yard.yardNumber == 4
                             ? const DecorationImage(
                                 image: AssetImage('assets/Y4.png'),
                                 fit: BoxFit.fill,
@@ -2022,8 +2265,8 @@ class _YardScreenState extends State<YardScreen>
   }
 
   Offset _clampBlock(Block block, Offset pos) {
-    final yardWft = (_yard.yardWidth ?? 300).toDouble();
-    final yardHft = (_yard.yardHeight ?? 170).toDouble();
+    final yardWft = (_yard.yardWidth ?? 550).toDouble();
+    final yardHft = (_yard.yardHeight ?? 238).toDouble();
     final slotsRect = _getSlotsRect(block, pos);
     double dx = pos.dx;
     double dy = pos.dy;
@@ -3677,7 +3920,7 @@ class _YardTierPopupState extends State<YardTierPopup> {
 }
 
 // -- Full Container Details Dialog --------------------------------------------
-class YardContainerDetailsDialog extends StatelessWidget {
+class YardContainerDetailsDialog extends StatefulWidget {
   final ContainerModel container;
   final List<CustomerModel> customers;
   final String portName;
@@ -3696,6 +3939,15 @@ class YardContainerDetailsDialog extends StatelessWidget {
     required this.baysById,
     required this.rowsById,
   });
+
+  @override
+  State<YardContainerDetailsDialog> createState() =>
+      _YardContainerDetailsDialogState();
+}
+
+class _YardContainerDetailsDialogState
+    extends State<YardContainerDetailsDialog> {
+  Offset _dragOffset = Offset.zero;
 
   String _fmt(String? iso) {
     if (iso == null) return '-';
@@ -3761,18 +4013,20 @@ class YardContainerDetailsDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = container;
+    final c = widget.container;
     final customer = c.customerId != null
-        ? customers.where((cu) => cu.customerId == c.customerId).firstOrNull
+        ? widget.customers
+              .where((cu) => cu.customerId == c.customerId)
+              .firstOrNull
         : null;
     final block = c.blockId != null
-        ? blocks.where((b) => b.blockId == c.blockId).firstOrNull
+        ? widget.blocks.where((b) => b.blockId == c.blockId).firstOrNull
         : null;
     final blockLabel =
         block?.blockName ??
         (block != null ? 'Block ${block.blockNumber}' : '-');
-    final bay = c.bayId != null ? baysById[c.bayId] : null;
-    final row = c.rowId != null ? rowsById[c.rowId] : null;
+    final bay = c.bayId != null ? widget.baysById[c.bayId] : null;
+    final row = c.rowId != null ? widget.rowsById[c.rowId] : null;
     final typeLabel = c.containerSizeId == 1
         ? '20ft'
         : c.containerSizeId == 2
@@ -3782,114 +4036,126 @@ class YardContainerDetailsDialog extends StatelessWidget {
     final statusColor = c.statusId == 1 ? AppColors.laden : AppColors.empty;
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.8,
-          maxWidth: 360,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E1E2E),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              child: Row(
+      backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.zero,
+      child: Transform.translate(
+        offset: _dragOffset,
+        child: GestureDetector(
+          onPanUpdate: (d) => setState(() => _dragOffset += d.delta),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+              maxWidth: 360,
+            ),
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  // Header
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF1E1E2E),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(16),
+                      ),
+                    ),
+                    child: Row(
                       children: [
-                        const Text(
-                          'CONTAINER DETAILS',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            letterSpacing: 1,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'CONTAINER DETAILS',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  c.containerNumber,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.amber,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            c.containerNumber,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Colors.black,
-                            ),
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.redAccent,
+                            size: 20,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(
-                      Icons.close,
-                      color: Colors.redAccent,
-                      size: 20,
+                  // Body
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _section('GENERAL'),
+                          _row('Customer:', customer?.fullName ?? '-'),
+                          _row('Status:', statusLabel, valueColor: statusColor),
+                          _row('Date Added:', _fmt(c.createdDate)),
+                          _row(
+                            'Date Moved:',
+                            _fmt(c.moveConfirmedDate ?? c.createdDate),
+                          ),
+                          _row(
+                            'Days in Slot:',
+                            _days(c.moveConfirmedDate ?? c.createdDate),
+                          ),
+                          _row(
+                            'Date in Yard:',
+                            _fmt(c.yardEntryDate ?? c.createdDate),
+                          ),
+                          _row(
+                            'Days in Yard:',
+                            _days(c.yardEntryDate ?? c.createdDate),
+                          ),
+                          _row('Container Type:', typeLabel),
+                          _row('Description:', c.containerDesc ?? '-'),
+                          const SizedBox(height: 12),
+                          _section('LOCATION'),
+                          _row('Port:', widget.portName),
+                          _row('Yard:', 'Yard ${widget.yardNumber}'),
+                          _row('Block:', blockLabel),
+                          _row('Bay:', bay?.bayNumber ?? '-'),
+                          _row('Row:', row != null ? '${row.rowNumber}' : '-'),
+                          _row('Tier:', c.tier != null ? '${c.tier}' : '-'),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            // Body
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _section('GENERAL'),
-                    _row('Customer:', customer?.fullName ?? '-'),
-                    _row('Status:', statusLabel, valueColor: statusColor),
-                    _row('Date Added:', _fmt(c.createdDate)),
-                    _row(
-                      'Date Moved:',
-                      _fmt(c.moveConfirmedDate ?? c.createdDate),
-                    ),
-                    _row(
-                      'Days in Slot:',
-                      _days(c.moveConfirmedDate ?? c.createdDate),
-                    ),
-                    _row(
-                      'Date in Yard:',
-                      _fmt(c.yardEntryDate ?? c.createdDate),
-                    ),
-                    _row(
-                      'Days in Yard:',
-                      _days(c.yardEntryDate ?? c.createdDate),
-                    ),
-                    _row('Container Type:', typeLabel),
-                    _row('Description:', c.containerDesc ?? '-'),
-                    const SizedBox(height: 12),
-                    _section('LOCATION'),
-                    _row('Port:', portName),
-                    _row('Yard:', 'Yard $yardNumber'),
-                    _row('Block:', blockLabel),
-                    _row('Bay:', bay?.bayNumber ?? '-'),
-                    _row('Row:', row != null ? '${row.rowNumber}' : '-'),
-                    _row('Tier:', c.tier != null ? '${c.tier}' : '-'),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -4410,8 +4676,8 @@ class _FullScreenYardViewState extends State<_FullScreenYardView>
 
   @override
   Widget build(BuildContext context) {
-    final yardW = (widget.yard.yardWidth ?? 300).toDouble();
-    final yardH = (widget.yard.yardHeight ?? 170).toDouble();
+    final yardW = (widget.yard.yardWidth ?? 550).toDouble();
+    final yardH = (widget.yard.yardHeight ?? 238).toDouble();
 
     return Scaffold(
       backgroundColor: Colors.grey[200],

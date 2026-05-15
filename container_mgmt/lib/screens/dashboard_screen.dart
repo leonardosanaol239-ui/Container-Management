@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -6,8 +6,10 @@ import '../models/session.dart';
 import '../models/container_model.dart';
 import '../models/port.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/port_selection_dialog.dart';
+import '../widgets/notification_panel.dart';
 import 'user_management_screen.dart';
 import 'landing_screen.dart';
 import 'port_management_screen.dart';
@@ -34,6 +36,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    NotificationService().init(); // ensure polling is running
     _loadStats();
   }
 
@@ -210,10 +213,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
 // ── Hero Header ──────────────────────────────────────────────────────────────
 
-class _HeroHeader extends StatelessWidget {
+
+// ── Hero Header ──────────────────────────────────────────────────────────────
+
+class _HeroHeader extends StatefulWidget {
   final Session session;
   final VoidCallback onRefresh;
   const _HeroHeader({required this.session, required this.onRefresh});
+
+  @override
+  State<_HeroHeader> createState() => _HeroHeaderState();
+}
+
+class _HeroHeaderState extends State<_HeroHeader> {
+  bool _profileHovered = false;
+
+  String get _initials {
+    final parts = widget.session.fullName.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+    return parts.first.isNotEmpty ? parts.first[0].toUpperCase() : '?';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -227,17 +248,16 @@ class _HeroHeader extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              // Logo
               Image.asset(
                 'assets/gothong_logo.png',
                 height: 40,
                 fit: BoxFit.contain,
               ),
               const SizedBox(width: 12),
+              // App title badge
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
                   color: AppColors.green,
                   borderRadius: BorderRadius.circular(30),
@@ -253,36 +273,16 @@ class _HeroHeader extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              // Welcome text
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Welcome, ${session.fullName}',
-                    style: const TextStyle(
-                      color: AppColors.green,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                  Text(
-                    session.role,
-                    style: TextStyle(
-                      color: AppColors.green.withValues(alpha: 0.7),
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
+
+              // Notification bell
+              const NotificationBell(),
+              const SizedBox(width: 12),
+
               // Refresh button
-              const SizedBox(width: 16),
               GestureDetector(
-                onTap: onRefresh,
+                onTap: widget.onRefresh,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: AppColors.green,
                     borderRadius: BorderRadius.circular(20),
@@ -290,11 +290,7 @@ class _HeroHeader extends StatelessWidget {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.refresh_rounded,
-                        color: AppColors.yellow,
-                        size: 16,
-                      ),
+                      Icon(Icons.refresh_rounded, color: AppColors.yellow, size: 16),
                       SizedBox(width: 6),
                       Text(
                         'Refresh',
@@ -308,83 +304,469 @@ class _HeroHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              // Users button — Admin only
-              if (session.isAdmin) ...[
-                const SizedBox(width: 16),
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const UserManagementScreen(),
-                    ),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.green,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Row(
+              const SizedBox(width: 16),
+
+              // ── Profile avatar with hover dropdown ──────────────────
+              MouseRegion(
+                onEnter: (_) => setState(() => _profileHovered = true),
+                onExit: (_) => setState(() => _profileHovered = false),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    // Avatar + name row
+                    Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.manage_accounts,
-                          color: AppColors.yellow,
-                          size: 16,
+                        // Avatar circle
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: AppColors.green,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: _profileHovered
+                                  ? AppColors.green
+                                  : AppColors.green.withValues(alpha: 0.4),
+                              width: 2.5,
+                            ),
+                            boxShadow: _profileHovered
+                                ? [
+                                    BoxShadow(
+                                      color: AppColors.green.withValues(alpha: 0.35),
+                                      blurRadius: 10,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : [],
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            _initials,
+                            style: const TextStyle(
+                              color: AppColors.yellow,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
                         ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Users',
-                          style: TextStyle(
-                            color: AppColors.yellow,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
+                        const SizedBox(width: 10),
+                        // Name + role
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              widget.session.fullName,
+                              style: const TextStyle(
+                                color: AppColors.green,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              widget.session.role,
+                              style: TextStyle(
+                                color: AppColors.green.withValues(alpha: 0.7),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 4),
+                        AnimatedRotation(
+                          turns: _profileHovered ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: AppColors.green.withValues(alpha: 0.7),
+                            size: 18,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              ],
-              // Logout button
-              const SizedBox(width: 16),
-              GestureDetector(
-                onTap: () => Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LandingScreen()),
-                  (_) => false,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.green,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.logout, color: AppColors.yellow, size: 16),
-                      SizedBox(width: 6),
-                      Text(
-                        'Logout',
-                        style: TextStyle(
-                          color: AppColors.yellow,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
+
+                    // ── Hover dropdown ──────────────────────────────
+                    if (_profileHovered)
+                      Positioned(
+                        top: 48,
+                        right: 0,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            width: 200,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.14),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Profile card top
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.green,
+                                    borderRadius: BorderRadius.vertical(
+                                      top: Radius.circular(14),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.yellow,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          _initials,
+                                          style: const TextStyle(
+                                            color: AppColors.green,
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              widget.session.fullName,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 12,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            Text(
+                                              widget.session.role,
+                                              style: const TextStyle(
+                                                color: Colors.white60,
+                                                fontSize: 10,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                // Profile button
+                                _DropdownItem(
+                                  icon: Icons.person_rounded,
+                                  label: 'Profile',
+                                  onTap: () => _showProfileDialog(context),
+                                ),
+
+                                // Users button — Admin only
+                                if (widget.session.isAdmin)
+                                  _DropdownItem(
+                                    icon: Icons.manage_accounts_rounded,
+                                    label: 'Users',
+                                    onTap: () {
+                                      setState(() => _profileHovered = false);
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const UserManagementScreen(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+
+                                Divider(
+                                  height: 1,
+                                  color: Colors.grey.shade100,
+                                  indent: 16,
+                                  endIndent: 16,
+                                ),
+                                const SizedBox(height: 4),
+
+                                // Logout button
+                                _DropdownItem(
+                                  icon: Icons.logout_rounded,
+                                  label: 'Log Out',
+                                  color: AppColors.red,
+                                  onTap: () => Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const LandingScreen(),
+                                    ),
+                                    (_) => false,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 6),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showProfileDialog(BuildContext context) {
+    setState(() => _profileHovered = false);
+    showDialog(
+      context: context,
+      builder: (_) => _ProfileDialog(session: widget.session),
+    );
+  }
+}
+
+// ── Dropdown item ─────────────────────────────────────────────────────────────
+
+class _DropdownItem extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color color;
+
+  const _DropdownItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.color = AppColors.textDark,
+  });
+
+  @override
+  State<_DropdownItem> createState() => _DropdownItemState();
+}
+
+class _DropdownItemState extends State<_DropdownItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: _hovered
+                ? widget.color.withValues(alpha: 0.08)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(widget.icon, size: 16, color: widget.color),
+              const SizedBox(width: 10),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: widget.color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Profile dialog ────────────────────────────────────────────────────────────
+
+class _ProfileDialog extends StatelessWidget {
+  final Session session;
+  const _ProfileDialog({required this.session});
+
+  String get _initials {
+    final parts = session.fullName.trim().split(' ');
+    if (parts.length >= 2) return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    return parts.first.isNotEmpty ? parts.first[0].toUpperCase() : '?';
+  }
+
+  Widget _infoRow(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 90,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade500,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textDark,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        width: 340,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              decoration: const BoxDecoration(
+                color: AppColors.green,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  // Avatar
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: AppColors.yellow,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        width: 3,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      _initials,
+                      style: const TextStyle(
+                        color: AppColors.green,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 24,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    session.fullName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.yellow.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppColors.yellow.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Text(
+                      session.role,
+                      style: const TextStyle(
+                        color: AppColors.yellow,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Info rows
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Column(
+                children: [
+                  _infoRow('User Code', session.userCode),
+                  Divider(height: 1, color: Colors.grey.shade100),
+                  _infoRow('Full Name', session.fullName),
+                  Divider(height: 1, color: Colors.grey.shade100),
+                  _infoRow('Role', session.role),
+                  if (session.portDesc != null) ...[
+                    Divider(height: 1, color: Colors.grey.shade100),
+                    _infoRow('Port', session.portDesc!),
+                  ],
+                ],
+              ),
+            ),
+
+            // Close button
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: const BorderSide(color: AppColors.green),
+                    ),
+                  ),
+                  child: const Text(
+                    'Close',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

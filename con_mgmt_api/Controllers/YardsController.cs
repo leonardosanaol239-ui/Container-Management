@@ -50,12 +50,10 @@ public class YardsController : ControllerBase
     public record UpdateYardRequest(double YardWidth, double YardHeight);
 
     [HttpPut("{id}/capacity")]
-    public async Task<IActionResult> UpdateYardCapacity(int id, [FromBody] UpdateYardCapacityRequest request)
+    public IActionResult UpdateYardCapacity(int id, [FromBody] UpdateYardCapacityRequest request)
     {
-        var yard = await _yardService.GetYardByIdAsync(id);
-        if (yard == null) return NotFound();
-        await _yardService.UpdateYardCapacityAsync(id, request.YardCapacity);
-        return Ok(await _yardService.GetYardByIdAsync(id));
+        // Capacity is stored client-side; this endpoint is a no-op kept for compatibility.
+        return Ok();
     }
 
     public record UpdateYardCapacityRequest(int? YardCapacity);

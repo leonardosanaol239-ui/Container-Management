@@ -9,7 +9,7 @@ import '../models/yard.dart';
 
 // ── Notification model ────────────────────────────────────────────────────────
 
-enum NotifType { movement, capacityWarning, capacityFull }
+enum NotifType { movement, capacityWarning, capacityFull, moveOut }
 
 class AppNotification {
   final String id;
@@ -56,6 +56,7 @@ class NotificationService extends ChangeNotifier {
 
   static const _kStorageKey = 'app_notifications_v1';
   static const _kSeenMovementsKey = 'seen_movement_ids_v1';
+  static const _kSeenMoveOutsKey = 'seen_moveout_ids_v1';
   static const _kCapacityPrefix = 'yard_capacity_';
   static const int _maxNotifications = 50;
   static const double _capacityWarnThreshold = 0.90;
@@ -70,6 +71,7 @@ class NotificationService extends ChangeNotifier {
 
   // Track which container IDs we've already notified about
   final Set<String> _seenMovementIds = {};
+  final Set<String> _seenMoveOutIds = {};
   // Track which yards we've already sent a capacity warning for (reset when drops below threshold)
   final Set<int> _warnedYardIds = {};
 
@@ -84,6 +86,7 @@ class NotificationService extends ChangeNotifier {
     _startPolling();
   }
 
+  @override
   void dispose() {
     _pollTimer?.cancel();
     super.dispose();
@@ -105,6 +108,7 @@ class NotificationService extends ChangeNotifier {
       for (final port in ports) {
         final containers = await _api.getContainersByPort(port.portId);
         _checkMovements(containers, port, prefs);
+        _checkMoveOuts(containers, port, prefs);
         await _checkCapacity(port, containers, prefs);
       }
     } catch (_) {
@@ -142,6 +146,37 @@ class NotificationService extends ChangeNotifier {
         body:
             '${c.containerNumber} has been approved and placed at ${port.portDesc}.',
         timestamp: _parseDate(c.moveConfirmedDate) ?? DateTime.now(),
+      );
+      _addNotification(notif);
+    }
+  }
+
+  // ── Move-out detection ────────────────────────────────────────────────────────
+  // A "move-out" = locationStatusId == 2 (isMovedOut) AND boundTo or truckId set
+
+  void _checkMoveOuts(
+    List<ContainerModel> containers,
+    Port port,
+    SharedPreferences prefs,
+  ) {
+    final movedOut = containers.where((c) => c.isMovedOut && c.boundTo != null);
+
+    for (final c in movedOut) {
+      // Unique key: containerId + boundTo (stable once moved out)
+      final key = 'out_${c.containerId}_${c.boundTo}';
+      if (_seenMoveOutIds.contains(key)) continue;
+
+      _seenMoveOutIds.add(key);
+      _persistSeenMoveOuts(prefs);
+
+      final notif = AppNotification(
+        id: key,
+        type: NotifType.moveOut,
+        title: 'Container Moved Out',
+        body:
+            '${c.containerNumber} has been moved out from ${port.portDesc}'
+            '${c.boundTo != null && c.boundTo!.isNotEmpty ? ' → ${c.boundTo}' : ''}.',
+        timestamp: DateTime.now(),
       );
       _addNotification(notif);
     }
@@ -257,6 +292,10 @@ class NotificationService extends ChangeNotifier {
     // Load seen movement IDs
     final seenRaw = prefs.getStringList(_kSeenMovementsKey) ?? [];
     _seenMovementIds.addAll(seenRaw);
+
+    // Load seen move-out IDs
+    final seenOutRaw = prefs.getStringList(_kSeenMoveOutsKey) ?? [];
+    _seenMoveOutIds.addAll(seenOutRaw);
   }
 
   Future<void> _saveToPrefs() async {
@@ -270,6 +309,12 @@ class NotificationService extends ChangeNotifier {
     final list = _seenMovementIds.toList();
     final trimmed = list.length > 500 ? list.sublist(list.length - 500) : list;
     await prefs.setStringList(_kSeenMovementsKey, trimmed);
+  }
+
+  Future<void> _persistSeenMoveOuts(SharedPreferences prefs) async {
+    final list = _seenMoveOutIds.toList();
+    final trimmed = list.length > 500 ? list.sublist(list.length - 500) : list;
+    await prefs.setStringList(_kSeenMoveOutsKey, trimmed);
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────

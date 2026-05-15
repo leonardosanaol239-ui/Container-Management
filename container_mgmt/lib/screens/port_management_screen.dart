@@ -882,7 +882,7 @@ class _DeleteYardDialog extends StatelessWidget {
                 shrinkWrap: true,
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 itemCount: yards.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                separatorBuilder: (_, _) => const SizedBox(height: 6),
                 itemBuilder: (ctx, i) {
                   final yard = yards[i];
                   return ListTile(

@@ -292,7 +292,7 @@ class _NotificationPanelDialogState extends State<_NotificationPanelDialog> {
                   : ListView.separated(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: notifs.length,
-                      separatorBuilder: (_, __) => Divider(
+                      separatorBuilder: (_, _) => Divider(
                         height: 1,
                         color: Colors.grey.shade100,
                         indent: 16,
@@ -330,6 +330,8 @@ class _NotifTile extends StatelessWidget {
         return const Color(0xFFFF6F00);
       case NotifType.capacityFull:
         return AppColors.red;
+      case NotifType.moveOut:
+        return const Color(0xFF1565C0); // blue
     }
   }
 
@@ -341,6 +343,8 @@ class _NotifTile extends StatelessWidget {
         return Icons.warning_amber_rounded;
       case NotifType.capacityFull:
         return Icons.error_rounded;
+      case NotifType.moveOut:
+        return Icons.local_shipping_rounded;
     }
   }
 
@@ -459,7 +463,7 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Approved movements and yard capacity\nalerts will appear here.',
+            'Approved movements, move-outs, and yard\ncapacity alerts will appear here.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 11,

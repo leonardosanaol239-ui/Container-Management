@@ -526,7 +526,7 @@ class _YardScreenState extends State<YardScreen>
     final ft20 = inYard.where((c) => c.containerSizeId == 1).length;
     final ft40 = inYard.where((c) => c.containerSizeId == 2).length;
     final total = inYard.length;
-    final capacity = _blocks.fold<int>(0, (sum, b) {
+    final slotCapacity = _blocks.fold<int>(0, (sum, b) {
       final bays = _baysByBlock[b.blockId] ?? [];
       for (final bay in bays) {
         final rows = _rowsByBay[bay.bayId] ?? [];
@@ -536,54 +536,22 @@ class _YardScreenState extends State<YardScreen>
       }
       return sum;
     });
-    final occupancy = capacity > 0
-        ? (total / capacity * 100).clamp(0.0, 100.0)
-        : 0.0;
 
     showDialog(
       context: context,
-      builder: (_) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'YARD STATS',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${widget.portName}  �  Yard ${widget.yard.yardNumber}',
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-              ),
-              const Divider(height: 24),
-              _statRow('Number of Blocks', '${_blocks.length}'),
-              _statRow('Containers in Yard', '${inYard.length}'),
-              const SizedBox(height: 8),
-              _statRow('Laden', '$laden', color: Colors.yellow.shade700),
-              _statRow('Empty', '$empty', color: Colors.red.shade600),
-              const SizedBox(height: 8),
-              _statRow('20ft', '$ft20', color: Colors.blue.shade600),
-              _statRow('40ft', '$ft40', color: Colors.teal.shade600),
-            ],
-          ),
-        ),
+      builder: (_) => _YardStatsDialog(
+        portName: widget.portName,
+        yardNumber: widget.yard.yardNumber,
+        yardId: widget.yard.yardId,
+        blocks: _blocks.length,
+        inYard: total,
+        holding: holding,
+        laden: laden,
+        empty: empty,
+        ft20: ft20,
+        ft40: ft40,
+        movedOut: _movedOutContainers.length,
+        slotCapacity: slotCapacity,
       ),
     );
   }
@@ -790,7 +758,7 @@ class _YardScreenState extends State<YardScreen>
                 : ListView.separated(
                     shrinkWrap: true,
                     itemCount: _blocks.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (_, i) {
                       final b = _blocks[i];
                       return ListTile(
@@ -5263,17 +5231,21 @@ class _YardContainerTile extends StatelessWidget {
   }
 }
 
-// ── Yard Stats Dialog ──────────────────────────────────────────────────────
+// ── Yard Stats Dialog (with local capacity limit) ─────────────────────────────
+
 class _YardStatsDialog extends StatefulWidget {
   final String portName;
   final int yardNumber;
   final int yardId;
   final int blocks;
   final int inYard;
+  final int holding;
   final int laden;
   final int empty;
   final int ft20;
   final int ft40;
+  final int movedOut;
+  final int slotCapacity; // physical slots from block layout
 
   const _YardStatsDialog({
     required this.portName,
@@ -5281,10 +5253,13 @@ class _YardStatsDialog extends StatefulWidget {
     required this.yardId,
     required this.blocks,
     required this.inYard,
+    required this.holding,
     required this.laden,
     required this.empty,
     required this.ft20,
     required this.ft40,
+    required this.movedOut,
+    required this.slotCapacity,
   });
 
   @override
@@ -5292,131 +5267,112 @@ class _YardStatsDialog extends StatefulWidget {
 }
 
 class _YardStatsDialogState extends State<_YardStatsDialog> {
-  // Capacity stored locally via shared_preferences
-  // Key: "yard_capacity_<yardId>"
   static const _kCapacityPrefix = 'yard_capacity_';
 
-  int? _capacity; // null = no limit set
-  bool _editingCapacity = false;
-  late TextEditingController _capCtrl;
+  int? _limitCapacity; // user-defined limit, stored locally
+  bool _editingLimit = false;
+  late TextEditingController _limitCtrl;
 
   @override
   void initState() {
     super.initState();
-    _capCtrl = TextEditingController();
-    _loadCapacity();
+    _limitCtrl = TextEditingController();
+    _loadLimit();
   }
 
   @override
   void dispose() {
-    _capCtrl.dispose();
+    _limitCtrl.dispose();
     super.dispose();
   }
 
   String get _prefKey => '$_kCapacityPrefix${widget.yardId}';
 
-  Future<void> _loadCapacity() async {
+  Future<void> _loadLimit() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getInt(_prefKey);
-    if (mounted) setState(() => _capacity = saved);
+    if (mounted) setState(() => _limitCapacity = saved);
   }
 
-  Future<void> _saveCapacity(int? value) async {
+  Future<void> _saveLimit(int? value) async {
     final prefs = await SharedPreferences.getInstance();
     if (value == null || value <= 0) {
       await prefs.remove(_prefKey);
+      if (mounted) setState(() => _limitCapacity = null);
     } else {
       await prefs.setInt(_prefKey, value);
+      if (mounted) setState(() => _limitCapacity = value);
     }
-    if (mounted)
-      setState(() => _capacity = (value != null && value > 0) ? value : null);
-  }
-
-  void _startEditing() {
-    _capCtrl.text = _capacity != null ? '$_capacity' : '';
-    setState(() => _editingCapacity = true);
   }
 
   void _commitEdit() {
-    final parsed = int.tryParse(_capCtrl.text.trim());
-    _saveCapacity(parsed);
-    setState(() => _editingCapacity = false);
+    final parsed = int.tryParse(_limitCtrl.text.trim());
+    _saveLimit(parsed);
+    setState(() => _editingLimit = false);
   }
 
-  void _clearCapacity() {
-    _saveCapacity(null);
-    setState(() => _editingCapacity = false);
+  void _clearLimit() {
+    _saveLimit(null);
+    setState(() => _editingLimit = false);
   }
 
-  // ── Capacity bar helpers ─────────────────────────────────────────────────
-  double get _capacityFill {
-    if (_capacity == null || _capacity! <= 0) return 0;
-    return (widget.inYard / _capacity!).clamp(0.0, 1.0);
-  }
+  // ── Capacity helpers ──────────────────────────────────────────────────────
 
-  Color get _capacityColor {
-    final f = _capacityFill;
-    if (f >= 1.0) return AppColors.red;
-    if (f >= 0.85) return const Color(0xFFFF6F00); // amber-dark
-    if (f >= 0.60) return const Color(0xFFFFC107); // amber
+  // Use user-defined limit if set, otherwise fall back to physical slot count
+  int get _effectiveCapacity =>
+      _limitCapacity ?? (widget.slotCapacity > 0 ? widget.slotCapacity : 0);
+
+  double get _fill => _effectiveCapacity > 0
+      ? (widget.inYard / _effectiveCapacity).clamp(0.0, 1.0)
+      : 0.0;
+
+  Color get _fillColor {
+    if (_fill >= 1.0) return const Color(0xFFD32F2F);
+    if (_fill >= 0.90) return const Color(0xFFFF6F00);
+    if (_fill >= 0.60) return const Color(0xFFFFA000);
     return AppColors.green;
   }
 
-  String get _capacityLabel {
-    if (_capacity == null) return 'No limit set';
-    final pct = (_capacityFill * 100).toStringAsFixed(0);
-    if (_capacityFill >= 1.0) return 'FULL  •  $pct%';
-    return '$pct% used  •  ${_capacity! - widget.inYard} slots free';
+  String get _fillLabel {
+    if (_effectiveCapacity == 0) return 'No capacity set';
+    final pct = (_fill * 100).toStringAsFixed(1);
+    if (_fill >= 1.0) return 'FULL — $pct%';
+    return '$pct%  •  ${_effectiveCapacity - widget.inYard} slots free';
   }
 
   @override
   Widget build(BuildContext context) {
-    final statusTotal = widget.inYard == 0 ? 1 : widget.inYard;
-    final ladenPct = (widget.laden / statusTotal * 100)
-        .clamp(0, 100)
-        .toDouble();
-    final emptyPct = (widget.empty / statusTotal * 100)
-        .clamp(0, 100)
-        .toDouble();
-
     return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-      child: Container(
-        width: 420,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 32,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      clipBehavior: Clip.hardEdge,
+      child: SizedBox(
+        width: 440,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Header ────────────────────────────────────────────────
+            // ── Header ──────────────────────────────────────────────────
             Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
               decoration: const BoxDecoration(
-                color: AppColors.green,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                gradient: LinearGradient(
+                  colors: [AppColors.green, Color(0xFF1A7A1C)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
-              padding: const EdgeInsets.fromLTRB(20, 14, 16, 14),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.yellow.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(
                       Icons.bar_chart_rounded,
                       color: AppColors.yellow,
-                      size: 22,
+                      size: 20,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -5425,123 +5381,78 @@ class _YardStatsDialogState extends State<_YardStatsDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'YARD STATS',
+                          'YARD STATISTICS',
                           style: TextStyle(
-                            color: AppColors.yellow,
+                            color: Colors.white,
                             fontWeight: FontWeight.w900,
-                            fontSize: 15,
-                            letterSpacing: 1.5,
+                            fontSize: 14,
+                            letterSpacing: 1.2,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Text(
-                              widget.portName,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 5),
-                              child: Icon(
-                                Icons.chevron_right_rounded,
-                                color: Colors.white38,
-                                size: 14,
-                              ),
-                            ),
-                            Text(
-                              'Yard ${widget.yardNumber}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
+                        Text(
+                          '${widget.portName}  \u203a  Yard ${widget.yardNumber}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      color: Colors.white70,
-                      size: 20,
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
 
-            // ── Body ──────────────────────────────────────────────────
+            // ── Scrollable body ──────────────────────────────────────────
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                padding: const EdgeInsets.all(20),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Summary cards
-                    Row(
-                      children: [
-                        _SummaryCard(
-                          label: 'Blocks',
-                          value: widget.blocks,
-                          icon: Icons.grid_view_rounded,
-                          color: AppColors.green,
-                        ),
-                        const SizedBox(width: 10),
-                        _SummaryCard(
-                          label: 'In Yard',
-                          value: widget.inYard,
-                          icon: Icons.inventory_2_rounded,
-                          color: const Color(0xFF1565C0),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // ── Capacity Section ──────────────────────────────
-                    _SectionLabel(label: 'Yard Capacity'),
-                    const SizedBox(height: 8),
-
-                    // Capacity bar card
+                    // ── Capacity limit card ────────────────────────────
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: _capacity != null
-                            ? _capacityColor.withValues(alpha: 0.05)
-                            : Colors.grey.shade50,
+                        color: _effectiveCapacity > 0
+                            ? _fillColor.withValues(alpha: 0.05)
+                            : const Color(0xFFF4F6F9),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: _capacity != null
-                              ? _capacityColor.withValues(alpha: 0.3)
+                          color: _effectiveCapacity > 0
+                              ? _fillColor.withValues(alpha: 0.3)
                               : Colors.grey.shade200,
                         ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Top row: count / limit + edit button
+                          // Top row: count display + edit button
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // Current / limit display
                               Expanded(
-                                child: _editingCapacity
+                                child: _editingLimit
                                     ? Row(
                                         children: [
                                           Expanded(
                                             child: TextField(
-                                              controller: _capCtrl,
+                                              controller: _limitCtrl,
                                               autofocus: true,
                                               keyboardType:
                                                   TextInputType.number,
@@ -5560,9 +5471,6 @@ class _YardStatsDialogState extends State<_YardStatsDialog> {
                                                 border: OutlineInputBorder(
                                                   borderRadius:
                                                       BorderRadius.circular(8),
-                                                  borderSide: BorderSide(
-                                                    color: Colors.grey.shade300,
-                                                  ),
                                                 ),
                                                 focusedBorder:
                                                     OutlineInputBorder(
@@ -5582,7 +5490,6 @@ class _YardStatsDialogState extends State<_YardStatsDialog> {
                                             ),
                                           ),
                                           const SizedBox(width: 8),
-                                          // Save
                                           GestureDetector(
                                             onTap: _commitEdit,
                                             child: Container(
@@ -5600,9 +5507,8 @@ class _YardStatsDialogState extends State<_YardStatsDialog> {
                                             ),
                                           ),
                                           const SizedBox(width: 6),
-                                          // Cancel / clear
                                           GestureDetector(
-                                            onTap: _clearCapacity,
+                                            onTap: _clearLimit,
                                             child: Container(
                                               padding: const EdgeInsets.all(7),
                                               decoration: BoxDecoration(
@@ -5628,19 +5534,19 @@ class _YardStatsDialogState extends State<_YardStatsDialog> {
                                             style: TextStyle(
                                               fontSize: 26,
                                               fontWeight: FontWeight.w900,
-                                              color: _capacity != null
-                                                  ? _capacityColor
+                                              color: _effectiveCapacity > 0
+                                                  ? _fillColor
                                                   : Colors.grey.shade700,
                                               height: 1.0,
                                             ),
                                           ),
-                                          if (_capacity != null) ...[
+                                          if (_effectiveCapacity > 0)
                                             Padding(
                                               padding: const EdgeInsets.only(
                                                 bottom: 3,
                                               ),
                                               child: Text(
-                                                ' / $_capacity',
+                                                ' / $_effectiveCapacity',
                                                 style: TextStyle(
                                                   fontSize: 14,
                                                   fontWeight: FontWeight.w600,
@@ -5648,7 +5554,6 @@ class _YardStatsDialogState extends State<_YardStatsDialog> {
                                                 ),
                                               ),
                                             ),
-                                          ],
                                           const SizedBox(width: 6),
                                           Padding(
                                             padding: const EdgeInsets.only(
@@ -5659,16 +5564,20 @@ class _YardStatsDialogState extends State<_YardStatsDialog> {
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 color: Colors.grey.shade500,
-                                                fontWeight: FontWeight.w500,
                                               ),
                                             ),
                                           ),
                                         ],
                                       ),
                               ),
-                              if (!_editingCapacity)
+                              if (!_editingLimit)
                                 GestureDetector(
-                                  onTap: _startEditing,
+                                  onTap: () {
+                                    _limitCtrl.text = _limitCapacity != null
+                                        ? '$_limitCapacity'
+                                        : '';
+                                    setState(() => _editingLimit = true);
+                                  },
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 10,
@@ -5689,7 +5598,7 @@ class _YardStatsDialogState extends State<_YardStatsDialog> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(
-                                          _capacity != null
+                                          _limitCapacity != null
                                               ? Icons.edit_rounded
                                               : Icons.add_rounded,
                                           color: AppColors.green,
@@ -5697,7 +5606,7 @@ class _YardStatsDialogState extends State<_YardStatsDialog> {
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          _capacity != null
+                                          _limitCapacity != null
                                               ? 'Edit limit'
                                               : 'Set limit',
                                           style: const TextStyle(
@@ -5713,12 +5622,11 @@ class _YardStatsDialogState extends State<_YardStatsDialog> {
                             ],
                           ),
 
-                          if (!_editingCapacity) ...[
+                          if (!_editingLimit && _effectiveCapacity > 0) ...[
                             const SizedBox(height: 10),
                             // Progress bar
                             Stack(
                               children: [
-                                // Track
                                 Container(
                                   height: 10,
                                   decoration: BoxDecoration(
@@ -5726,171 +5634,203 @@ class _YardStatsDialogState extends State<_YardStatsDialog> {
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                 ),
-                                // Fill
                                 LayoutBuilder(
-                                  builder: (ctx, constraints) {
-                                    final fillW = _capacity != null
-                                        ? constraints.maxWidth * _capacityFill
-                                        : 0.0;
-                                    return AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 500,
+                                  builder: (ctx, constraints) =>
+                                      AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 500,
+                                        ),
+                                        curve: Curves.easeOut,
+                                        height: 10,
+                                        width: constraints.maxWidth * _fill,
+                                        decoration: BoxDecoration(
+                                          color: _fillColor,
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                        ),
                                       ),
-                                      curve: Curves.easeOut,
-                                      height: 10,
-                                      width: fillW,
-                                      decoration: BoxDecoration(
-                                        color: _capacity != null
-                                            ? _capacityColor
-                                            : Colors.grey.shade300,
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                    );
-                                  },
                                 ),
                               ],
                             ),
                             const SizedBox(height: 8),
-                            // Status label
                             Row(
                               children: [
                                 Container(
                                   width: 7,
                                   height: 7,
                                   decoration: BoxDecoration(
-                                    color: _capacity != null
-                                        ? _capacityColor
-                                        : Colors.grey.shade400,
+                                    color: _fillColor,
                                     shape: BoxShape.circle,
                                   ),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  _capacityLabel,
+                                  _fillLabel,
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
-                                    color: _capacity != null
-                                        ? _capacityColor
-                                        : Colors.grey.shade500,
+                                    color: _fillColor,
                                   ),
                                 ),
                               ],
                             ),
                           ],
+
+                          if (!_editingLimit && _effectiveCapacity == 0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                'Tap "Set limit" to enable capacity alerts',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade400,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
 
                     const SizedBox(height: 14),
 
-                    // ── Container Status ──────────────────────────────
-                    _SectionLabel(label: 'Container Status'),
-                    const SizedBox(height: 8),
-
-                    if (widget.inYard > 0) ...[
-                      // Stacked status bar
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: SizedBox(
-                          height: 10,
-                          child: Row(
-                            children: [
-                              if (widget.laden > 0)
-                                Flexible(
-                                  flex: widget.laden,
-                                  child: Container(color: AppColors.yellow),
+                    // ── Slot occupancy (physical) ──────────────────────
+                    if (widget.slotCapacity > 0)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF4F6F9),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Slot Occupancy',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF555555),
+                                  ),
                                 ),
-                              if (widget.empty > 0)
-                                Flexible(
-                                  flex: widget.empty,
-                                  child: Container(color: AppColors.red),
+                                Text(
+                                  widget.slotCapacity > 0
+                                      ? '${(widget.inYard / widget.slotCapacity * 100).clamp(0, 100).toStringAsFixed(1)}%'
+                                      : '—',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.green,
+                                  ),
                                 ),
-                            ],
-                          ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: LinearProgressIndicator(
+                                value: widget.slotCapacity > 0
+                                    ? (widget.inYard / widget.slotCapacity)
+                                          .clamp(0.0, 1.0)
+                                    : 0,
+                                minHeight: 10,
+                                backgroundColor: Colors.grey.shade200,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.green,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${widget.inYard} containers  /  ${widget.slotCapacity} slots',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 12),
-                    ],
 
-                    _StatRow(
-                      label: 'Laden',
-                      value: widget.laden,
-                      pct: widget.inYard > 0 ? ladenPct : null,
-                      dotColor: AppColors.yellow,
-                      badgeColor: AppColors.yellow,
-                      badgeTextColor: AppColors.textDark,
-                    ),
-                    const SizedBox(height: 8),
-                    _StatRow(
-                      label: 'Empty',
-                      value: widget.empty,
-                      pct: widget.inYard > 0 ? emptyPct : null,
-                      dotColor: AppColors.red,
-                      badgeColor: AppColors.red,
-                      badgeTextColor: Colors.white,
-                    ),
+                    const SizedBox(height: 14),
 
-                    const SizedBox(height: 12),
-                    _SectionLabel(label: 'Container Size'),
-                    const SizedBox(height: 8),
-
-                    _StatRow(
-                      label: '20 ft',
-                      value: widget.ft20,
-                      dotColor: const Color(0xFF0288D1),
-                      badgeColor: const Color(0xFF0288D1),
-                      badgeTextColor: Colors.white,
+                    // ── Stat cards ─────────────────────────────────────
+                    Row(
+                      children: [
+                        _StatsCard(
+                          'Blocks',
+                          '${widget.blocks}',
+                          Icons.grid_view_rounded,
+                          const Color(0xFF1565C0),
+                        ),
+                        const SizedBox(width: 10),
+                        _StatsCard(
+                          'In Yard',
+                          '${widget.inYard}',
+                          Icons.inventory_2_rounded,
+                          AppColors.green,
+                        ),
+                        const SizedBox(width: 10),
+                        _StatsCard(
+                          'Holding',
+                          '${widget.holding}',
+                          Icons.inbox_rounded,
+                          const Color(0xFF6A1B9A),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    _StatRow(
-                      label: '40 ft',
-                      value: widget.ft40,
-                      dotColor: const Color(0xFF7B1FA2),
-                      badgeColor: const Color(0xFF7B1FA2),
-                      badgeTextColor: Colors.white,
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        _StatsCard(
+                          'Laden',
+                          '${widget.laden}',
+                          Icons.check_box_rounded,
+                          AppColors.laden,
+                        ),
+                        const SizedBox(width: 10),
+                        _StatsCard(
+                          'Empty',
+                          '${widget.empty}',
+                          Icons.check_box_outline_blank_rounded,
+                          AppColors.empty,
+                        ),
+                        const SizedBox(width: 10),
+                        _StatsCard(
+                          'Moved Out',
+                          '${widget.movedOut}',
+                          Icons.local_shipping_rounded,
+                          Colors.red.shade600,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        _StatsCard(
+                          '20ft',
+                          '${widget.ft20}',
+                          Icons.crop_landscape_rounded,
+                          Colors.blue.shade600,
+                        ),
+                        const SizedBox(width: 10),
+                        _StatsCard(
+                          '40ft',
+                          '${widget.ft40}',
+                          Icons.crop_landscape_rounded,
+                          Colors.teal.shade600,
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(child: SizedBox()),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                   ],
                 ),
-              ),
-            ),
-
-            // ── Footer ────────────────────────────────────────────────
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(20),
-                ),
-                border: Border(top: BorderSide(color: Colors.grey.shade200)),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.green,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: const BorderSide(color: AppColors.green),
-                      ),
-                    ),
-                    child: const Text(
-                      'Close',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ],
               ),
             ),
           ],
@@ -5900,161 +5840,53 @@ class _YardStatsDialogState extends State<_YardStatsDialog> {
   }
 }
 
-// ── Helper widgets ─────────────────────────────────────────────────────────
+// ── Reusable stat card for the dialog ─────────────────────────────────────────
 
-class _SummaryCard extends StatelessWidget {
+class _StatsCard extends StatelessWidget {
   final String label;
-  final int value;
+  final String value;
   final IconData icon;
   final Color color;
 
-  const _SummaryCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
+  const _StatsCard(this.label, this.value, this.icon, this.color);
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
+          color: color.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
+            Icon(icon, size: 16, color: color),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: color,
+                height: 1,
               ),
-              child: Icon(icon, color: color, size: 18),
             ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$value',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: color,
-                    height: 1.1,
-                  ),
-                ),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade600,
+                letterSpacing: 0.3,
+              ),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  final String label;
-  const _SectionLabel({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-            color: Colors.grey.shade500,
-            letterSpacing: 1.2,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(child: Divider(color: Colors.grey.shade200, height: 1)),
-      ],
-    );
-  }
-}
-
-class _StatRow extends StatelessWidget {
-  final String label;
-  final int value;
-  final double? pct;
-  final Color dotColor;
-  final Color badgeColor;
-  final Color badgeTextColor;
-
-  const _StatRow({
-    required this.label,
-    required this.value,
-    this.pct,
-    required this.dotColor,
-    required this.badgeColor,
-    required this.badgeTextColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textDark,
-            ),
-          ),
-        ),
-        if (pct != null) ...[
-          Text(
-            '${pct!.toStringAsFixed(0)}%',
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade500,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(width: 10),
-        ],
-        Container(
-          constraints: const BoxConstraints(minWidth: 36),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: badgeColor,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            '$value',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: badgeTextColor,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

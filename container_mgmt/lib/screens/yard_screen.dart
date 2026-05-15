@@ -96,7 +96,7 @@ class _YardScreenState extends State<YardScreen>
       _blinkCtrl.repeat(reverse: true);
     }
     _loadAll();
-    // Auto-refresh every 5s — uses silent refresh to avoid flicker
+    // Auto-refresh every 5s ΓÇö uses silent refresh to avoid flicker
     _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted && !_editMode) _silentRefresh();
     });
@@ -111,7 +111,7 @@ class _YardScreenState extends State<YardScreen>
     super.dispose();
   }
 
-  /// Lightweight refresh — only re-fetches containers (1 API call).
+  /// Lightweight refresh ΓÇö only re-fetches containers (1 API call).
   /// Use this after drop/add/move-out so the UI updates instantly
   /// without re-fetching blocks, bays, rows, sizes, customers, etc.
   Future<void> _refreshContainers() async {
@@ -219,7 +219,7 @@ class _YardScreenState extends State<YardScreen>
         _sizes = sizes;
         _orientations = orientations;
         _customers = customers;
-        // Sync block positions — clamp any out-of-bounds blocks back onto the canvas
+        // Sync block positions ΓÇö clamp any out-of-bounds blocks back onto the canvas
         for (final b in blocks) {
           final raw = Offset(
             (b.posX ?? 10).toDouble(),
@@ -314,7 +314,7 @@ class _YardScreenState extends State<YardScreen>
         _orientations = orientations;
         _customers = customers;
         _loading = false;
-        // Always sync offsets from DB so saved positions are reflected — clamp out-of-bounds blocks
+        // Always sync offsets from DB so saved positions are reflected ΓÇö clamp out-of-bounds blocks
         for (final b in blocks) {
           final raw = Offset(
             (b.posX ?? 10).toDouble(),
@@ -513,24 +513,77 @@ class _YardScreenState extends State<YardScreen>
     final inYard = _containers
         .where((c) => c.rowId != null && !c.isMovedOut)
         .toList();
+    final holding = _containers
+        .where(
+          (c) =>
+              !c.isMovedOut &&
+              (c.yardId == null ||
+                  (c.yardId == _yard.yardId && c.rowId == null)),
+        )
+        .length;
     final laden = inYard.where((c) => c.statusId == 1).length;
     final empty = inYard.where((c) => c.statusId == 2).length;
     final ft20 = inYard.where((c) => c.containerSizeId == 1).length;
     final ft40 = inYard.where((c) => c.containerSizeId == 2).length;
+    final total = inYard.length;
+    final capacity = _blocks.fold<int>(0, (sum, b) {
+      final bays = _baysByBlock[b.blockId] ?? [];
+      for (final bay in bays) {
+        final rows = _rowsByBay[bay.bayId] ?? [];
+        for (final row in rows) {
+          sum += row.maxStack;
+        }
+      }
+      return sum;
+    });
+    final occupancy = capacity > 0
+        ? (total / capacity * 100).clamp(0.0, 100.0)
+        : 0.0;
 
     showDialog(
       context: context,
-      barrierColor: Colors.black54,
-      builder: (_) => _YardStatsDialog(
-        portName: widget.portName,
-        yardNumber: widget.yard.yardNumber,
-        yardId: widget.yard.yardId,
-        blocks: _blocks.length,
-        inYard: inYard.length,
-        laden: laden,
-        empty: empty,
-        ft20: ft20,
-        ft40: ft40,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'YARD STATS',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${widget.portName}  �  Yard ${widget.yard.yardNumber}',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
+              const Divider(height: 24),
+              _statRow('Number of Blocks', '${_blocks.length}'),
+              _statRow('Containers in Yard', '${inYard.length}'),
+              const SizedBox(height: 8),
+              _statRow('Laden', '$laden', color: Colors.yellow.shade700),
+              _statRow('Empty', '$empty', color: Colors.red.shade600),
+              const SizedBox(height: 8),
+              _statRow('20ft', '$ft20', color: Colors.blue.shade600),
+              _statRow('40ft', '$ft40', color: Colors.teal.shade600),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -548,33 +601,43 @@ class _YardScreenState extends State<YardScreen>
     );
   }
 
-  Widget _statRow(String label, String value, {Color? color}) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+  Widget _statCard(String label, String value, IconData icon, Color color) =>
+      Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
           decoration: BoxDecoration(
-            color: (color ?? Colors.grey.shade700).withAlpha(20),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color ?? Colors.grey.shade400),
+            color: color.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
           ),
-          child: Text(
-            value,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: color ?? Colors.grey.shade800,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: color,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade600,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
           ),
         ),
-      ],
-    ),
-  );
+      );
 
   void _showAddBlockDialog() {
     showDialog(
@@ -617,7 +680,7 @@ class _YardScreenState extends State<YardScreen>
           children: [
             const Text(
               'Set yard dimensions in feet.\n'
-              'Manila standard: 300 × 170 ft.',
+              'Manila standard: 300 ├ù 170 ft.',
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 16),
@@ -649,7 +712,7 @@ class _YardScreenState extends State<YardScreen>
             const SizedBox(height: 8),
             TextButton.icon(
               icon: const Icon(Icons.copy, size: 14),
-              label: const Text('Use Manila standard (300 × 170)'),
+              label: const Text('Use Manila standard (300 ├ù 170)'),
               onPressed: () {
                 wCtrl.text = '300';
                 hCtrl.text = '170';
@@ -693,7 +756,7 @@ class _YardScreenState extends State<YardScreen>
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'Yard resized to ${w.toInt()} × ${h.toInt()} ft',
+                        'Yard resized to ${w.toInt()} ├ù ${h.toInt()} ft',
                       ),
                       backgroundColor: Colors.green,
                     ),
@@ -737,8 +800,8 @@ class _YardScreenState extends State<YardScreen>
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         subtitle: Text(
-                          'ID: ${b.blockId}  •  '
-                          '${(_baysByBlock[b.blockId] ?? []).length} bays  •  '
+                          'ID: ${b.blockId}  ΓÇó  '
+                          '${(_baysByBlock[b.blockId] ?? []).length} bays  ΓÇó  '
                           '${b.isVertical ? "Vertical" : "Horizontal"}',
                           style: const TextStyle(fontSize: 11),
                         ),
@@ -1007,7 +1070,7 @@ class _YardScreenState extends State<YardScreen>
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Collapsible holding area sidebar ──────────────────
+                // ΓöÇΓöÇ Collapsible holding area sidebar ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1158,7 +1221,7 @@ class _YardScreenState extends State<YardScreen>
                 ),
               ),
             ),
-          // Slim top progress bar — only on first load, never blocks the map
+          // Slim top progress bar ΓÇö only on first load, never blocks the map
           if (_loading)
             const Positioned(
               top: 0,
@@ -1240,7 +1303,7 @@ class _YardScreenState extends State<YardScreen>
           toolBtn(
             icon: _editMode ? Icons.save_rounded : Icons.edit_rounded,
             label: _editMode
-                ? (_saving ? 'Saving…' : 'Save Layout')
+                ? (_saving ? 'SavingΓÇª' : 'Save Layout')
                 : 'Edit Layout',
             bg: _editMode ? AppColors.green : AppColors.yellow,
             fg: _editMode ? AppColors.yellow : AppColors.textDark,
@@ -1707,7 +1770,7 @@ class _YardScreenState extends State<YardScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ───────────────────────────────────────────
+            // ΓöÇΓöÇ Header ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             Container(
               padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
               decoration: BoxDecoration(
@@ -1835,7 +1898,7 @@ class _YardScreenState extends State<YardScreen>
               ),
             ),
 
-            // ── Location rows ─────────────────────────────────────
+            // ΓöÇΓöÇ Location rows ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               child: Column(
@@ -1869,7 +1932,7 @@ class _YardScreenState extends State<YardScreen>
               ),
             ),
 
-            // ── View Full Details button ──────────────────────────
+            // ΓöÇΓöÇ View Full Details button ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: SizedBox(
@@ -1952,7 +2015,7 @@ class _YardScreenState extends State<YardScreen>
             : constraints.maxHeight;
 
         // Use a single uniform scale so cells are the same size across all
-        // ports — take the minimum of X and Y fit so the yard fits entirely
+        // ports ΓÇö take the minimum of X and Y fit so the yard fits entirely
         // within the viewport without distortion.
         final fitScale = (availW / yardW) < (availH / yardH)
             ? (availW / yardW)
@@ -1961,16 +2024,16 @@ class _YardScreenState extends State<YardScreen>
           _scale = fitScale;
         }
 
-        // Canvas sized to the yard in feet × uniform scale.
+        // Canvas sized to the yard in feet ├ù uniform scale.
         // Both axes use the same scale so container cells are square/consistent.
         final cw = yardW * fitScale;
         final ch = yardH * fitScale;
 
-        // Keep both scale axes identical — this is the key fix for cell
+        // Keep both scale axes identical ΓÇö this is the key fix for cell
         // consistency across ports.
         _actualScaleX = fitScale;
         _actualScaleY = fitScale;
-        // Fixed frame — InteractiveViewer zooms/pans only inside it
+        // Fixed frame ΓÇö InteractiveViewer zooms/pans only inside it
         return Stack(
           children: [
             Container(
@@ -2040,8 +2103,8 @@ class _YardScreenState extends State<YardScreen>
                       ),
                       child: CustomPaint(painter: _YardGridPainter()),
                     ),
-                    // Block overlay — sized to cw×ch so block positions
-                    // (in feet × fitScale) map correctly onto the image
+                    // Block overlay ΓÇö sized to cw├ùch so block positions
+                    // (in feet ├ù fitScale) map correctly onto the image
                     SizedBox(
                       width: cw,
                       height: ch,
@@ -2153,7 +2216,7 @@ class _YardScreenState extends State<YardScreen>
                 ],
               ),
             ),
-            // ── Color legend (bottom-left) ───────────────────────────
+            // ΓöÇΓöÇ Color legend (bottom-left) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             Positioned(
               bottom: 10,
               left: 10,
@@ -2230,7 +2293,7 @@ class _YardScreenState extends State<YardScreen>
     // For horizontal blocks the bay-label row (14px) is above the slots.
     const leftColPx = 40.0; // approx width of vertical block's left column
     final left = isVert ? posInFt.dx + leftColPx / _scale : posInFt.dx;
-    // Labels/buttons are allowed outside yard � clamp only on raw posInFt.dy
+    // Labels/buttons are allowed outside yard ∩┐╜ clamp only on raw posInFt.dy
     final top = posInFt.dy;
     return Rect.fromLTWH(left, top, totalW, totalH);
   }
@@ -2928,7 +2991,7 @@ class YardBlockWidget extends StatelessWidget {
               ],
             ],
           ),
-          // Block name � highlighted label sticking out below the block
+          // Block name ∩┐╜ highlighted label sticking out below the block
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
@@ -3073,7 +3136,7 @@ class _SlotCell extends StatelessWidget {
               : topContainer.locationStatusId == 3
               ? Colors
                     .blue
-                    .shade300 // Move Request — pending confirmation
+                    .shade300 // Move Request ΓÇö pending confirmation
               : (topContainer.statusId == 1
                     ? AppColors.laden
                     : AppColors.empty);
@@ -3356,7 +3419,7 @@ class YardHighlightSlot extends StatelessWidget {
         );
       }
     }
-    // Row not in this block � render nothing
+    // Row not in this block ∩┐╜ render nothing
     return const SizedBox.shrink();
   }
 }
@@ -4571,7 +4634,7 @@ class _FullScreenYardViewState extends State<_FullScreenYardView>
         backgroundColor: Colors.white,
         elevation: 0,
         title: Text(
-          '${widget.portName}  >  Yard ${widget.yard.yardNumber}  �  Full View',
+          '${widget.portName}  >  Yard ${widget.yard.yardNumber}  ∩┐╜  Full View',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
         actions: [
@@ -4610,7 +4673,7 @@ class _FullScreenYardViewState extends State<_FullScreenYardView>
               : (availH / yardH);
           if (_scale == widget.scale) _scale = fitScale;
 
-          // Uniform scale — same as main yard view fix for cell consistency.
+          // Uniform scale ΓÇö same as main yard view fix for cell consistency.
           final cw = yardW * fitScale;
           final ch = yardH * fitScale;
 
@@ -4676,7 +4739,7 @@ class _FullScreenYardViewState extends State<_FullScreenYardView>
                   ),
                   child: CustomPaint(painter: _YardGridPainter()),
                 ),
-                // Block overlay sized to cw×ch so positions map correctly
+                // Block overlay sized to cw├ùch so positions map correctly
                 SizedBox(
                   width: cw,
                   height: ch,

@@ -79,6 +79,16 @@ class ApiService {
     return Yard.fromJson(jsonDecode(res.body));
   }
 
+  Future<Yard> updateYardCapacity(int yardId, int? capacity) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/Yards/$yardId/capacity'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'yardCapacity': capacity}),
+    );
+    _check(res);
+    return Yard.fromJson(jsonDecode(res.body));
+  }
+
   // ── Blocks ──────────────────────────────────────────────
   Future<List<Block>> getBlocks(int yardId) async {
     final res = await http.get(Uri.parse('$baseUrl/Blocks?yardId=$yardId'));

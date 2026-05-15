@@ -35,6 +35,14 @@ public class YardService : IYardService
         await _context.SaveChangesAsync();
     }
 
+    public async Task UpdateYardCapacityAsync(int yardId, int? capacity)
+    {
+        var yard = await _context.Yards.FindAsync(yardId);
+        if (yard == null) return;
+        yard.YardCapacity = capacity;
+        await _context.SaveChangesAsync();
+    }
+
     public async Task UpdateYardImageAsync(int yardId, string imagePath)
     {
         var yard = await _context.Yards.FindAsync(yardId);

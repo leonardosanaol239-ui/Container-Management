@@ -19,4 +19,5 @@ public class Yard
     public double? YardWidth { get; set; }
     public double? YardHeight { get; set; }
     public string? ImagePath { get; set; }
+    public int? YardCapacity { get; set; }
 }

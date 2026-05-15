@@ -216,25 +216,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
 // ── Hero Header ──────────────────────────────────────────────────────────────
 
-class _HeroHeader extends StatefulWidget {
+class _HeroHeader extends StatelessWidget {
   final Session session;
   final VoidCallback onRefresh;
   const _HeroHeader({required this.session, required this.onRefresh});
-
-  @override
-  State<_HeroHeader> createState() => _HeroHeaderState();
-}
-
-class _HeroHeaderState extends State<_HeroHeader> {
-  bool _profileHovered = false;
-
-  String get _initials {
-    final parts = widget.session.fullName.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-    }
-    return parts.first.isNotEmpty ? parts.first[0].toUpperCase() : '?';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -273,14 +258,12 @@ class _HeroHeaderState extends State<_HeroHeader> {
                 ),
               ),
               const Spacer(),
-
               // Notification bell
               const NotificationBell(),
               const SizedBox(width: 12),
-
               // Refresh button
               GestureDetector(
-                onTap: widget.onRefresh,
+                onTap: onRefresh,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -305,292 +288,8 @@ class _HeroHeaderState extends State<_HeroHeader> {
                 ),
               ),
               const SizedBox(width: 16),
-
-              // ── Profile avatar with hover dropdown ──────────────────
-              MouseRegion(
-                onEnter: (_) => setState(() => _profileHovered = true),
-                onExit: (_) => setState(() => _profileHovered = false),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    // Avatar + name row
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Avatar circle
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: AppColors.green,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _profileHovered
-                                  ? AppColors.green
-                                  : AppColors.green.withValues(alpha: 0.4),
-                              width: 2.5,
-                            ),
-                            boxShadow: _profileHovered
-                                ? [
-                                    BoxShadow(
-                                      color: AppColors.green.withValues(alpha: 0.35),
-                                      blurRadius: 10,
-                                      spreadRadius: 1,
-                                    ),
-                                  ]
-                                : [],
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            _initials,
-                            style: const TextStyle(
-                              color: AppColors.yellow,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 14,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        // Name + role
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              widget.session.fullName,
-                              style: const TextStyle(
-                                color: AppColors.green,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                              ),
-                            ),
-                            Text(
-                              widget.session.role,
-                              style: TextStyle(
-                                color: AppColors.green.withValues(alpha: 0.7),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 4),
-                        AnimatedRotation(
-                          turns: _profileHovered ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 200),
-                          child: Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: AppColors.green.withValues(alpha: 0.7),
-                            size: 18,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // ── Hover dropdown ──────────────────────────────
-                    if (_profileHovered)
-                      Positioned(
-                        top: 48,
-                        right: 0,
-                        child: Material(
-                          color: Colors.transparent,
-                          child: Container(
-                            width: 200,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(14),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.14),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Profile card top
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-                                  decoration: const BoxDecoration(
-                                    color: AppColors.green,
-                                    borderRadius: BorderRadius.vertical(
-                                      top: Radius.circular(14),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        width: 36,
-                                        height: 36,
-                                        decoration: BoxDecoration(
-                                          color: AppColors.yellow,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          _initials,
-                                          style: const TextStyle(
-                                            color: AppColors.green,
-                                            fontWeight: FontWeight.w900,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              widget.session.fullName,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.w800,
-                                                fontSize: 12,
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            Text(
-                                              widget.session.role,
-                                              style: const TextStyle(
-                                                color: Colors.white60,
-                                                fontSize: 10,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                const SizedBox(height: 6),
-
-                                // Profile button
-                                _DropdownItem(
-                                  icon: Icons.person_rounded,
-                                  label: 'Profile',
-                                  onTap: () => _showProfileDialog(context),
-                                ),
-
-                                // Users button — Admin only
-                                if (widget.session.isAdmin)
-                                  _DropdownItem(
-                                    icon: Icons.manage_accounts_rounded,
-                                    label: 'Users',
-                                    onTap: () {
-                                      setState(() => _profileHovered = false);
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => const UserManagementScreen(),
-                                        ),
-                                      );
-                                    },
-                                  ),
-
-                                Divider(
-                                  height: 1,
-                                  color: Colors.grey.shade100,
-                                  indent: 16,
-                                  endIndent: 16,
-                                ),
-                                const SizedBox(height: 4),
-
-                                // Logout button
-                                _DropdownItem(
-                                  icon: Icons.logout_rounded,
-                                  label: 'Log Out',
-                                  color: AppColors.red,
-                                  onTap: () => Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const LandingScreen(),
-                                    ),
-                                    (_) => false,
-                                  ),
-                                ),
-
-                                const SizedBox(height: 6),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showProfileDialog(BuildContext context) {
-    setState(() => _profileHovered = false);
-    showDialog(
-      context: context,
-      builder: (_) => _ProfileDialog(session: widget.session),
-    );
-  }
-}
-
-// ── Dropdown item ─────────────────────────────────────────────────────────────
-
-class _DropdownItem extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final Color color;
-
-  const _DropdownItem({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.color = AppColors.textDark,
-  });
-
-  @override
-  State<_DropdownItem> createState() => _DropdownItemState();
-}
-
-class _DropdownItemState extends State<_DropdownItem> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: _hovered
-                ? widget.color.withValues(alpha: 0.08)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Icon(widget.icon, size: 16, color: widget.color),
-              const SizedBox(width: 10),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: widget.color,
-                ),
-              ),
+              // Profile avatar with hover dropdown
+              _ProfileAvatar(session: session),
             ],
           ),
         ),
@@ -598,181 +297,6 @@ class _DropdownItemState extends State<_DropdownItem> {
     );
   }
 }
-
-// ── Profile dialog ────────────────────────────────────────────────────────────
-
-class _ProfileDialog extends StatelessWidget {
-  final Session session;
-  const _ProfileDialog({required this.session});
-
-  String get _initials {
-    final parts = session.fullName.trim().split(' ');
-    if (parts.length >= 2) return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-    return parts.first.isNotEmpty ? parts.first[0].toUpperCase() : '?';
-  }
-
-  Widget _infoRow(String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Row(
-      children: [
-        SizedBox(
-          width: 90,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade500,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textDark,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: 340,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-              decoration: const BoxDecoration(
-                color: AppColors.green,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: Column(
-                children: [
-                  // Avatar
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: AppColors.yellow,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.3),
-                        width: 3,
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      _initials,
-                      style: const TextStyle(
-                        color: AppColors.green,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 24,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    session.fullName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.yellow.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: AppColors.yellow.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    child: Text(
-                      session.role,
-                      style: const TextStyle(
-                        color: AppColors.yellow,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Info rows
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Column(
-                children: [
-                  _infoRow('User Code', session.userCode),
-                  Divider(height: 1, color: Colors.grey.shade100),
-                  _infoRow('Full Name', session.fullName),
-                  Divider(height: 1, color: Colors.grey.shade100),
-                  _infoRow('Role', session.role),
-                  if (session.portDesc != null) ...[
-                    Divider(height: 1, color: Colors.grey.shade100),
-                    _infoRow('Port', session.portDesc!),
-                  ],
-                ],
-              ),
-            ),
-
-            // Close button
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.green,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: const BorderSide(color: AppColors.green),
-                    ),
-                  ),
-                  child: const Text(
-                    'Close',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 
 class _StatCard extends StatelessWidget {
@@ -2561,4 +2085,608 @@ class _DialogStatSummary extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Profile Avatar with hover dropdown ───────────────────────────────────────
+
+class _ProfileAvatar extends StatefulWidget {
+  final Session session;
+  const _ProfileAvatar({required this.session});
+
+  @override
+  State<_ProfileAvatar> createState() => _ProfileAvatarState();
+}
+
+class _ProfileAvatarState extends State<_ProfileAvatar>
+    with SingleTickerProviderStateMixin {
+  bool _hovered = false;
+  late AnimationController _animCtrl;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    );
+    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, -0.08),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onEnter(_) {
+    setState(() => _hovered = true);
+    _animCtrl.forward();
+  }
+
+  void _onExit(_) {
+    _animCtrl.reverse().then((_) {
+      if (mounted) setState(() => _hovered = false);
+    });
+  }
+
+  String get _initials {
+    final parts = widget.session.fullName.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+    return parts.first.isNotEmpty ? parts.first[0].toUpperCase() : '?';
+  }
+
+  Color get _roleColor {
+    switch (widget.session.userTypeId) {
+      case 1:
+        return AppColors.green;       // Admin
+      case 3:
+        return const Color(0xFF1565C0); // Driver
+      case 4:
+        return const Color(0xFF6A1B9A); // Customer
+      case 5:
+        return const Color(0xFFE65100); // Checker
+      default:
+        return AppColors.green;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: _onEnter,
+      onExit: _onExit,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // ── Avatar pill ──────────────────────────────────────────
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: _hovered
+                  ? AppColors.green.withValues(alpha: 0.15)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: _hovered
+                    ? AppColors.green.withValues(alpha: 0.4)
+                    : Colors.transparent,
+                width: 1.5,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Avatar circle
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppColors.green,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.green.withValues(alpha: 0.35),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    _initials,
+                    style: const TextStyle(
+                      color: AppColors.yellow,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Name + role
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.session.fullName,
+                      style: const TextStyle(
+                        color: AppColors.green,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Container(
+                      margin: const EdgeInsets.only(top: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _roleColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        widget.session.role,
+                        style: TextStyle(
+                          color: _roleColor,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 9,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 6),
+                AnimatedRotation(
+                  turns: _hovered ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: AppColors.green.withValues(alpha: 0.7),
+                    size: 18,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Dropdown menu ────────────────────────────────────────
+          if (_hovered)
+            Positioned(
+              top: 52,
+              right: 0,
+              child: FadeTransition(
+                opacity: _fadeAnim,
+                child: SlideTransition(
+                  position: _slideAnim,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      width: 200,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.14),
+                            blurRadius: 20,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                        border: Border.all(
+                          color: Colors.grey.shade100,
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Profile header inside dropdown
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.green.withValues(alpha: 0.04),
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(14),
+                              ),
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: Colors.grey.shade100,
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.green,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    _initials,
+                                    style: const TextStyle(
+                                      color: AppColors.yellow,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        widget.session.fullName,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 12,
+                                          color: AppColors.textDark,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        widget.session.userCode,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey.shade500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Profile button
+                          _DropdownItem(
+                            icon: Icons.person_rounded,
+                            label: 'Profile',
+                            color: AppColors.green,
+                            onTap: () => _showProfileDialog(context),
+                          ),
+
+                          // Users button — Admin only
+                          if (widget.session.isAdmin)
+                            _DropdownItem(
+                              icon: Icons.manage_accounts_rounded,
+                              label: 'Users',
+                              color: const Color(0xFF1565C0),
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const UserManagementScreen(),
+                                ),
+                              ),
+                            ),
+
+                          Divider(
+                            height: 1,
+                            color: Colors.grey.shade100,
+                            indent: 14,
+                            endIndent: 14,
+                          ),
+
+                          // Logout button
+                          _DropdownItem(
+                            icon: Icons.logout_rounded,
+                            label: 'Log Out',
+                            color: AppColors.red,
+                            onTap: () => Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const LandingScreen(),
+                              ),
+                              (_) => false,
+                            ),
+                          ),
+
+                          const SizedBox(height: 4),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showProfileDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => _ProfileDialog(session: widget.session),
+    );
+  }
+}
+
+// ── Dropdown item ─────────────────────────────────────────────────────────────
+
+class _DropdownItem extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _DropdownItem({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_DropdownItem> createState() => _DropdownItemState();
+}
+
+class _DropdownItemState extends State<_DropdownItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: _hovered
+                ? widget.color.withValues(alpha: 0.08)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: widget.color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Icon(widget.icon, color: widget.color, size: 15),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _hovered ? widget.color : AppColors.textDark,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Profile dialog ────────────────────────────────────────────────────────────
+
+class _ProfileDialog extends StatelessWidget {
+  final Session session;
+  const _ProfileDialog({required this.session});
+
+  String get _initials {
+    final parts = session.fullName.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+    return parts.first.isNotEmpty ? parts.first[0].toUpperCase() : '?';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <_InfoRow>[
+      _InfoRow(label: 'Full Name', value: session.fullName),
+      _InfoRow(label: 'User Code', value: session.userCode),
+      _InfoRow(label: 'Role', value: session.role),
+      if (session.portDesc != null)
+        _InfoRow(label: 'Assigned Port', value: session.portDesc!),
+    ];
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Container(
+        width: 360,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.16),
+              blurRadius: 28,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              decoration: const BoxDecoration(
+                color: AppColors.green,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+              child: Column(
+                children: [
+                  // Big avatar
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: AppColors.yellow,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      _initials,
+                      style: const TextStyle(
+                        color: AppColors.green,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 26,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    session.fullName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 17,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.yellow.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppColors.yellow.withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Text(
+                      session.role,
+                      style: const TextStyle(
+                        color: AppColors.yellow,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Info rows
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: rows
+                    .map(
+                      (r) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 110,
+                              child: Text(
+                                r.label,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                r.value,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textDark,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+
+            // Footer
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(20),
+                ),
+                border: Border(top: BorderSide(color: Colors.grey.shade200)),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 12,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.green,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: const BorderSide(color: AppColors.green),
+                      ),
+                    ),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoRow {
+  final String label;
+  final String value;
+  const _InfoRow({required this.label, required this.value});
 }

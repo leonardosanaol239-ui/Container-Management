@@ -1038,74 +1038,83 @@ class _YardScreenState extends State<YardScreen>
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ΓöÇΓöÇ Collapsible holding area sidebar ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                // ── Collapsible holding area sidebar ──────────────────
+                Stack(
+                  alignment: Alignment.topLeft,
                   children: [
+                    // Sidebar content — animates in/out
                     AnimatedSize(
                       duration: const Duration(milliseconds: 220),
                       curve: Curves.easeInOut,
                       child: _sidebarOpen
-                          ? DragTarget<ContainerModel>(
-                              onWillAcceptWithDetails: (d) =>
-                                  d.data.yardId != null,
-                              onAcceptWithDetails: (d) =>
-                                  _returnToHolding(d.data),
-                              builder: (ctx, candidates, _) =>
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 150),
-                                    decoration: candidates.isNotEmpty
-                                        ? BoxDecoration(
-                                            border: Border.all(
-                                              color: AppColors.yellow,
-                                              width: 3,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              16,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: AppColors.yellow
-                                                    .withValues(alpha: 0.3),
-                                                blurRadius: 12,
+                          ? Padding(
+                              padding: const EdgeInsets.only(right: 24),
+                              child: DragTarget<ContainerModel>(
+                                onWillAcceptWithDetails: (d) =>
+                                    d.data.yardId != null,
+                                onAcceptWithDetails: (d) =>
+                                    _returnToHolding(d.data),
+                                builder: (ctx, candidates, _) =>
+                                    AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 150,
+                                      ),
+                                      decoration: candidates.isNotEmpty
+                                          ? BoxDecoration(
+                                              border: Border.all(
+                                                color: AppColors.yellow,
+                                                width: 3,
                                               ),
-                                            ],
-                                          )
-                                        : null,
-                                    child: ContainerHoldingArea(
-                                      portId: widget.portId,
-                                      yardId: widget.yard.yardId,
-                                      containers: _containers,
-                                      onRefresh: _refreshContainers,
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: AppColors.yellow
+                                                      .withValues(alpha: 0.3),
+                                                  blurRadius: 12,
+                                                ),
+                                              ],
+                                            )
+                                          : null,
+                                      child: ContainerHoldingArea(
+                                        portId: widget.portId,
+                                        yardId: widget.yard.yardId,
+                                        containers: _containers,
+                                        onRefresh: _refreshContainers,
+                                      ),
                                     ),
-                                  ),
+                              ),
                             )
-                          : const SizedBox(width: 0),
+                          : const SizedBox(width: 24, height: 56),
                     ),
-                    const SizedBox(width: 4),
-                    // Toggle arrow
-                    GestureDetector(
-                      onTap: () => setState(() => _sidebarOpen = !_sidebarOpen),
-                      child: Container(
-                        width: 20,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: AppColors.green,
-                          borderRadius: BorderRadius.circular(6),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.green.withValues(alpha: 0.3),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          _sidebarOpen
-                              ? Icons.chevron_left_rounded
-                              : Icons.chevron_right_rounded,
-                          color: AppColors.yellow,
-                          size: 18,
+                    // Toggle arrow — always at the right edge, never moves
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: () =>
+                            setState(() => _sidebarOpen = !_sidebarOpen),
+                        child: Container(
+                          width: 20,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: AppColors.green,
+                            borderRadius: BorderRadius.circular(6),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.green.withValues(alpha: 0.3),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            _sidebarOpen
+                                ? Icons.chevron_left_rounded
+                                : Icons.chevron_right_rounded,
+                            color: AppColors.yellow,
+                            size: 18,
+                          ),
                         ),
                       ),
                     ),
@@ -1376,7 +1385,10 @@ class _YardScreenState extends State<YardScreen>
           ),
         ],
       ),
-      child: Row(
+      child: Wrap(
+        spacing: 0,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           // Edit / Save Layout
           toolBtn(
@@ -1396,26 +1408,6 @@ class _YardScreenState extends State<YardScreen>
               bg: const Color(0xFF1565C0),
               fg: Colors.white,
               onTap: _showAddBlockDialog,
-            ),
-            const SizedBox(width: 8),
-            toolBtn(
-              icon: Icons.filter_center_focus_rounded,
-              label: 'Snap to Canvas',
-              bg: const Color(0xFF6A1B9A),
-              fg: Colors.white,
-              onTap: () {
-                setState(() {
-                  for (final b in _blocks) {
-                    final cur =
-                        _blockOffsets[b.blockId] ??
-                        Offset(
-                          (b.posX ?? 10).toDouble(),
-                          (b.posY ?? 10).toDouble(),
-                        );
-                    _blockOffsets[b.blockId] = _clampBlock(b, cur);
-                  }
-                });
-              },
             ),
             const SizedBox(width: 8),
             toolBtn(

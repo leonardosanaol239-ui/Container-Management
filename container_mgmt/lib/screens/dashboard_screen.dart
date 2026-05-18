@@ -391,88 +391,99 @@ class _HeroHeaderState extends State<_HeroHeader> {
               // and hovering it never fires onExit on the trigger.
               CompositedTransformTarget(
                 link: _profileLayerLink,
-                child: MouseRegion(
-                  onEnter: (_) => _showDropdown(),
-                  onExit: (_) {
-                    _mouseInMenu.value = false;
-                    _scheduleHide();
+                child: GestureDetector(
+                  onTap: () {
+                    if (_overlayEntry != null) {
+                      _hideDropdown();
+                    } else {
+                      _showDropdown();
+                    }
                   },
-                  cursor: SystemMouseCursors.click,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _profileHovered
-                          ? AppColors.green.withValues(alpha: 0.15)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(
-                        color: _profileHovered
-                            ? AppColors.green.withValues(alpha: 0.35)
-                            : Colors.transparent,
-                        width: 1.5,
+                  child: MouseRegion(
+                    onEnter: (_) => _showDropdown(),
+                    onExit: (_) {
+                      _mouseInMenu.value = false;
+                      _scheduleHide();
+                    },
+                    cursor: SystemMouseCursors.click,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Avatar circle
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: const BoxDecoration(
-                            color: AppColors.green,
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            _initials,
-                            style: const TextStyle(
-                              color: AppColors.yellow,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
+                      decoration: BoxDecoration(
+                        color: _profileHovered
+                            ? AppColors.green.withValues(alpha: 0.15)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: _profileHovered
+                              ? AppColors.green.withValues(alpha: 0.35)
+                              : Colors.transparent,
+                          width: 1.5,
                         ),
-                        const SizedBox(width: 8),
-                        // Name + role
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              widget.session.fullName,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Avatar circle
+                          Container(
+                            width: 34,
+                            height: 34,
+                            decoration: const BoxDecoration(
+                              color: AppColors.green,
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              _initials,
                               style: const TextStyle(
-                                color: AppColors.green,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
+                                color: AppColors.yellow,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 12,
+                                letterSpacing: 0.5,
                               ),
                             ),
-                            Text(
-                              widget.session.role,
-                              style: TextStyle(
-                                color: AppColors.green.withValues(alpha: 0.65),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 2),
-                        AnimatedRotation(
-                          turns: _profileHovered ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 200),
-                          child: Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: AppColors.green.withValues(alpha: 0.7),
-                            size: 18,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          // Name + role
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                widget.session.fullName,
+                                style: const TextStyle(
+                                  color: AppColors.green,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              Text(
+                                widget.session.role,
+                                style: TextStyle(
+                                  color: AppColors.green.withValues(
+                                    alpha: 0.65,
+                                  ),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 2),
+                          AnimatedRotation(
+                            turns: _profileHovered ? 0.5 : 0,
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: AppColors.green.withValues(alpha: 0.7),
+                              size: 18,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

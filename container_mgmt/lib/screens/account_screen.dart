@@ -170,7 +170,8 @@ class _Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 240,
+      width: 220,
+      constraints: const BoxConstraints(minWidth: 180, maxWidth: 240),
       decoration: const BoxDecoration(
         color: AppColors.green,
         boxShadow: [
@@ -182,15 +183,15 @@ class _Sidebar extends StatelessWidget {
         children: [
           // ── Avatar card ───────────────────────────────────────
           Container(
-            padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 20),
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.12),
             ),
             child: Column(
               children: [
                 Container(
-                  width: 64,
-                  height: 64,
+                  width: 60,
+                  height: 60,
                   decoration: BoxDecoration(
                     color: AppColors.yellow,
                     shape: BoxShape.circle,
@@ -205,26 +206,27 @@ class _Sidebar extends StatelessWidget {
                     style: const TextStyle(
                       color: AppColors.green,
                       fontWeight: FontWeight.w900,
-                      fontSize: 22,
+                      fontSize: 20,
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Text(
                   session.fullName,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
-                    fontSize: 14,
+                    fontSize: 13,
                   ),
                   textAlign: TextAlign.center,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
+                    horizontal: 10,
+                    vertical: 3,
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.yellow.withValues(alpha: 0.2),
@@ -241,6 +243,8 @@ class _Sidebar extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5,
                     ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
               ],
@@ -251,7 +255,7 @@ class _Sidebar extends StatelessWidget {
 
           // ── Nav label ─────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
             child: Text(
               'NAVIGATION',
               style: TextStyle(
@@ -285,12 +289,12 @@ class _Sidebar extends StatelessWidget {
           Divider(
             color: Colors.white.withValues(alpha: 0.12),
             height: 1,
-            indent: 20,
-            endIndent: 20,
+            indent: 16,
+            endIndent: 16,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Text(
               'Container Management System',
               style: TextStyle(
@@ -299,6 +303,8 @@ class _Sidebar extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -423,6 +429,7 @@ class _ProfilePanel extends StatelessWidget {
   Widget _infoRow(String label, String value, IconData icon) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 10),
     child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           width: 36,
@@ -435,8 +442,8 @@ class _ProfilePanel extends StatelessWidget {
           child: Icon(icon, size: 16, color: AppColors.green),
         ),
         const SizedBox(width: 14),
-        SizedBox(
-          width: 110,
+        Flexible(
+          flex: 2,
           child: Text(
             label,
             style: TextStyle(
@@ -447,7 +454,9 @@ class _ProfilePanel extends StatelessWidget {
             ),
           ),
         ),
-        Expanded(
+        const SizedBox(width: 8),
+        Flexible(
+          flex: 3,
           child: Text(
             value,
             style: const TextStyle(
@@ -455,6 +464,8 @@ class _ProfilePanel extends StatelessWidget {
               fontWeight: FontWeight.w700,
               color: AppColors.textDark,
             ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
           ),
         ),
       ],

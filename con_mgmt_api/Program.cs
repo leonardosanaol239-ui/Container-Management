@@ -112,8 +112,8 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseCors();
+app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseStaticFiles(); // serves from wwwroot automatically via IWebHostEnvironment
 app.UseAuthorization();
 app.MapControllers();

@@ -778,43 +778,58 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
             ],
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                _showDeleted ? Icons.delete_rounded : Icons.people_rounded,
-                color: AppColors.yellow,
-                size: 20,
+              Row(
+                children: [
+                  Icon(
+                    _showDeleted ? Icons.delete_rounded : Icons.people_rounded,
+                    color: AppColors.yellow,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      () {
+                        if (_showDeleted) {
+                          final deleted = _users
+                              .where((u) => u.isDeleted)
+                              .length;
+                          return '$deleted Deleted Users';
+                        } else {
+                          final active = _users.where((u) => u.isActive).length;
+                          final inactive = _users
+                              .where((u) => u.isInactive)
+                              .length;
+                          final total = _users
+                              .where((u) => !u.isDeleted)
+                              .length;
+                          return '$active Active · $inactive Inactive · $total Total';
+                        }
+                      }(),
+                      style: const TextStyle(
+                        color: AppColors.yellow,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Text(
-                () {
-                  if (_showDeleted) {
-                    final deleted = _users.where((u) => u.isDeleted).length;
-                    return '$deleted Deleted Users';
-                  } else {
-                    final active = _users.where((u) => u.isActive).length;
-                    final inactive = _users.where((u) => u.isInactive).length;
-                    final total = _users.where((u) => !u.isDeleted).length;
-                    return '$active Active · $inactive Inactive · $total Total';
-                  }
-                }(),
-                style: const TextStyle(
-                  color: AppColors.yellow,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.3,
-                ),
-              ),
-              const Spacer(),
-              if (!_showDeleted)
-                ..._roles.map((r) {
-                  final count = _users
-                      .where((u) => u.role == r && !u.isDeleted)
-                      .length;
-                  if (count == 0) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Container(
+              if (!_showDeleted) ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: _roles.map((r) {
+                    final count = _users
+                        .where((u) => u.role == r && !u.isDeleted)
+                        .length;
+                    if (count == 0) return const SizedBox.shrink();
+                    return Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 4,
@@ -835,9 +850,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  }).toList(),
+                ),
+              ],
             ],
           ),
         ),

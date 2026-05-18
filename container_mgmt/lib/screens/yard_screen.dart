@@ -1153,38 +1153,149 @@ class _YardScreenState extends State<YardScreen>
               left: 220,
               top: 56,
               child: Material(
-                elevation: 8,
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
                 child: Container(
-                  width: 240,
-                  constraints: const BoxConstraints(maxHeight: 300),
+                  width: 260,
+                  constraints: const BoxConstraints(maxHeight: 340),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppColors.red.withValues(alpha: 0.2),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
                   ),
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    itemCount: _movedOutContainers.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (ctx, i) {
-                      final c = _movedOutContainers[i];
-                      return ListTile(
-                        dense: true,
-                        title: Text(
-                          c.containerNumber,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                        decoration: const BoxDecoration(
+                          color: AppColors.red,
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(13),
                           ),
                         ),
-                        subtitle: Text(
-                          c.boundTo != null ? 'Bound to: ${c.boundTo}' : '',
-                          style: const TextStyle(fontSize: 11),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.local_shipping_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'MOVED OUT',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 11,
+                                  letterSpacing: 1.1,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${_movedOutContainers.length}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      );
-                    },
+                      ),
+                      // List
+                      Flexible(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          itemCount: _movedOutContainers.length,
+                          separatorBuilder: (_, _) => Divider(
+                            height: 1,
+                            color: Colors.grey.shade100,
+                            indent: 14,
+                            endIndent: 14,
+                          ),
+                          itemBuilder: (ctx, i) {
+                            final c = _movedOutContainers[i];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.red.withValues(
+                                        alpha: 0.08,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: const Icon(
+                                      Icons.local_shipping_rounded,
+                                      size: 16,
+                                      color: AppColors.red,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          c.containerNumber,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 13,
+                                            color: AppColors.textDark,
+                                          ),
+                                        ),
+                                        if (c.boundTo != null &&
+                                            c.boundTo!.isNotEmpty)
+                                          Text(
+                                            'Bound to: ${c.boundTo}',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey.shade500,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1543,20 +1654,20 @@ class _YardScreenState extends State<YardScreen>
                         size: 15,
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        'Move Out${_movedOutContainers.isNotEmpty ? "  ${_movedOutContainers.length}" : ""}',
-                        style: const TextStyle(
+                      const Text(
+                        'Move Out',
+                        style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w800,
                           fontSize: 12,
                         ),
                       ),
                       if (_movedOutContainers.isNotEmpty) ...[
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 1,
+                            horizontal: 6,
+                            vertical: 2,
                           ),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.25),
@@ -4192,98 +4303,293 @@ class _MoveOutDialogState extends State<_MoveOutDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      backgroundColor: Colors.transparent,
       child: Container(
-        width: 340,
-        padding: const EdgeInsets.all(20),
+        width: 380,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Move Out Container',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-            const Divider(),
-            Text(
-              widget.container.containerNumber,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Truck:',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            const SizedBox(height: 4),
-            DropdownButton<int>(
-              value: _truckId,
-              isExpanded: true,
-              hint: const Text('Select truck'),
-              items: widget.trucks
-                  .map(
-                    (t) => DropdownMenuItem(
-                      value: t.truckId,
-                      child: Text(t.truckName),
+            // ── Header ──────────────────────────────────────────────
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
+              decoration: const BoxDecoration(
+                color: AppColors.red,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() => _truckId = v),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Bound To:',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-            const SizedBox(height: 4),
-            TextField(
-              controller: _boundCtrl,
-              decoration: const InputDecoration(
-                hintText: 'Destination / consignee',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                isDense: true,
+                    child: const Icon(
+                      Icons.local_shipping_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Move Out Container',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 15,
+                          ),
+                        ),
+                        Text(
+                          widget.container.containerNumber,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white70,
+                      size: 20,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _loading || _truckId == null ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red[600],
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+
+            // ── Container info chip ──────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
                 ),
-                child: _loading
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
+                decoration: BoxDecoration(
+                  color: AppColors.red.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppColors.red.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.inventory_2_rounded,
+                      size: 16,
+                      color: AppColors.red,
+                    ),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.container.containerNumber,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 14,
+                            color: AppColors.textDark,
+                          ),
                         ),
-                      )
-                    : const Text(
-                        'Confirm Move Out',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        if (widget.container.type != null)
+                          Text(
+                            widget.container.type!,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Form fields ──────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Truck selector
+                  const Text(
+                    'Assign Truck',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: AppColors.textDark,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _truckId != null
+                            ? AppColors.green.withValues(alpha: 0.5)
+                            : Colors.grey.shade200,
                       ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        value: _truckId,
+                        isExpanded: true,
+                        hint: Text(
+                          'Select a truck',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade400,
+                          ),
+                        ),
+                        icon: Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Colors.grey.shade400,
+                        ),
+                        items: widget.trucks
+                            .map(
+                              (t) => DropdownMenuItem(
+                                value: t.truckId,
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.local_shipping_outlined,
+                                      size: 16,
+                                      color: AppColors.green,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      t.truckName,
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) => setState(() => _truckId = v),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Bound To field
+                  const Text(
+                    'Bound To',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: AppColors.textDark,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _boundCtrl,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Destination / consignee',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade400,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.location_on_rounded,
+                        size: 18,
+                        color: AppColors.green,
+                      ),
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: Colors.grey.shade200),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(
+                          color: AppColors.green,
+                          width: 1.5,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      isDense: true,
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Confirm button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _loading || _truckId == null ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.red,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey.shade200,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        elevation: 0,
+                      ),
+                      icon: _loading
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(Icons.local_shipping_rounded, size: 16),
+                      label: Text(
+                        _loading ? 'Processing…' : 'Confirm Move Out',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

@@ -37,6 +37,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     NotificationService().init(); // ensure polling is running
+    NotificationService().setSession(widget.session.fullName);
     _loadStats();
   }
 

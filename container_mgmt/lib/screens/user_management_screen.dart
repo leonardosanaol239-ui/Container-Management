@@ -1969,7 +1969,7 @@ class _MultiPortPickerField extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (hasSelection)
+            if (hasSelection && multiSelect)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
@@ -2033,8 +2033,7 @@ Widget _lbl(String text) => Text(
 
 class _RoleBadge extends StatelessWidget {
   final String role;
-  final int? count;
-  const _RoleBadge({required this.role, this.count});
+  const _RoleBadge({required this.role});
   @override
   Widget build(BuildContext context) {
     final color = _roleColor(role);
@@ -2046,7 +2045,7 @@ class _RoleBadge extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.5), width: 0.5),
       ),
       child: Text(
-        count != null ? '$role ($count)' : role,
+        role,
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w700,

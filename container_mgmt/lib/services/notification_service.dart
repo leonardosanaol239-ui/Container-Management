@@ -5,11 +5,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 import '../models/container_model.dart';
 import '../models/port.dart';
-import '../models/yard.dart';
+import '../models/block.dart';
+import '../models/bay.dart';
+import '../models/row_model.dart';
 
 // ── Notification model ────────────────────────────────────────────────────────
 
-enum NotifType { movement, capacityWarning, capacityFull, moveOut }
+enum NotifType { movement, moveOut }
 
 class AppNotification {
   final String id;
@@ -18,6 +20,8 @@ class AppNotification {
   final String body;
   final DateTime timestamp;
   bool isRead;
+  // Extra structured data for the detail dialog
+  final Map<String, String> metadata;
 
   AppNotification({
     required this.id,
@@ -26,6 +30,7 @@ class AppNotification {
     required this.body,
     required this.timestamp,
     this.isRead = false,
+    this.metadata = const {},
   });
 
   Map<String, dynamic> toJson() => {
@@ -35,6 +40,7 @@ class AppNotification {
     'body': body,
     'timestamp': timestamp.toIso8601String(),
     'isRead': isRead,
+    'metadata': metadata,
   };
 
   factory AppNotification.fromJson(Map<String, dynamic> j) => AppNotification(
@@ -44,6 +50,9 @@ class AppNotification {
     body: j['body'],
     timestamp: DateTime.parse(j['timestamp']),
     isRead: j['isRead'] ?? false,
+    metadata: (j['metadata'] as Map<String, dynamic>? ?? {}).map(
+      (k, v) => MapEntry(k, v.toString()),
+    ),
   );
 }
 
@@ -57,9 +66,7 @@ class NotificationService extends ChangeNotifier {
   static const _kStorageKey = 'app_notifications_v1';
   static const _kSeenMovementsKey = 'seen_movement_ids_v1';
   static const _kSeenMoveOutsKey = 'seen_moveout_ids_v1';
-  static const _kCapacityPrefix = 'yard_capacity_';
   static const int _maxNotifications = 50;
-  static const double _capacityWarnThreshold = 0.90;
 
   final _api = ApiService();
   Timer? _pollTimer;
@@ -69,13 +76,20 @@ class NotificationService extends ChangeNotifier {
 
   int get unreadCount => _notifications.where((n) => !n.isRead).length;
 
-  // Track which container IDs we've already notified about
   final Set<String> _seenMovementIds = {};
   final Set<String> _seenMoveOutIds = {};
-  // Track which yards we've already sent a capacity warning for (reset when drops below threshold)
-  final Set<int> _warnedYardIds = {};
+
+  // The currently logged-in user — set via setSession()
+  String? _currentUserName;
 
   bool _initialized = false;
+
+  // ── Session ─────────────────────────────────────────────────────────────────
+
+  /// Call this after login so notifications can record who approved movements.
+  void setSession(String fullName) {
+    _currentUserName = fullName;
+  }
 
   // ── Init / dispose ──────────────────────────────────────────────────────────
 
@@ -95,7 +109,6 @@ class NotificationService extends ChangeNotifier {
   // ── Polling ─────────────────────────────────────────────────────────────────
 
   void _startPolling() {
-    // Poll immediately, then every 10 seconds
     _poll();
     _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) => _poll());
   }
@@ -107,9 +120,8 @@ class NotificationService extends ChangeNotifier {
 
       for (final port in ports) {
         final containers = await _api.getContainersByPort(port.portId);
-        _checkMovements(containers, port, prefs);
+        await _checkMovements(containers, port, prefs);
         _checkMoveOuts(containers, port, prefs);
-        await _checkCapacity(port, containers, prefs);
       }
     } catch (_) {
       // Silently ignore network errors during polling
@@ -117,27 +129,76 @@ class NotificationService extends ChangeNotifier {
   }
 
   // ── Movement detection ───────────────────────────────────────────────────────
-  // A "confirmed movement" = locationStatusId == 1 AND moveConfirmedDate is set
 
-  void _checkMovements(
+  Future<void> _checkMovements(
     List<ContainerModel> containers,
     Port port,
     SharedPreferences prefs,
-  ) {
-    final confirmed = containers.where(
-      (c) =>
-          c.locationStatusId == 1 &&
-          c.moveConfirmedDate != null &&
-          c.rowId != null,
-    );
+  ) async {
+    final confirmed = containers
+        .where(
+          (c) =>
+              c.locationStatusId == 1 &&
+              c.moveConfirmedDate != null &&
+              c.rowId != null,
+        )
+        .toList();
+
+    if (confirmed.isEmpty) return;
+
+    // Fetch layout data once per port poll so we can resolve IDs → names
+    // Cache: blockId → Block, bayId → Bay, rowId → RowModel
+    final Map<int, Block> blocksById = {};
+    final Map<int, Bay> baysById = {};
+    final Map<int, RowModel> rowsById = {};
+
+    try {
+      // We need yards → blocks → bays → rows
+      final yards = await _api.getYards(port.portId);
+      for (final yard in yards) {
+        final blocks = await _api.getBlocks(yard.yardId);
+        for (final block in blocks) {
+          blocksById[block.blockId] = block;
+          final bays = await _api.getBays(block.blockId);
+          for (final bay in bays) {
+            baysById[bay.bayId] = bay;
+            final rows = await _api.getRows(bay.bayId);
+            for (final row in rows) {
+              rowsById[row.rowId] = row;
+            }
+          }
+        }
+      }
+    } catch (_) {
+      // If layout fetch fails, fall back to IDs
+    }
 
     for (final c in confirmed) {
-      // Unique key: containerId + moveConfirmedDate
       final key = '${c.containerId}_${c.moveConfirmedDate}';
       if (_seenMovementIds.contains(key)) continue;
 
       _seenMovementIds.add(key);
       _persistSeenMovements(prefs);
+
+      // Resolve exact names
+      final block = c.blockId != null ? blocksById[c.blockId] : null;
+      final bay = c.bayId != null ? baysById[c.bayId] : null;
+      final row = c.rowId != null ? rowsById[c.rowId] : null;
+
+      final blockLabel = block != null
+          ? (block.blockName ?? 'Block ${block.blockNumber}')
+          : (c.blockId != null ? 'Block ${c.blockId}' : null);
+      final bayLabel =
+          bay?.bayNumber ?? (c.bayId != null ? '${c.bayId}' : null);
+      final rowLabel = row != null
+          ? '${row.rowNumber}'
+          : (c.rowId != null ? '${c.rowId}' : null);
+      final tierLabel = c.tier != null ? '${c.tier}' : null;
+
+      // (locationParts available if a combined string is ever needed)
+
+      final confirmedDt = _parseDate(c.moveConfirmedDate);
+      final requestedDt = _parseDate(c.moveRequestDate);
 
       final notif = AppNotification(
         id: key,
@@ -145,14 +206,29 @@ class NotificationService extends ChangeNotifier {
         title: 'Movement Approved',
         body:
             '${c.containerNumber} has been approved and placed at ${port.portDesc}.',
-        timestamp: _parseDate(c.moveConfirmedDate) ?? DateTime.now(),
+        timestamp: confirmedDt ?? DateTime.now(),
+        metadata: {
+          'Container': c.containerNumber,
+          'Port': port.portDesc,
+          'Block': ?blockLabel,
+          'Bay': ?bayLabel,
+          'Row': ?rowLabel,
+          'Tier': ?tierLabel,
+          if (c.type != null) 'Type': c.type!,
+          'Confirmed': confirmedDt != null ? _formatDateTime(confirmedDt) : '—',
+          if (requestedDt != null) 'Requested': _formatDateTime(requestedDt),
+          if (c.yardEntryDate != null)
+            'Yard Entry': _formatDateTime(
+              _parseDate(c.yardEntryDate) ?? DateTime.now(),
+            ),
+          'Approved By': ?_currentUserName,
+        },
       );
       _addNotification(notif);
     }
   }
 
   // ── Move-out detection ────────────────────────────────────────────────────────
-  // A "move-out" = locationStatusId == 2 (isMovedOut) AND boundTo or truckId set
 
   void _checkMoveOuts(
     List<ContainerModel> containers,
@@ -162,12 +238,13 @@ class NotificationService extends ChangeNotifier {
     final movedOut = containers.where((c) => c.isMovedOut && c.boundTo != null);
 
     for (final c in movedOut) {
-      // Unique key: containerId + boundTo (stable once moved out)
       final key = 'out_${c.containerId}_${c.boundTo}';
       if (_seenMoveOutIds.contains(key)) continue;
 
       _seenMoveOutIds.add(key);
       _persistSeenMoveOuts(prefs);
+
+      final now = DateTime.now();
 
       final notif = AppNotification(
         id: key,
@@ -176,64 +253,18 @@ class NotificationService extends ChangeNotifier {
         body:
             '${c.containerNumber} has been moved out from ${port.portDesc}'
             '${c.boundTo != null && c.boundTo!.isNotEmpty ? ' → ${c.boundTo}' : ''}.',
-        timestamp: DateTime.now(),
-      );
-      _addNotification(notif);
-    }
-  }
-
-  // ── Capacity check ───────────────────────────────────────────────────────────
-
-  Future<void> _checkCapacity(
-    Port port,
-    List<ContainerModel> containers,
-    SharedPreferences prefs,
-  ) async {
-    List<Yard> yards;
-    try {
-      yards = await _api.getYards(port.portId);
-    } catch (_) {
-      return;
-    }
-
-    for (final yard in yards) {
-      final capacity = prefs.getInt('$_kCapacityPrefix${yard.yardId}');
-      if (capacity == null || capacity <= 0) {
-        // No limit set — clear any existing warning state
-        _warnedYardIds.remove(yard.yardId);
-        continue;
-      }
-
-      final inYard = containers
-          .where(
-            (c) => c.yardId == yard.yardId && c.rowId != null && !c.isMovedOut,
-          )
-          .length;
-
-      final fill = inYard / capacity;
-
-      if (fill < _capacityWarnThreshold) {
-        // Dropped below threshold — allow re-warning next time
-        _warnedYardIds.remove(yard.yardId);
-        continue;
-      }
-
-      if (_warnedYardIds.contains(yard.yardId)) continue;
-      _warnedYardIds.add(yard.yardId);
-
-      final isFull = fill >= 1.0;
-      final pct = (fill * 100).toStringAsFixed(0);
-
-      final notif = AppNotification(
-        id: 'cap_${yard.yardId}_${DateTime.now().millisecondsSinceEpoch}',
-        type: isFull ? NotifType.capacityFull : NotifType.capacityWarning,
-        title: isFull
-            ? '⚠️ Yard Full — ${port.portDesc}'
-            : '⚠️ Yard Near Capacity — ${port.portDesc}',
-        body: isFull
-            ? 'Yard ${yard.yardNumber} at ${port.portDesc} is FULL ($inYard/$capacity containers).'
-            : 'Yard ${yard.yardNumber} at ${port.portDesc} is at $pct% capacity ($inYard/$capacity containers).',
-        timestamp: DateTime.now(),
+        timestamp: now,
+        metadata: {
+          'Container': c.containerNumber,
+          'From Port': port.portDesc,
+          if (c.boundTo != null && c.boundTo!.isNotEmpty)
+            'Bound To': c.boundTo!,
+          if (c.type != null) 'Type': c.type!,
+          'Moved Out': _formatDateTime(now),
+          if (c.yardEntryDate != null)
+            'Yard Entry': _formatDateTime(_parseDate(c.yardEntryDate) ?? now),
+          'Processed By': ?_currentUserName,
+        },
       );
       _addNotification(notif);
     }
@@ -278,7 +309,6 @@ class NotificationService extends ChangeNotifier {
   Future<void> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Load notifications
     final raw = prefs.getString(_kStorageKey);
     if (raw != null) {
       try {
@@ -289,11 +319,9 @@ class NotificationService extends ChangeNotifier {
       } catch (_) {}
     }
 
-    // Load seen movement IDs
     final seenRaw = prefs.getStringList(_kSeenMovementsKey) ?? [];
     _seenMovementIds.addAll(seenRaw);
 
-    // Load seen move-out IDs
     final seenOutRaw = prefs.getStringList(_kSeenMoveOutsKey) ?? [];
     _seenMoveOutIds.addAll(seenOutRaw);
   }
@@ -305,7 +333,6 @@ class NotificationService extends ChangeNotifier {
   }
 
   Future<void> _persistSeenMovements(SharedPreferences prefs) async {
-    // Keep only the last 500 to avoid unbounded growth
     final list = _seenMovementIds.toList();
     final trimmed = list.length > 500 ? list.sublist(list.length - 500) : list;
     await prefs.setStringList(_kSeenMovementsKey, trimmed);
@@ -326,5 +353,27 @@ class NotificationService extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final d = dt.toLocal();
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final m = d.minute.toString().padLeft(2, '0');
+    final ampm = d.hour < 12 ? 'AM' : 'PM';
+    return '${months[d.month - 1]} ${d.day}, ${d.year}  $h:$m $ampm';
   }
 }

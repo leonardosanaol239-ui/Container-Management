@@ -24,10 +24,7 @@ class ContainerHoldingArea extends StatelessWidget {
         .where(
           (c) =>
               !c.isMovedOut &&
-              (
-              // Unassigned (no yard yet)
-              c.yardId == null ||
-                  // Transferred to this yard's holding area (yardId set, no slot)
+              (c.yardId == null ||
                   (yardId != null && c.yardId == yardId && c.rowId == null)),
         )
         .toList()
@@ -37,15 +34,14 @@ class ContainerHoldingArea extends StatelessWidget {
     return Container(
       width: 216,
       decoration: BoxDecoration(
-        color: Colors.white,
+        // Slightly warm off-white — distinct from the page background
+        color: const Color(0xFFFAFAF5),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(
+          color: AppColors.green.withValues(alpha: 0.18),
+          width: 1.5,
+        ),
+        // No shadow — clean flat look
       ),
       clipBehavior: Clip.hardEdge,
       child: Column(
@@ -54,19 +50,13 @@ class ContainerHoldingArea extends StatelessWidget {
           // ── Header ──────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.green, Color(0xFF1A7A1C)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
+            color: AppColors.green,
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: AppColors.yellow.withValues(alpha: 0.18),
+                    color: AppColors.yellow.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(
@@ -125,13 +115,7 @@ class ContainerHoldingArea extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppColors.yellow,
                   borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.yellow.withValues(alpha: 0.4),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  // No shadow
                 ),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -163,7 +147,7 @@ class ContainerHoldingArea extends StatelessWidget {
             child: Divider(
               height: 1,
               thickness: 1,
-              color: Colors.grey.shade100,
+              color: AppColors.green.withValues(alpha: 0.1),
             ),
           ),
 
@@ -177,29 +161,29 @@ class ContainerHoldingArea extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
+                            color: AppColors.green.withValues(alpha: 0.06),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             Icons.inbox_outlined,
                             size: 32,
-                            color: Colors.grey.shade300,
+                            color: AppColors.green.withValues(alpha: 0.3),
                           ),
                         ),
                         const SizedBox(height: 10),
                         Text(
                           'No containers',
                           style: TextStyle(
-                            color: Colors.grey.shade400,
+                            color: AppColors.green.withValues(alpha: 0.5),
                             fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'Add one above',
                           style: TextStyle(
-                            color: Colors.grey.shade300,
+                            color: AppColors.green.withValues(alpha: 0.35),
                             fontSize: 10,
                           ),
                         ),
@@ -226,9 +210,12 @@ class ContainerHoldingArea extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(vertical: 9),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: AppColors.green.withValues(alpha: 0.06),
               border: Border(
-                top: BorderSide(color: Colors.grey.shade100, width: 1),
+                top: BorderSide(
+                  color: AppColors.green.withValues(alpha: 0.12),
+                  width: 1,
+                ),
               ),
             ),
             child: Row(
@@ -237,13 +224,13 @@ class ContainerHoldingArea extends StatelessWidget {
                 Icon(
                   Icons.drag_indicator_rounded,
                   size: 13,
-                  color: Colors.grey.shade400,
+                  color: AppColors.green.withValues(alpha: 0.4),
                 ),
                 const SizedBox(width: 4),
                 Text(
                   'Drag to move containers',
                   style: TextStyle(
-                    color: Colors.grey.shade400,
+                    color: AppColors.green.withValues(alpha: 0.5),
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
                   ),
@@ -276,7 +263,7 @@ class _ContainerListItem extends StatelessWidget {
         feedback: SizedBox(
           width: 196,
           child: Material(
-            elevation: 12,
+            elevation: 8,
             borderRadius: BorderRadius.circular(10),
             shadowColor: Colors.black26,
             child: _itemContent(isLaden),
@@ -293,24 +280,18 @@ class _ContainerListItem extends StatelessWidget {
 
   Widget _itemContent(bool isLaden) {
     final statusColor = isLaden ? AppColors.laden : AppColors.empty;
+    final bgColor = isLaden
+        ? AppColors.laden.withValues(alpha: 0.05)
+        : AppColors.empty.withValues(alpha: 0.05);
     final desc = container.containerDesc;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 7),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bgColor,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: statusColor.withValues(alpha: 0.25),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
+        border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 1),
+        // No shadow
       ),
       child: Row(
         children: [
@@ -341,7 +322,7 @@ class _ContainerListItem extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.12),
+                          color: statusColor.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
@@ -358,7 +339,8 @@ class _ContainerListItem extends StatelessWidget {
                         container.type ?? '',
                         style: TextStyle(
                           fontSize: 9,
-                          color: Colors.grey.shade400,
+                          color: AppColors.green.withValues(alpha: 0.45),
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -379,7 +361,7 @@ class _ContainerListItem extends StatelessWidget {
                       desc,
                       style: TextStyle(
                         fontSize: 9,
-                        color: Colors.grey.shade400,
+                        color: AppColors.green.withValues(alpha: 0.45),
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),

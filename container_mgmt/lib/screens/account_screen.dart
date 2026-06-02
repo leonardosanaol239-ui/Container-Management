@@ -426,52 +426,6 @@ class _ProfilePanel extends StatelessWidget {
     return parts.first.isNotEmpty ? parts.first[0].toUpperCase() : '?';
   }
 
-  Widget _infoRow(String label, String value, IconData icon) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 10),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: AppColors.green.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          alignment: Alignment.center,
-          child: Icon(icon, size: 16, color: AppColors.green),
-        ),
-        const SizedBox(width: 14),
-        Flexible(
-          flex: 2,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade500,
-              letterSpacing: 0.3,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Flexible(
-          flex: 3,
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textDark,
-            ),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 2,
-          ),
-        ),
-      ],
-    ),
-  );
-
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -504,90 +458,182 @@ class _ProfilePanel extends StatelessWidget {
           ),
           const SizedBox(height: 28),
 
-          // ── Profile card ──────────────────────────────────────
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
+          // ── Hero banner card ──────────────────────────────────
+          _ProfileHeroCard(initials: _initials, session: session),
+
+          const SizedBox(height: 20),
+
+          // ── Info grid ─────────────────────────────────────────
+          _ProfileInfoGrid(session: session),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Hero banner ───────────────────────────────────────────────────────────────
+
+class _ProfileHeroCard extends StatelessWidget {
+  final String initials;
+  final Session session;
+
+  const _ProfileHeroCard({required this.initials, required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.green.withValues(alpha: 0.25),
+            blurRadius: 32,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            // ── Gradient background ───────────────────────────
+            Container(
+              height: 200,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF084515), Color(0xFF0F7A28)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              ],
+              ),
             ),
-            child: Column(
-              children: [
-                // Green header
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
-                  decoration: const BoxDecoration(
-                    color: AppColors.green,
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20),
+
+            // ── Decorative circles ────────────────────────────
+            Positioned(
+              top: -40,
+              right: -40,
+              child: _DecorativeCircle(size: 180, opacity: 0.06),
+            ),
+            Positioned(
+              bottom: -20,
+              right: 80,
+              child: _DecorativeCircle(size: 120, opacity: 0.05),
+            ),
+            Positioned(
+              top: 20,
+              right: 160,
+              child: _DecorativeCircle(size: 60, opacity: 0.08),
+            ),
+
+            // ── Gold accent stripe ────────────────────────────
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              child: Container(
+                width: 5,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFF5C400), Color(0xFFD4A900)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+              ),
+            ),
+
+            // ── Content ───────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(32, 28, 32, 28),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Avatar with ring
+                  _AvatarRing(initials: initials),
+                  const SizedBox(width: 24),
+
+                  // Name + role + code
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          session.fullName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 22,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            _RoleBadge(role: session.role),
+                            const SizedBox(width: 10),
+                            _CodeChip(code: session.userCode),
+                          ],
+                        ),
+                        if (session.portDesc != null) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on_rounded,
+                                size: 13,
+                                color: Colors.white.withValues(alpha: 0.55),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                session.portDesc!,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  child: Row(
+
+                  // Status indicator
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        width: 72,
-                        height: 72,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
-                          color: AppColors.yellow,
-                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            width: 3,
+                            color: Colors.white.withValues(alpha: 0.15),
                           ),
                         ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          _initials,
-                          style: const TextStyle(
-                            color: AppColors.green,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 26,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              session.fullName,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 20,
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF4ADE80),
+                                shape: BoxShape.circle,
                               ),
                             ),
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.yellow.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: AppColors.yellow.withValues(
-                                    alpha: 0.5,
-                                  ),
-                                ),
-                              ),
-                              child: Text(
-                                session.role,
-                                style: const TextStyle(
-                                  color: AppColors.yellow,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.5,
-                                ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Active',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
@@ -595,41 +641,339 @@ class _ProfilePanel extends StatelessWidget {
                       ),
                     ],
                   ),
-                ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-                // Info rows
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(28, 8, 28, 20),
-                  child: Column(
-                    children: [
-                      _infoRow(
-                        'User Code',
-                        session.userCode,
-                        Icons.badge_rounded,
-                      ),
-                      Divider(height: 1, color: Colors.grey.shade100),
-                      _infoRow(
-                        'Full Name',
-                        session.fullName,
-                        Icons.person_rounded,
-                      ),
-                      Divider(height: 1, color: Colors.grey.shade100),
-                      _infoRow('Role', session.role, Icons.work_rounded),
-                      if (session.portDesc != null) ...[
-                        Divider(height: 1, color: Colors.grey.shade100),
-                        _infoRow(
-                          'Assigned Port',
-                          session.portDesc!,
-                          Icons.location_on_rounded,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
+// ── Avatar with animated gold ring ───────────────────────────────────────────
+
+class _AvatarRing extends StatelessWidget {
+  final String initials;
+  const _AvatarRing({required this.initials});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Outer glow ring
+        Container(
+          width: 96,
+          height: 96,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.yellow.withValues(alpha: 0.35),
+              width: 2,
+            ),
+          ),
+        ),
+        // Inner avatar
+        Container(
+          width: 82,
+          height: 82,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              colors: [Color(0xFFF5C400), Color(0xFFD4A900)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.yellow.withValues(alpha: 0.4),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            initials,
+            style: const TextStyle(
+              color: AppColors.green,
+              fontWeight: FontWeight.w900,
+              fontSize: 28,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Role badge ────────────────────────────────────────────────────────────────
+
+class _RoleBadge extends StatelessWidget {
+  final String role;
+  const _RoleBadge({required this.role});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF5C400), Color(0xFFD4A900)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.yellow.withValues(alpha: 0.35),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Text(
+        role,
+        style: const TextStyle(
+          color: AppColors.green,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.6,
+        ),
+      ),
+    );
+  }
+}
+
+// ── User code chip ────────────────────────────────────────────────────────────
+
+class _CodeChip extends StatelessWidget {
+  final String code;
+  const _CodeChip({required this.code});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.tag_rounded,
+            size: 11,
+            color: Colors.white.withValues(alpha: 0.7),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            code,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.9),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Decorative circle ─────────────────────────────────────────────────────────
+
+class _DecorativeCircle extends StatelessWidget {
+  final double size;
+  final double opacity;
+  const _DecorativeCircle({required this.size, required this.opacity});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: opacity),
+          width: 1.5,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Info grid ─────────────────────────────────────────────────────────────────
+
+class _ProfileInfoGrid extends StatelessWidget {
+  final Session session;
+  const _ProfileInfoGrid({required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      _InfoItem(
+        icon: Icons.badge_outlined,
+        label: 'User Code',
+        value: session.userCode,
+        accent: AppColors.green,
+      ),
+      _InfoItem(
+        icon: Icons.person_outline_rounded,
+        label: 'Full Name',
+        value: session.fullName,
+        accent: const Color(0xFF1565C0),
+      ),
+      _InfoItem(
+        icon: Icons.work_outline_rounded,
+        label: 'Role',
+        value: session.role,
+        accent: const Color(0xFF6A1B9A),
+      ),
+      if (session.portDesc != null)
+        _InfoItem(
+          icon: Icons.location_on_outlined,
+          label: 'Assigned Port',
+          value: session.portDesc!,
+          accent: const Color(0xFFE65100),
+        ),
+    ];
+
+    return Wrap(
+      spacing: 16,
+      runSpacing: 16,
+      children: items
+          .map(
+            (item) => SizedBox(
+              width: _cardWidth(context, items.length),
+              child: _InfoCard(item: item),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  double _cardWidth(BuildContext context, int count) {
+    final available =
+        MediaQuery.of(context).size.width - 220 - 64 - 16; // sidebar + padding
+    if (available > 700) return (available - 16) / 2;
+    return available;
+  }
+}
+
+class _InfoItem {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color accent;
+
+  const _InfoItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.accent,
+  });
+}
+
+class _InfoCard extends StatefulWidget {
+  final _InfoItem item;
+  const _InfoCard({required this.item});
+
+  @override
+  State<_InfoCard> createState() => _InfoCardState();
+}
+
+class _InfoCardState extends State<_InfoCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    return MouseRegion(
+      cursor: SystemMouseCursors.basic,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: _hovered
+                ? item.accent.withValues(alpha: 0.3)
+                : Colors.grey.shade100,
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _hovered
+                  ? item.accent.withValues(alpha: 0.1)
+                  : Colors.black.withValues(alpha: 0.04),
+              blurRadius: _hovered ? 20 : 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Icon container
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: item.accent.withValues(alpha: _hovered ? 0.15 : 0.08),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              alignment: Alignment.center,
+              child: Icon(item.icon, size: 22, color: item.accent),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.label.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade400,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.value,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textDark,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ],
+              ),
+            ),
+            // Accent dot
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: item.accent.withValues(alpha: _hovered ? 1.0 : 0.3),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

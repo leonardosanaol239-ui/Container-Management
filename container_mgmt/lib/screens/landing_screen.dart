@@ -125,7 +125,6 @@ class _LandingScreenState extends State<LandingScreen>
             ),
           ),
 
-          // ── Bottom-left decorative glow ───────────────────────────────────
           Positioned(
             bottom: -size.height * 0.12,
             left: -size.width * 0.18,
@@ -161,7 +160,6 @@ class _LandingScreenState extends State<LandingScreen>
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Floating logo
                         AnimatedBuilder(
                           animation: _floatAnim,
                           builder: (ctx, child) => Transform.translate(

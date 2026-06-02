@@ -55,7 +55,7 @@ class _NotificationBellState extends State<NotificationBell>
     showDialog(
       context: context,
       barrierColor: Colors.black26,
-      builder: (_) => const _NotificationPanelDialog(),
+      builder: (_) => const NotificationPanel(),
     );
   }
 
@@ -115,6 +115,17 @@ class _NotificationBellState extends State<NotificationBell>
         ),
       ),
     );
+  }
+}
+
+// ── Standalone Notification Panel (for use in dialogs) ───────────────────────
+
+class NotificationPanel extends StatelessWidget {
+  const NotificationPanel({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const _NotificationPanelDialog();
   }
 }
 
@@ -219,7 +230,7 @@ class _NotificationPanelDialogState extends State<_NotificationPanelDialog> {
                             svc.markRead(n.id);
                             showDialog(
                               context: context,
-                              builder: (_) => _NotifDetailDialog(notif: n),
+                              builder: (_) => NotifDetailDialog(notif: n),
                             );
                           },
                         );
@@ -753,9 +764,9 @@ class _NotifTileState extends State<_NotifTile> {
 
 // ── Notification detail dialog ────────────────────────────────────────────────
 
-class _NotifDetailDialog extends StatelessWidget {
+class NotifDetailDialog extends StatelessWidget {
   final AppNotification notif;
-  const _NotifDetailDialog({required this.notif});
+  const NotifDetailDialog({super.key, required this.notif});
 
   Color get _color {
     switch (notif.type) {

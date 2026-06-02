@@ -4,10 +4,11 @@ import '../models/session.dart';
 import '../models/container_model.dart';
 import '../models/yard.dart';
 import '../services/api_service.dart';
-import '../theme/app_theme.dart';
-import 'landing_screen.dart';
 import 'driver_yard_screen.dart';
+import 'landing_screen.dart';
 
+/// Modern Driver Dashboard - Enhanced UI for logistics operations
+/// Redesigned with Material 3 principles and professional shipping aesthetics
 class DriverDashboardScreen extends StatefulWidget {
   final Session session;
   const DriverDashboardScreen({super.key, required this.session});
@@ -16,300 +17,785 @@ class DriverDashboardScreen extends StatefulWidget {
   State<DriverDashboardScreen> createState() => _DriverDashboardScreenState();
 }
 
-class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
+class _DriverDashboardScreenState extends State<DriverDashboardScreen>
+    with TickerProviderStateMixin {
   final _api = ApiService();
-  bool _loading = true;
-
+  bool _loading = true; // true only on first load — shows full-screen spinner
+  bool _refreshing =
+      false; // true during manual refresh — spins the button icon
   List<ContainerModel> _moveRequests = [];
-  List<Yard> _yards = [];
-  // yardId -> count of move requests
-  Map<int, int> _requestsByYard = {};
-
+  Map<int, Yard> _yardsById = {};
+  Map<int, String> _portNames = {};
+  Map<int, int> _requestCountByYard = {};
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
   Timer? _pollTimer;
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+
+  // ── Gothong Southern Brand Colors ──────────────────────────────────────────
+  // PRIMARY:   Lincoln Green #0B560D | Scarlet Red #FF2800 | Canary Yellow #FFF200
+  // SECONDARY: Live Green #98F29B    | Smiley Red #E0474C  | Cyber Yellow #FFD300
+
+  // Primary palette
+  static const _primaryGreen = Color(0xFF0B560D); // Pantone Lincoln Green
+  static const _scarletRed = Color(0xFFFF2800); // Pantone Scarlet Red
+  static const _canaryYellow = Color(0xFFFFF200); // Pantone Canary Yellow
+
+  // Secondary palette
+  static const _liveGreen = Color(0xFF98F29B); // Pantone Live Green
+  static const _smileRed = Color(0xFFE0474C); // Pantone Smiley Red
+  static const _cyberYellow = Color(0xFFFFD300); // Pantone Cyber Yellow
+
+  // Aliases used throughout the UI
+  static const _secondaryGold = _cyberYellow;
+  static const _accent = Color(0xFFE65100);
+  static const _background = Color(0xFFF0F2EE);
+  static const _cardWhite = Color(0xFFFFFFFF);
+  static const _textDark = Color(0xFF1A1A0A);
+  static const _textLight = Color(0xFF757575);
+  static const _successGreen = _liveGreen;
+  static const _warningRed = _scarletRed;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
-    _pollTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _silentRefresh(),
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
     );
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _loadData();
+    // No auto-poll — driver refreshes manually via the Refresh button
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
     _searchCtrl.dispose();
+    _pollTimer?.cancel();
+    _fadeController.dispose();
+    _slideController.dispose();
     super.dispose();
   }
 
   Future<void> _loadData() async {
-    setState(() => _loading = true);
     try {
-      final portId = widget.session.portId;
-      if (portId == null) {
-        setState(() => _loading = false);
+      final driverPortId = widget.session.portId;
+
+      if (driverPortId == null) {
+        if (mounted) {
+          setState(() => _loading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No port assigned to your account'),
+              backgroundColor: _warningRed,
+            ),
+          );
+        }
         return;
       }
 
-      final results = await Future.wait([
-        _api.getContainersByPort(portId),
-        _api.getYards(portId),
-      ]);
+      final ports = await _api.getPorts();
+      final assignedPort = ports.firstWhere(
+        (p) => p.portId == driverPortId,
+        orElse: () => throw Exception('Assigned port not found'),
+      );
 
-      final allContainers = results[0] as List<ContainerModel>;
-      final yards = results[1] as List<Yard>;
+      final Map<int, String> portNames = {
+        assignedPort.portId: assignedPort.portDesc,
+      };
 
-      // Only containers with locationStatusId == 3 (Move Request) — oldest first
+      final containers = await _api.getContainersByPort(driverPortId);
+      final yards = await _api.getYards(driverPortId);
+      final yardsById = <int, Yard>{
+        for (final yard in yards) yard.yardId: yard,
+      };
+
       final moveRequests =
-          allContainers.where((c) => c.locationStatusId == 3).toList()
-            ..sort((a, b) {
-              final da = a.moveRequestDate;
-              final db = b.moveRequestDate;
-              if (da == null && db == null) {
-                return a.containerId.compareTo(b.containerId);
-              }
-              if (da == null) return 1;
-              if (db == null) return -1;
-              return da.compareTo(db);
-            });
+          containers.where((c) => c.locationStatusId == 3).toList()..sort(
+            (a, b) =>
+                (a.moveRequestDate ?? '').compareTo(b.moveRequestDate ?? ''),
+          );
 
-      // Count move requests per yard
-      final Map<int, int> byYard = {};
-      for (final c in moveRequests) {
-        if (c.yardId != null) {
-          byYard[c.yardId!] = (byYard[c.yardId!] ?? 0) + 1;
+      final requestCountByYard = <int, int>{};
+      for (final req in moveRequests) {
+        if (req.yardId != null) {
+          requestCountByYard[req.yardId!] =
+              (requestCountByYard[req.yardId!] ?? 0) + 1;
         }
       }
 
-      setState(() {
-        _moveRequests = moveRequests;
-        _yards = yards;
-        _requestsByYard = byYard;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _moveRequests = moveRequests;
+          _yardsById = yardsById;
+          _portNames = portNames;
+          _requestCountByYard = requestCountByYard;
+          _loading = false;
+        });
+        // Only animate on first load
+        _fadeController.forward(from: 0);
+        _slideController.forward(from: 0);
+      }
     } catch (e) {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading dashboard: ${e.toString()}'),
+            backgroundColor: _warningRed,
+          ),
+        );
+      }
     }
   }
 
+  /// Manual refresh — updates data silently, spins the refresh button icon,
+  /// and shows a brief confirmation snackbar when done.
   Future<void> _silentRefresh() async {
-    if (!mounted) return;
-    final portId = widget.session.portId;
-    if (portId == null) return;
+    if (_refreshing) return;
+    if (mounted) setState(() => _refreshing = true);
     try {
-      final results = await Future.wait([
-        _api.getContainersByPort(portId),
-        _api.getYards(portId),
-      ]);
-      final allContainers = results[0] as List<ContainerModel>;
-      final yards = results[1] as List<Yard>;
+      final driverPortId = widget.session.portId;
+      if (driverPortId == null) return;
+
+      final containers = await _api.getContainersByPort(driverPortId);
+      final yards = await _api.getYards(driverPortId);
+      final yardsById = <int, Yard>{
+        for (final yard in yards) yard.yardId: yard,
+      };
+
       final moveRequests =
-          allContainers.where((c) => c.locationStatusId == 3).toList()
-            ..sort((a, b) {
-              final da = a.moveRequestDate;
-              final db = b.moveRequestDate;
-              if (da == null && db == null) {
-                return a.containerId.compareTo(b.containerId);
-              }
-              if (da == null) return 1;
-              if (db == null) return -1;
-              return da.compareTo(db);
-            });
-      final Map<int, int> byYard = {};
-      for (final c in moveRequests) {
-        if (c.yardId != null) byYard[c.yardId!] = (byYard[c.yardId!] ?? 0) + 1;
+          containers.where((c) => c.locationStatusId == 3).toList()..sort(
+            (a, b) =>
+                (a.moveRequestDate ?? '').compareTo(b.moveRequestDate ?? ''),
+          );
+
+      final requestCountByYard = <int, int>{};
+      for (final req in moveRequests) {
+        if (req.yardId != null) {
+          requestCountByYard[req.yardId!] =
+              (requestCountByYard[req.yardId!] ?? 0) + 1;
+        }
       }
-      if (!mounted) return;
-      setState(() {
-        _moveRequests = moveRequests;
-        _yards = yards;
-        _requestsByYard = byYard;
-      });
-    } catch (_) {}
+
+      if (mounted) {
+        setState(() {
+          _moveRequests = moveRequests;
+          _yardsById = yardsById;
+          _requestCountByYard = requestCountByYard;
+          _refreshing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 18),
+                SizedBox(width: 10),
+                Text(
+                  'Dashboard refreshed',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: _primaryGreen,
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => _refreshing = false);
+    }
   }
 
-  List<ContainerModel> get _filtered {
+  List<ContainerModel> get _filteredRequests {
     if (_searchQuery.isEmpty) return _moveRequests;
-    final q = _searchQuery.toLowerCase();
-    return _moveRequests
-        .where((c) => c.containerNumber.toLowerCase().contains(q))
-        .toList();
+    final query = _searchQuery.toLowerCase();
+    return _moveRequests.where((c) {
+      return c.containerNumber.toLowerCase().contains(query) ||
+          (c.containerDesc?.toLowerCase().contains(query) ?? false);
+    }).toList();
   }
 
-  int get _yardsWithRequests =>
-      _requestsByYard.values.where((v) => v > 0).length;
-
-  void _logout() {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const LandingScreen()),
-      (_) => false,
-    );
-  }
-
-  Future<void> _confirmRequest(ContainerModel c) async {
+  Future<void> _confirmMoveRequest(ContainerModel container) async {
     try {
-      await _api.confirmMoveRequest(c.containerId);
-      // Use silent refresh — no loading overlay, no flicker
-      await _silentRefresh();
+      // Show loading dialog
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(color: _primaryGreen),
+        ),
+      );
+
+      // Call API to confirm move request (sets locationStatusId to 1)
+      await _api.confirmMoveRequest(container.containerId);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      // Reload data to refresh the list
+      await _loadData();
+
+      // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${c.containerNumber} confirmed — now In Yard'),
-            backgroundColor: AppColors.green,
+            content: Text(
+              'Move request confirmed for ${container.containerNumber}',
+            ),
+            backgroundColor: _successGreen,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
     } catch (e) {
+      // Close loading dialog if still open
+      if (mounted) Navigator.of(context).pop();
+
+      // Show error message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error confirming request: ${e.toString()}'),
+            backgroundColor: _warningRed,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
         );
       }
     }
+  }
+
+  String get _currentDate {
+    final now = DateTime.now();
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[now.month - 1]} ${now.day}, ${now.year}';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: _background,
       body: Column(
         children: [
-          _buildHeader(),
+          _buildModernHeader(),
           Expanded(
             child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(color: AppColors.yellow),
-                  )
-                : _buildBody(),
+                ? _buildLoadingState()
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildWelcomeCard(),
+                        const SizedBox(height: 24),
+                        _buildStatisticsCards(),
+                        const SizedBox(height: 24),
+                        _buildAssignedYardsSection(),
+                        const SizedBox(height: 24),
+                        _buildDriverTipsCard(),
+                        const SizedBox(height: 24),
+                        _buildMoveRequestsPanel(),
+                        const SizedBox(height: 32),
+                        _buildFooter(),
+                      ],
+                    ),
+                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHeader() {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MODERN HEADER
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildModernHeader() {
     return Container(
-      width: double.infinity,
-      color: AppColors.yellow,
-      padding: const EdgeInsets.fromLTRB(24, 40, 24, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+      decoration: const BoxDecoration(color: _primaryGreen),
       child: Row(
         children: [
-          Image.asset(
-            'assets/gothong_logo.png',
-            height: 36,
-            fit: BoxFit.contain,
-          ),
-          const SizedBox(width: 12),
+          // Company Logo
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
-              color: AppColors.green,
-              borderRadius: BorderRadius.circular(20),
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: const Text(
-              'Logged in as Driver',
-              style: TextStyle(
-                color: AppColors.yellow,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Image.asset(
+                  'assets/gothong_logo.png',
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
           ),
-          const Spacer(),
-          TextButton.icon(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout, size: 16, color: AppColors.green),
-            label: const Text(
-              'Logout',
-              style: TextStyle(
-                color: AppColors.green,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+          const SizedBox(width: 14),
 
-  Widget _buildBody() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Welcome: ${widget.session.fullName}',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textDark,
+          // Company name
+          const Text(
+            'Gothong Southern',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            widget.session.portDesc ?? 'Port ${widget.session.portId ?? "-"}',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          const SizedBox(width: 16),
+
+          // Status Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                const Text(
+                  'Driver Portal',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 20),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Left column
-              Expanded(
-                flex: 4,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+
+          const Spacer(),
+
+          // Notification Bell
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Stack(
+              children: [
+                const Center(
+                  child: Icon(
+                    Icons.notifications_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: _scarletRed,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // Refresh Button
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _refreshing ? null : _silentRefresh,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
                   children: [
-                    _buildStatCards(),
-                    const SizedBox(height: 24),
-                    _buildYardsSection(),
+                    _refreshing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                _primaryGreen,
+                              ),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.refresh,
+                            color: _primaryGreen,
+                            size: 16,
+                          ),
+                    const SizedBox(width: 7),
+                    Text(
+                      _refreshing ? 'Refreshing...' : 'Refresh',
+                      style: const TextStyle(
+                        color: _primaryGreen,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(width: 24),
-              // Right column — move request list
-              Expanded(flex: 5, child: _buildRequestList()),
-            ],
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // Logout Button
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LandingScreen()),
+                (_) => false,
+              ),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.4),
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.white, size: 16),
+                    SizedBox(width: 7),
+                    Text(
+                      'Logout',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatCards() {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // WELCOME CARD
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildWelcomeCard() {
+    return FadeTransition(
+      opacity: _fadeController,
+      child: Container(
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: _primaryGreen,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            // Avatar
+            Container(
+              width: 66,
+              height: 66,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(Icons.person, size: 34, color: Colors.white),
+            ),
+            const SizedBox(width: 20),
+
+            // Welcome Text
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Welcome Back, ',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                      Text(
+                        widget.session.fullName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text('👋', style: TextStyle(fontSize: 18)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on,
+                        color: Colors.white,
+                        size: 15,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        widget.session.portDesc ?? 'Cebu Port',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 18),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.circle, color: Colors.white, size: 7),
+                            SizedBox(width: 5),
+                            Text(
+                              'Active Driver',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 18),
+                      const Icon(
+                        Icons.calendar_today,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        _currentDate,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Shipping icon accent
+            Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.local_shipping,
+                size: 46,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STATISTICS CARDS
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildStatisticsCards() {
     return Row(
       children: [
         Expanded(
-          child: _StatCard(
-            label: 'Total Move\nRequests',
+          child: _buildStatCard(
+            icon: Icons.assignment_outlined,
+            label: 'Total Move Requests',
             value: '${_moveRequests.length}',
-            icon: Icons.pending_actions,
-            color: Colors.blue,
+            trend: 'Pending',
+            iconBg: _primaryGreen,
+            iconColor: Colors.white,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 20),
         Expanded(
-          child: _StatCard(
-            label: 'Yards with\nMove Requests',
-            value: '$_yardsWithRequests',
+          child: _buildStatCard(
             icon: Icons.warehouse_outlined,
-            color: AppColors.green,
+            label: 'Yards With Move Requests',
+            value: '${_requestCountByYard.length}',
+            trend: 'Active',
+            iconBg: _primaryGreen,
+            iconColor: Colors.white,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildYardsSection() {
-    final yardsWithRequests = _yards
-        .where((y) => (_requestsByYard[y.yardId] ?? 0) > 0)
-        .toList();
+  Widget _buildStatCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required String trend,
+    required Color iconBg,
+    required Color iconColor,
+  }) {
+    return SlideTransition(
+      position: Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+          .animate(
+            CurvedAnimation(parent: _slideController, curve: Curves.easeOut),
+          ),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: _cardWhite,
+          borderRadius: BorderRadius.circular(16),
+          border: Border(left: BorderSide(color: iconBg, width: 4)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: iconBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 28),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w800,
+                      color: _textDark,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: _textLight,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: _primaryGreen,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                trend,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ASSIGNED YARDS SECTION
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildAssignedYardsSection() {
+    final yardsWithRequests = _requestCountByYard.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,98 +803,347 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
         const Text(
           'Shows Number',
           style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textDark,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: _textDark,
           ),
         ),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          constraints: const BoxConstraints(minHeight: 120),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.grey.shade300),
+        const SizedBox(height: 16),
+        if (yardsWithRequests.isEmpty)
+          _buildEmptyYardsCard()
+        else
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: yardsWithRequests.map((entry) {
+              final yard = _yardsById[entry.key];
+              if (yard == null) return const SizedBox.shrink();
+              return _buildYardCard(yard, entry.value);
+            }).toList(),
           ),
-          child: yardsWithRequests.isEmpty
-              ? const Center(
-                  child: Text(
-                    'No move requests in any yard',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                )
-              : Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: yardsWithRequests.map((yard) {
-                    final count = _requestsByYard[yard.yardId] ?? 0;
-                    return _YardRequestCard(
-                      yard: yard,
-                      requestCount: count,
-                      portName: widget.session.portDesc ?? '',
-                      portId: widget.session.portId ?? yard.portId,
-                      session: widget.session,
-                      onReturn: _loadData,
-                    );
-                  }).toList(),
-                ),
-        ),
       ],
     );
   }
 
-  Widget _buildRequestList() {
-    final containers = _filtered;
+  Widget _buildEmptyYardsCard() {
     return Container(
-      constraints: const BoxConstraints(minHeight: 400),
+      padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.blue, width: 2),
+        color: _cardWhite,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _textLight.withOpacity(0.2)),
+      ),
+      child: const Center(
+        child: Column(
+          children: [
+            Icon(Icons.warehouse_outlined, size: 48, color: _textLight),
+            SizedBox(height: 12),
+            Text(
+              'No yards with move requests',
+              style: TextStyle(color: _textLight, fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildYardCard(Yard yard, int requestCount) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DriverYardScreen(
+                  yard: yard,
+                  portId: yard.portId,
+                  portName: _portNames[yard.portId] ?? '',
+                  session: widget.session,
+                ),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            width: 280,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: _cardWhite,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _primaryGreen.withOpacity(0.2),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 15,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _primaryGreen,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.warehouse,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.circle, color: _primaryGreen, size: 8),
+                          SizedBox(width: 6),
+                          Text(
+                            'Active',
+                            style: TextStyle(
+                              color: _primaryGreen,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  _portNames[yard.portId] ?? '',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: _textLight,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Yard ${yard.yardNumber}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: _textDark,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _accent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.assignment, color: _accent, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        '$requestCount requests',
+                        style: const TextStyle(
+                          color: _accent,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => DriverYardScreen(
+                            yard: yard,
+                            portId: yard.portId,
+                            portName: _portNames[yard.portId] ?? '',
+                            session: widget.session,
+                          ),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryGreen,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.map, size: 18),
+                        SizedBox(width: 8),
+                        Text(
+                          'View Map',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DRIVER TIPS CARD
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildDriverTipsCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(12),
+        border: const Border(left: BorderSide(color: _primaryGreen, width: 5)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _primaryGreen,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.lightbulb, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Driver Tip',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: _primaryGreen,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  'Always verify container condition before confirming movement.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _textDark,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MOVE REQUESTS PANEL
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildMoveRequestsPanel() {
+    return Container(
+      decoration: BoxDecoration(
+        color: _cardWhite,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header with Search
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            padding: const EdgeInsets.all(24),
             child: Row(
               children: [
-                const Text(
-                  'List of Move Requests',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: AppColors.textDark,
+                const Expanded(
+                  child: Text(
+                    'List of Move Requests',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: _textDark,
+                    ),
                   ),
                 ),
-                const Spacer(),
-                SizedBox(
-                  width: 200,
+                // Modern Search Bar
+                Container(
+                  width: 280,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: _background,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: _textLight.withOpacity(0.2)),
+                  ),
                   child: TextField(
                     controller: _searchCtrl,
-                    onChanged: (v) => setState(() => _searchQuery = v),
+                    onChanged: (value) => setState(() => _searchQuery = value),
                     decoration: InputDecoration(
                       hintText: 'Search container...',
-                      hintStyle: const TextStyle(fontSize: 12),
-                      isDense: true,
-                      prefixIcon: const Icon(Icons.search, size: 16),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, size: 14),
-                              onPressed: () {
-                                _searchCtrl.clear();
-                                setState(() => _searchQuery = '');
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                      hintStyle: TextStyle(
+                        color: _textLight.withOpacity(0.6),
+                        fontSize: 14,
                       ),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: _textLight,
+                        size: 20,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: const Icon(
+                          Icons.filter_list,
+                          color: _textLight,
+                          size: 20,
+                        ),
+                        onPressed: () {},
+                      ),
+                      border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
+                        horizontal: 16,
+                        vertical: 12,
                       ),
                     ),
                   ),
@@ -416,14 +1151,30 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               ],
             ),
           ),
-          const Divider(height: 1),
-          if (containers.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(32),
+
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+          // Request List
+          if (_filteredRequests.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(60),
               child: Center(
-                child: Text(
-                  'No move requests',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.inbox_outlined,
+                      size: 64,
+                      color: _textLight.withOpacity(0.5),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No move requests found',
+                      style: TextStyle(
+                        color: _textLight.withOpacity(0.7),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             )
@@ -431,264 +1182,267 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: containers.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (ctx, i) => _MoveRequestTile(
-                c: containers[i],
-                onConfirm: () => _confirmRequest(containers[i]),
-              ),
+              itemCount: _filteredRequests.length,
+              separatorBuilder: (_, _) =>
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+              itemBuilder: (context, index) {
+                final container = _filteredRequests[index];
+                return _buildRequestCard(container);
+              },
             ),
         ],
       ),
     );
   }
-}
 
-// ── Stat Card ─────────────────────────────────────────────────────────────────
+  Widget _buildRequestCard(ContainerModel container) {
+    final isLaden = container.statusId == 1;
+    final isEmpty = container.statusId == 2;
 
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
+    final statusColor = isLaden
+        ? const Color(0xFF1565C0)
+        : isEmpty
+        ? _warningRed
+        : _textLight;
+    final statusBgColor = isLaden
+        ? const Color(0xFF1565C0).withValues(alpha: 0.1)
+        : isEmpty
+        ? _warningRed.withOpacity(0.1)
+        : _textLight.withOpacity(0.1);
+    final statusText = isLaden
+        ? 'Laden'
+        : isEmpty
+        ? 'Empty'
+        : 'Unknown';
 
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade300),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 28, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: Row(
+            children: [
+              // Container Icon
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _primaryGreen,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark,
+                child: const Icon(
+                  Icons.inventory_2_outlined,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+
+              // Container Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          container.containerNumber,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: _textDark,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _textLight.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            container.type ?? '20ft',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: _textLight,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.access_time,
+                          size: 14,
+                          color: _textLight,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Requested ${_getTimeAgo(container.moveRequestDate)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: _textLight,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          container.containerDesc ?? 'Food',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: _textLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              // Status Badge
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: statusBgColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  statusText,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: statusColor,
                   ),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+
+              // Confirm Button
+              ElevatedButton(
+                onPressed: () => _confirmMoveRequest(container),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _primaryGreen,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Confirm',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
-}
 
-// ── Yard Request Card ─────────────────────────────────────────────────────────
+  String _getTimeAgo(String? dateStr) {
+    if (dateStr == null) return 'recently';
+    try {
+      final date = DateTime.parse(dateStr);
+      final diff = DateTime.now().difference(date);
+      if (diff.inMinutes < 60) return '${diff.inMinutes} mins ago';
+      if (diff.inHours < 24) return '${diff.inHours} hours ago';
+      return '${diff.inDays} days ago';
+    } catch (_) {
+      return 'recently';
+    }
+  }
 
-class _YardRequestCard extends StatelessWidget {
-  final Yard yard;
-  final int requestCount;
-  final String portName;
-  final int portId;
-  final Session session;
-  final VoidCallback onReturn;
-
-  const _YardRequestCard({
-    required this.yard,
-    required this.requestCount,
-    required this.portName,
-    required this.portId,
-    required this.session,
-    required this.onReturn,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FOOTER
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildFooter() {
     return Container(
-      width: 130,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(vertical: 24),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.shade300, width: 1.5),
+        border: Border(top: BorderSide(color: _textLight.withOpacity(0.2))),
       ),
       child: Column(
         children: [
-          Icon(Icons.warehouse, size: 28, color: Colors.blue.shade600),
-          const SizedBox(height: 6),
-          Text(
-            '$portName\nYard ${yard.yardNumber}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textDark,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              '$requestCount request${requestCount != 1 ? "s" : ""}',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue.shade700,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => DriverYardScreen(
-                    yard: yard,
-                    portId: portId,
-                    portName: portName,
-                    session: session,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: _primaryGreen,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Image.asset(
+                      'assets/gothong_logo.png',
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
-              );
-              onReturn();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.green,
-                borderRadius: BorderRadius.circular(4),
               ),
-              child: const Text(
-                'View Map',
+              const SizedBox(width: 12),
+              const Text(
+                'Gothong Southern Container Management System',
                 style: TextStyle(
-                  color: AppColors.yellow,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _textDark,
                 ),
               ),
-            ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Driver Portal',
+            style: TextStyle(fontSize: 12, color: _textLight.withOpacity(0.7)),
           ),
         ],
       ),
     );
   }
-}
 
-// ── Move Request Tile ─────────────────────────────────────────────────────────
-
-class _MoveRequestTile extends StatelessWidget {
-  final ContainerModel c;
-  final VoidCallback onConfirm;
-
-  const _MoveRequestTile({required this.c, required this.onConfirm});
-
-  @override
-  Widget build(BuildContext context) {
-    final typeLabel = c.containerSizeId == 1
-        ? '20ft'
-        : c.containerSizeId == 2
-        ? '40ft'
-        : (c.type ?? '-');
-    final statusLabel = c.statusId == 1 ? 'Laden' : 'Empty';
-    final statusColor = c.statusId == 1 ? AppColors.laden : AppColors.empty;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LOADING STATE
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: const BoxDecoration(
-              color: Colors.blue,
-              shape: BoxShape.circle,
+          SizedBox(
+            width: 60,
+            height: 60,
+            child: CircularProgressIndicator(
+              strokeWidth: 5,
+              valueColor: const AlwaysStoppedAnimation<Color>(_primaryGreen),
+              backgroundColor: _primaryGreen.withOpacity(0.1),
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  c.containerNumber,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-                if (c.containerDesc != null && c.containerDesc!.isNotEmpty)
-                  Text(
-                    c.containerDesc!,
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            typeLabel,
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              statusLabel,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: statusColor,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          ElevatedButton(
-            onPressed: onConfirm,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.green,
-              foregroundColor: AppColors.yellow,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-            child: const Text(
-              'Confirm',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+          const SizedBox(height: 24),
+          const Text(
+            'Loading dashboard...',
+            style: TextStyle(
+              fontSize: 16,
+              color: _textLight,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],

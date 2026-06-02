@@ -4,9 +4,24 @@ import '../models/container_model.dart';
 import '../models/session.dart';
 import '../models/yard.dart';
 import '../widgets/container_holding_area.dart';
-import '../theme/app_theme.dart';
 import 'yard_screen.dart';
 
+// ── Brand tokens (Gothong Southern) ──────────────────────────────────────────
+class _C {
+  static const navBg = Color(0xFF0B3D0F); // dark nav green
+  static const green = Color(0xFF0B560D); // Lincoln Green (primary)
+  static const greenLight = Color(0xFF98F29B); // Live Green (secondary)
+  static const yellow = Color(0xFFFFD300); // Cyber Yellow (brand accent)
+  static const red = Color(0xFFFF2800); // Scarlet Red
+  static const bg = Color(0xFFF0F2EE); // page background
+  static const surface = Color(0xFFFFFFFF); // card surface
+  static const border = Color(0xFFE8EAE4); // subtle border
+  static const textD = Color(0xFF1A1A0A); // dark text
+  static const textM = Color(0xFF4A4A4A); // medium text
+  static const textL = Color(0xFF757575); // light text
+}
+
+// ── PortManagementScreen ──────────────────────────────────────────────────────
 class PortManagementScreen extends StatefulWidget {
   final int portId;
   final String portName;
@@ -71,9 +86,12 @@ class _PortManagementScreenState extends State<PortManagementScreen>
       await _loadAll();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to create yard: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create yard: $e'),
+            backgroundColor: _C.red,
+          ),
+        );
       }
     }
   }
@@ -93,7 +111,7 @@ class _PortManagementScreenState extends State<PortManagementScreen>
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Yard ${yard.yardNumber} deleted.'),
-                backgroundColor: AppColors.green,
+                backgroundColor: _C.green,
               ),
             );
           } else {
@@ -102,7 +120,7 @@ class _PortManagementScreenState extends State<PortManagementScreen>
                 content: Text(
                   'Cannot delete Yard ${yard.yardNumber}: it still has containers.',
                 ),
-                backgroundColor: Colors.red.shade700,
+                backgroundColor: _C.red,
                 duration: const Duration(seconds: 4),
               ),
             );
@@ -132,53 +150,43 @@ class _PortManagementScreenState extends State<PortManagementScreen>
     final container = await _api.searchContainer(q);
     if (!mounted) return;
 
-    // Container not found at all
     if (container == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Container "$q" not found.'),
-          backgroundColor: Colors.red.shade700,
+          backgroundColor: _C.red,
         ),
       );
       return;
     }
-
-    // Container exists but belongs to a different port
     if (container.currentPortId != widget.portId) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '"$q" is not in ${widget.portName}. '
-            'Please search within the correct port.',
+            '"$q" is not in ${widget.portName}. Search within the correct port.',
           ),
-          backgroundColor: Colors.orange.shade800,
+          backgroundColor: _C.red,
           duration: const Duration(seconds: 4),
         ),
       );
       return;
     }
-
-    // Container found but not placed in any yard
     if (container.yardId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             '"$q" is in ${widget.portName} but not placed in a yard.',
           ),
-          backgroundColor: Colors.orange.shade700,
+          backgroundColor: _C.red,
         ),
       );
       return;
     }
-
-    // Blink the yard card
     setState(() => _blinkingYardId = container.yardId);
-    // Resolve names
     final yard = _yards.firstWhere(
       (y) => y.yardId == container.yardId,
       orElse: () => _yards.first,
     );
-    // Show popup
     showDialog(
       context: context,
       builder: (_) => _ContainerLocationDialog(
@@ -194,80 +202,31 @@ class _PortManagementScreenState extends State<PortManagementScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surface,
-      appBar: AppBar(
-        backgroundColor: AppColors.yellow,
-        foregroundColor: AppColors.textDark,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.portName,
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-                color: AppColors.textDark,
-              ),
-            ),
-            const Text(
-              'Container Management',
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 11,
-                color: AppColors.green,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          // Search container
-          SizedBox(
-            width: 220,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-              child: TextField(
-                controller: _searchCtrl,
-                decoration: InputDecoration(
-                  hintText: 'Search container...',
-                  hintStyle: const TextStyle(fontSize: 12),
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
-                  ),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.search, size: 18),
-                    onPressed: _searchContainer,
-                  ),
-                ),
-                onSubmitted: (_) => _searchContainer(),
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _loadAll,
-            tooltip: 'Refresh',
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
+      backgroundColor: _C.bg,
+      appBar: _buildAppBar(),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.yellow,
-                strokeWidth: 3,
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: CircularProgressIndicator(
+                      color: _C.green,
+                      strokeWidth: 4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Loading ${widget.portName}...',
+                    style: const TextStyle(
+                      color: _C.textL,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             )
           : Padding(
@@ -280,151 +239,310 @@ class _PortManagementScreenState extends State<PortManagementScreen>
                     containers: _containers,
                     onRefresh: _loadAll,
                   ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Section header
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.green,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.warehouse_rounded,
-                                color: AppColors.yellow,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 10),
-                              const Text(
-                                'YARDS',
-                                style: TextStyle(
-                                  color: AppColors.yellow,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 14,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                              const Spacer(),
-                              GestureDetector(
-                                onTap: _addYard,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.yellow,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.add,
-                                        size: 14,
-                                        color: AppColors.textDark,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'ADD YARD',
-                                        style: TextStyle(
-                                          color: AppColors.textDark,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              GestureDetector(
-                                onTap: _showDeleteYardDialog,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.yellow,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text(
-                                    '${_yards.length}',
-                                    style: const TextStyle(
-                                      color: AppColors.textDark,
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Expanded(
-                          child: _yards.isEmpty
-                              ? Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.warehouse_outlined,
-                                        size: 64,
-                                        color: AppColors.yellow.withOpacity(
-                                          0.4,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      const Text(
-                                        'No yards found',
-                                        style: TextStyle(
-                                          color: AppColors.textGrey,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : GridView.builder(
-                                  gridDelegate:
-                                      const SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: 3,
-                                        crossAxisSpacing: 14,
-                                        mainAxisSpacing: 14,
-                                        childAspectRatio: 1.1,
-                                      ),
-                                  itemCount: _yards.length,
-                                  itemBuilder: (ctx, i) {
-                                    final yard = _yards[i];
-                                    return _YardCard(
-                                      yard: yard,
-                                      onTap: () => _openYard(yard),
-                                      isBlinking:
-                                          _blinkingYardId == yard.yardId,
-                                      blinkCtrl: _blinkCtrl,
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildYardsPanel()),
                 ],
               ),
             ),
     );
   }
+
+  PreferredSizeWidget _buildAppBar() {
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(60),
+      child: Container(
+        color: _C.navBg,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: SafeArea(
+          child: Row(
+            children: [
+              // Back button
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => Navigator.pop(context),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Port icon
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.anchor, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              // Title
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.portName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const Text(
+                    'Container Management',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              // Search bar
+              Container(
+                width: 220,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: TextField(
+                  controller: _searchCtrl,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Search container...',
+                    hintStyle: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 12,
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: InputBorder.none,
+                    suffixIcon: IconButton(
+                      icon: const Icon(
+                        Icons.search,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      onPressed: _searchContainer,
+                      padding: EdgeInsets.zero,
+                    ),
+                  ),
+                  onSubmitted: (_) => _searchContainer(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Refresh button
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: _loadAll,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.refresh_rounded, color: _C.green, size: 16),
+                        SizedBox(width: 6),
+                        Text(
+                          'Refresh',
+                          style: TextStyle(
+                            color: _C.green,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildYardsPanel() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Section header
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: _C.green,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.warehouse_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'YARDS',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${_yards.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              // Add Yard button
+              _headerBtn(icon: Icons.add, label: 'Add Yard', onTap: _addYard),
+              const SizedBox(width: 8),
+              // Delete Yard button
+              _headerBtn(
+                icon: Icons.delete_outline,
+                label: 'Delete Yard',
+                onTap: _showDeleteYardDialog,
+                danger: true,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: _yards.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE8F5E9),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.warehouse_outlined,
+                          size: 48,
+                          color: _C.green,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No yards found',
+                        style: TextStyle(
+                          color: _C.textM,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Tap "Add Yard" to create one',
+                        style: TextStyle(color: _C.textL, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                )
+              : GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 14,
+                    childAspectRatio: 1.1,
+                  ),
+                  itemCount: _yards.length,
+                  itemBuilder: (ctx, i) {
+                    final yard = _yards[i];
+                    return _YardCard(
+                      yard: yard,
+                      onTap: () => _openYard(yard),
+                      isBlinking: _blinkingYardId == yard.yardId,
+                      blinkCtrl: _blinkCtrl,
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _headerBtn({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool danger = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: danger ? _C.red.withValues(alpha: 0.15) : _C.green,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: Colors.white),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
+// ── Yard Card ─────────────────────────────────────────────────────────────────
 class _YardCard extends StatelessWidget {
   final Yard yard;
   final VoidCallback? onTap;
@@ -440,91 +558,90 @@ class _YardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
-    Widget card = GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: enabled
-                ? AppColors.yellow
-                : AppColors.textGrey.withOpacity(0.3),
-            width: 2,
+    Widget card = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _C.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: enabled ? _C.green : _C.border,
+              width: enabled ? 2 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-          borderRadius: BorderRadius.circular(14),
-          color: enabled ? AppColors.white : const Color(0xFFF5F5F5),
-          boxShadow: enabled
-              ? [
-                  BoxShadow(
-                    color: AppColors.yellow.withOpacity(0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+          child: Column(
+            children: [
+              // Top accent bar
+              Container(
+                height: 5,
+                decoration: BoxDecoration(
+                  color: enabled ? _C.green : _C.border,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(10),
                   ),
-                ]
-              : null,
-        ),
-        child: Column(
-          children: [
-            Container(
-              height: 5,
-              decoration: BoxDecoration(
-                color: enabled ? AppColors.yellow : Colors.grey[300],
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
                 ),
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: enabled
-                    ? CustomPaint(
-                        painter: _MiniYardPainter(),
-                        size: Size.infinite,
-                      )
-                    : Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.lock_outline_rounded,
-                              color: Colors.grey[400],
-                              size: 28,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'No layout',
-                              style: TextStyle(
-                                fontSize: 9,
-                                color: Colors.grey[400],
+              // Mini yard preview
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: enabled
+                      ? CustomPaint(
+                          painter: _MiniYardPainter(),
+                          size: Size.infinite,
+                        )
+                      : Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.lock_outline_rounded,
+                                color: _C.textL,
+                                size: 26,
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 4),
+                              const Text(
+                                'No layout',
+                                style: TextStyle(fontSize: 9, color: _C.textL),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-              ),
-            ),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: enabled ? AppColors.yellow : Colors.grey[200],
-                borderRadius: const BorderRadius.vertical(
-                  bottom: Radius.circular(12),
                 ),
               ),
-              child: Text(
-                'YARD ${yard.yardNumber}',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12,
-                  color: enabled ? AppColors.textDark : AppColors.textGrey,
-                  letterSpacing: 0.5,
+              // Bottom label
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: enabled ? _C.green : _C.border,
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(10),
+                  ),
+                ),
+                child: Text(
+                  'YARD ${yard.yardNumber}',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                    color: enabled ? Colors.white : _C.textL,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -534,10 +651,10 @@ class _YardCard extends StatelessWidget {
         animation: blinkCtrl!,
         builder: (_, _) => Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.amber.withAlpha((180 * blinkCtrl!.value).round()),
+                color: _C.green.withValues(alpha: 0.5 * blinkCtrl!.value),
                 blurRadius: 16 * blinkCtrl!.value,
                 spreadRadius: 4 * blinkCtrl!.value,
               ),
@@ -551,20 +668,20 @@ class _YardCard extends StatelessWidget {
   }
 }
 
+// ── Mini Yard Painter ─────────────────────────────────────────────────────────
 class _MiniYardPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.green.withOpacity(0.5)
+    final stroke = Paint()
+      ..color = _C.green.withValues(alpha: 0.45)
       ..strokeWidth = 0.8
       ..style = PaintingStyle.stroke;
-
-    final fillPaint = Paint()
-      ..color = AppColors.yellow.withOpacity(0.08)
+    final fill = Paint()
+      ..color = _C.green.withValues(alpha: 0.06)
       ..style = PaintingStyle.fill;
 
-    double cellW = size.width / 8;
-    double cellH = size.height / 6;
+    final cellW = size.width / 8;
+    final cellH = size.height / 6;
 
     for (int row = 0; row < 2; row++) {
       for (int col = 0; col < 7; col++) {
@@ -574,8 +691,8 @@ class _MiniYardPainter extends CustomPainter {
           cellW - 1,
           cellH - 1,
         );
-        canvas.drawRect(rect, fillPaint);
-        canvas.drawRect(rect, paint);
+        canvas.drawRect(rect, fill);
+        canvas.drawRect(rect, stroke);
       }
     }
     for (int row = 3; row < 6; row++) {
@@ -586,8 +703,8 @@ class _MiniYardPainter extends CustomPainter {
           cellW - 1,
           cellH - 1,
         );
-        canvas.drawRect(rect, fillPaint);
-        canvas.drawRect(rect, paint);
+        canvas.drawRect(rect, fill);
+        canvas.drawRect(rect, stroke);
       }
     }
   }
@@ -596,6 +713,7 @@ class _MiniYardPainter extends CustomPainter {
   bool shouldRepaint(_) => false;
 }
 
+// ── Container Location Dialog ─────────────────────────────────────────────────
 class _ContainerLocationDialog extends StatefulWidget {
   final ContainerModel container;
   final Yard yard;
@@ -630,9 +748,7 @@ class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
   Future<void> _resolveLabels() async {
     final c = widget.container;
     if (c.yardId == null || c.blockId == null) return;
-
     try {
-      // Fetch all blocks for this yard to resolve the block name
       final blocks = await _api.getBlocks(c.yardId!);
       final block = blocks.where((b) => b.blockId == c.blockId).firstOrNull;
       if (block != null && mounted) {
@@ -640,14 +756,10 @@ class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
           () => _blockLabel = block.blockName ?? 'Block ${block.blockNumber}',
         );
       }
-
-      // Fetch bays for this block to resolve the bay number
       final bays = await _api.getBays(c.blockId!);
       final bay = bays.where((b) => b.bayId == c.bayId).firstOrNull;
       if (bay != null && mounted) {
         setState(() => _bayLabel = bay.bayNumber);
-
-        // Fetch rows for this bay to resolve the row number
         final rows = await _api.getRows(bay.bayId);
         final row = rows.where((r) => r.rowId == c.rowId).firstOrNull;
         if (row != null && mounted) {
@@ -657,18 +769,18 @@ class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
     } catch (_) {}
   }
 
-  Widget _row(String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
+  Widget _infoRow(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
     child: Row(
       children: [
         SizedBox(
-          width: 90,
+          width: 80,
           child: Text(
             label,
             style: const TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 13,
-              color: AppColors.textDark,
+              color: _C.textM,
             ),
           ),
         ),
@@ -677,8 +789,8 @@ class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
             value,
             style: const TextStyle(
               fontSize: 13,
-              color: AppColors.green,
-              fontWeight: FontWeight.w600,
+              color: _C.green,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
@@ -691,7 +803,7 @@ class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
     final container = widget.container;
     final yard = widget.yard;
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: SizedBox(
         width: 320,
         child: Column(
@@ -702,21 +814,17 @@ class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               decoration: const BoxDecoration(
-                color: AppColors.green,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                color: _C.green,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.location_on,
-                    color: AppColors.yellow,
-                    size: 18,
-                  ),
+                  const Icon(Icons.location_on, color: Colors.white, size: 18),
                   const SizedBox(width: 8),
                   const Text(
                     'Container Location',
                     style: TextStyle(
-                      color: AppColors.yellow,
+                      color: Colors.white,
                       fontWeight: FontWeight.w900,
                       fontSize: 14,
                     ),
@@ -726,7 +834,7 @@ class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
                     onTap: () => Navigator.pop(context),
                     child: const Icon(
                       Icons.close,
-                      color: AppColors.yellow,
+                      color: Colors.white70,
                       size: 18,
                     ),
                   ),
@@ -738,7 +846,6 @@ class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Container number badge
                   Center(
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -746,7 +853,7 @@ class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.yellow,
+                        color: _C.green,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -754,19 +861,19 @@ class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
                         style: const TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 16,
-                          color: AppColors.textDark,
+                          color: Colors.white,
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Divider(),
+                  const Divider(color: _C.border),
                   const SizedBox(height: 8),
-                  _row('Yard:', 'Yard ${yard.yardNumber}'),
-                  _row('Block:', _blockLabel),
-                  _row('Bay:', _bayLabel),
-                  _row('Row:', _rowLabel),
-                  _row(
+                  _infoRow('Yard:', 'Yard ${yard.yardNumber}'),
+                  _infoRow('Block:', _blockLabel),
+                  _infoRow('Bay:', _bayLabel),
+                  _infoRow('Row:', _rowLabel),
+                  _infoRow(
                     'Tier:',
                     container.tier != null ? '${container.tier}' : '-',
                   ),
@@ -792,15 +899,16 @@ class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
                       icon: const Icon(Icons.location_searching, size: 16),
                       label: const Text(
                         'View in Yard',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.green,
-                        foregroundColor: AppColors.yellow,
+                        backgroundColor: _C.green,
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 0,
                       ),
                     ),
                   ),
@@ -815,17 +923,15 @@ class _ContainerLocationDialogState extends State<_ContainerLocationDialog> {
 }
 
 // ── Delete Yard Dialog ────────────────────────────────────────────────────────
-
 class _DeleteYardDialog extends StatelessWidget {
   final List<Yard> yards;
   final void Function(Yard yard) onDelete;
-
   const _DeleteYardDialog({required this.yards, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: SizedBox(
         width: 340,
         child: Column(
@@ -836,21 +942,21 @@ class _DeleteYardDialog extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               decoration: const BoxDecoration(
-                color: AppColors.green,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                color: _C.green,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
               ),
               child: Row(
                 children: [
                   const Icon(
                     Icons.delete_outline,
-                    color: AppColors.yellow,
+                    color: Colors.white,
                     size: 18,
                   ),
                   const SizedBox(width: 8),
                   const Text(
                     'Delete a Yard',
                     style: TextStyle(
-                      color: AppColors.yellow,
+                      color: Colors.white,
                       fontWeight: FontWeight.w900,
                       fontSize: 14,
                     ),
@@ -860,7 +966,7 @@ class _DeleteYardDialog extends StatelessWidget {
                     onTap: () => Navigator.pop(context),
                     child: const Icon(
                       Icons.close,
-                      color: AppColors.yellow,
+                      color: Colors.white70,
                       size: 18,
                     ),
                   ),
@@ -871,11 +977,11 @@ class _DeleteYardDialog extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Text(
                 'Select a yard to delete. Yards with active containers cannot be deleted.',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                style: const TextStyle(fontSize: 12, color: _C.textL),
                 textAlign: TextAlign.center,
               ),
             ),
-            const Divider(height: 16),
+            const Divider(color: _C.border, height: 16),
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 320),
               child: ListView.separated(
@@ -885,94 +991,113 @@ class _DeleteYardDialog extends StatelessWidget {
                 separatorBuilder: (_, _) => const SizedBox(height: 6),
                 itemBuilder: (ctx, i) {
                   final yard = yards[i];
-                  return ListTile(
-                    shape: RoundedRectangleBorder(
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: _C.surface,
                       borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: Colors.grey.shade200),
+                      border: Border.all(color: _C.border),
                     ),
-                    tileColor: Colors.grey.shade50,
-                    leading: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: AppColors.yellow.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
+                    child: ListTile(
+                      leading: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: _C.green.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.warehouse_outlined,
+                          color: _C.green,
+                          size: 18,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.warehouse_outlined,
-                        color: AppColors.green,
-                        size: 18,
+                      title: Text(
+                        'Yard ${yard.yardNumber}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: _C.textD,
+                        ),
                       ),
-                    ),
-                    title: Text(
-                      'Yard ${yard.yardNumber}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                    trailing: GestureDetector(
-                      onTap: () => showDialog(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          title: const Text('Confirm Delete'),
-                          content: Text(
-                            'Are you sure you want to delete Yard ${yard.yardNumber}? '
-                            'This cannot be undone.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancel'),
+                      trailing: GestureDetector(
+                        onTap: () => showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            ElevatedButton(
-                              onPressed: () {
-                                Navigator.pop(context); // close confirm
-                                onDelete(yard);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red.shade600,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                            title: const Text(
+                              'Confirm Delete',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: _C.textD,
+                              ),
+                            ),
+                            content: Text(
+                              'Are you sure you want to delete Yard ${yard.yardNumber}? '
+                              'This cannot be undone.',
+                              style: const TextStyle(color: _C.textM),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text(
+                                  'Cancel',
+                                  style: TextStyle(color: _C.textL),
                                 ),
                               ),
-                              child: const Text('Delete'),
-                            ),
-                          ],
-                        ),
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.shade200),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.delete_outline,
-                              size: 13,
-                              color: Colors.red.shade600,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Delete',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.red.shade600,
+                              ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  onDelete(yard);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _C.red,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: const Text(
+                                  'Delete',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
                               ),
+                            ],
+                          ),
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _C.red.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: _C.red.withValues(alpha: 0.3),
                             ),
-                          ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.delete_outline,
+                                size: 13,
+                                color: _C.red,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Delete',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: _C.red,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

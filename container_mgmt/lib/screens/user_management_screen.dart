@@ -1087,20 +1087,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                                     existing: user,
                                                   ),
                                           ),
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.delete_outline_rounded,
-                                              size: 20,
+                                          if (!user.isDeleted)
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.delete_outline_rounded,
+                                                size: 20,
+                                              ),
+                                              color: AppColors.red,
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(
+                                                minWidth: 36,
+                                                minHeight: 36,
+                                              ),
+                                              onPressed: () =>
+                                                  _confirmDelete(user),
                                             ),
-                                            color: AppColors.red,
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(
-                                              minWidth: 36,
-                                              minHeight: 36,
-                                            ),
-                                            onPressed: () =>
-                                                _confirmDelete(user),
-                                          ),
                                         ],
                                       ),
                                     ),

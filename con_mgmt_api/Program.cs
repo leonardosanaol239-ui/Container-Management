@@ -74,14 +74,15 @@ Console.WriteLine($"Connection: {connectionString?.Substring(0, Math.Min(50, con
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// Configure CORS
+// Configure CORS — must allow all localhost origins for Flutter web dev
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.SetIsOriginAllowed(_ => true) // allow any origin including localhost:*
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
 
@@ -93,18 +94,21 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     try
     {
-        await dbContext.Database.CanConnectAsync();
+        var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await dbContext.Database.CanConnectAsync(cts.Token);
         Console.WriteLine("✓ Database connection successful!");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"✗ Database connection failed: {ex.Message}");
-        throw;
+        Console.WriteLine($"⚠ Database connection check failed: {ex.Message}");
+        Console.WriteLine("  Server will start anyway — DB may become available later.");
+        // Do NOT throw — allow server to start regardless
     }
 }
 
 // Configure the HTTP request pipeline
 // Enable Swagger in all environments for testing
+app.UseCors();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -112,9 +116,8 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-app.UseCors();
 app.UseMiddleware<GlobalExceptionMiddleware>();
-app.UseStaticFiles(); // serves from wwwroot automatically via IWebHostEnvironment
+app.UseStaticFiles();
 app.UseAuthorization();
 app.MapControllers();
 

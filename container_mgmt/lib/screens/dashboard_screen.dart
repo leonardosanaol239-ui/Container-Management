@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
@@ -74,9 +74,24 @@ class _DashboardScreenState extends State<DashboardScreen>
   int _total = 0, _laden = 0, _empty = 0, _ports = 0;
   int _mtFood = 0, _fsl = 0, _stripping = 0, _mtNonFood = 0;
   int _inTransit = 0, _movedOut = 0;
+  // New dashboard widgets data
+  int _inboundCount = 0, _outboundCount = 0;
+  int _emptyFoodGrade = 0,
+      _emptyNonFoodGrade = 0,
+      _emptyRepairable = 0,
+      _emptyFrmd = 0;
+  int _ladenTotal = 0, _tempoGrounding = 0;
+  int _yardIn = 0, _yardOut = 0;
+  // ── Dashboard search & filter state ─────────────────────────────────────────
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+  String _filterPort = 'All'; // 'All' or specific portDesc
+  String _filterStatus = 'All'; // 'All' | 'Laden' | 'Empty' | 'In Transit'
+  List<Port> _portList = [];
   bool _loading = true;
   List<ContainerModel> _inYard = [];
-  List<Port> _portList = [];
+  List<ContainerModel> _allContainers =
+      []; // ALL containers including moved-out
   int _navIndex = 0;
   bool _collapsed = false;
   late AnimationController _statsAnim;
@@ -121,6 +136,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   void dispose() {
     _statsAnim.dispose();
     _pulseAnim.dispose();
+    _searchCtrl.dispose();
     _clock?.cancel();
     _pollTimer?.cancel();
     super.dispose();
@@ -164,7 +180,41 @@ class _DashboardScreenState extends State<DashboardScreen>
         _movedOut = all.where((c) => c.isMovedOut).length;
         _inYard = inYard;
         _portList = portList;
+        _allContainers = all;
         _loading = false;
+        // ── New widget data ───────────────────────────────────
+        // Inbound = containers that have a yardEntryDate (entered a yard)
+        _inboundCount = all.where((c) => c.yardEntryDate != null).length;
+        // Outbound = containers moved out
+        _outboundCount = all.where((c) => c.isMovedOut).length;
+        // Empty containers by type
+        final emptyContainers = inYard.where((c) => c.statusId == 2);
+        _emptyFoodGrade = emptyContainers.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return d.contains('food') && !d.contains('non');
+        }).length;
+        _emptyNonFoodGrade = emptyContainers.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return d.contains('non') && d.contains('food');
+        }).length;
+        _emptyRepairable = emptyContainers.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return d.contains('repair');
+        }).length;
+        _emptyFrmd = emptyContainers.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return d.contains('frmd') || d.contains('frmdd');
+        }).length;
+        // Laden including tempo grounding
+        _ladenTotal = inYard.where((c) => c.statusId == 1).length;
+        _tempoGrounding = inYard.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return c.statusId == 1 &&
+              (d.contains('tempo') || d.contains('grounding'));
+        }).length;
+        // Yard In / Yard Out
+        _yardIn = inYard.where((c) => c.yardId != null).length;
+        _yardOut = all.where((c) => c.isMovedOut).length;
       });
       _statsAnim.forward(from: 0);
     } catch (_) {
@@ -212,10 +262,105 @@ class _DashboardScreenState extends State<DashboardScreen>
         _movedOut = all.where((c) => c.isMovedOut).length;
         _inYard = inYard;
         _portList = portList;
+        _allContainers = all;
+        // ── New widget data ───────────────────────────────────
+        _inboundCount = all.where((c) => c.yardEntryDate != null).length;
+        _outboundCount = all.where((c) => c.isMovedOut).length;
+        final emptyC = inYard.where((c) => c.statusId == 2);
+        _emptyFoodGrade = emptyC.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return d.contains('food') && !d.contains('non');
+        }).length;
+        _emptyNonFoodGrade = emptyC.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return d.contains('non') && d.contains('food');
+        }).length;
+        _emptyRepairable = emptyC.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return d.contains('repair');
+        }).length;
+        _emptyFrmd = emptyC.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return d.contains('frmd');
+        }).length;
+        _ladenTotal = inYard.where((c) => c.statusId == 1).length;
+        _tempoGrounding = inYard.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return c.statusId == 1 &&
+              (d.contains('tempo') || d.contains('grounding'));
+        }).length;
+        _yardIn = inYard.where((c) => c.yardId != null).length;
+        _yardOut = all.where((c) => c.isMovedOut).length;
       });
     } catch (_) {
       // Silently ignore network errors during background refresh
     }
+  }
+
+  // ── Filtered containers (search + port + status) ─────────────────────────
+  // Filters _allContainers (all ports, including moved-out) so port filter
+  // shows the actual real data from that port — not just in-yard subset.
+  List<ContainerModel> get _filteredContainers {
+    // Start from all containers when port filter is active,
+    // otherwise use in-yard only (default view)
+    var list = _filterPort != 'All' ? _allContainers : _inYard;
+
+    // Port filter — match by currentPortId
+    if (_filterPort != 'All') {
+      final port = _portList.firstWhere(
+        (p) => p.portDesc == _filterPort,
+        orElse: () => _portList.first,
+      );
+      list = list.where((c) => c.currentPortId == port.portId).toList();
+    }
+
+    // Status filter
+    if (_filterStatus == 'Laden') {
+      list = list.where((c) => c.statusId == 1).toList();
+    }
+    if (_filterStatus == 'Empty') {
+      list = list.where((c) => c.statusId == 2).toList();
+    }
+    if (_filterStatus == 'In Transit') {
+      list = list.where((c) => c.locationStatusId == 3).toList();
+    }
+    if (_filterStatus == 'Moved Out') {
+      list = list.where((c) => c.isMovedOut).toList();
+    }
+
+    // Search — container number or description
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      list = list
+          .where(
+            (c) =>
+                c.containerNumber.toLowerCase().contains(q) ||
+                (c.containerDesc?.toLowerCase().contains(q) ?? false),
+          )
+          .toList();
+    }
+    return list;
+  }
+
+  // ── Port-filtered stats (updates KPI cards when port filter is active) ────
+  List<ContainerModel> get _portBaseList {
+    if (_filterPort == 'All') return _inYard;
+    final port = _portList.firstWhere(
+      (p) => p.portDesc == _filterPort,
+      orElse: () => _portList.first,
+    );
+    return _allContainers.where((c) => c.currentPortId == port.portId).toList();
+  }
+
+  // ── Customer transaction summary ─────────────────────────────────────────
+  Map<int, int> get _containersByCustomer {
+    final map = <int, int>{};
+    for (final c in _inYard) {
+      if (c.customerId != null) {
+        map[c.customerId!] = (map[c.customerId!] ?? 0) + 1;
+      }
+    }
+    return map;
   }
 
   String get _timeStr {
@@ -303,67 +448,402 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildDashboardPage() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _WelcomeBanner(
-            session: widget.session,
-            onRefresh: _loadStats,
-            loading: _loading,
-          ),
-          const SizedBox(height: 24),
-          _SectionHeader(
-            title: 'OVERVIEW',
-            icon: Icons.analytics_rounded,
-            color: _C.emerald,
-          ),
-          const SizedBox(height: 14),
-          _loading ? _SkeletonRow(6) : _buildStatCards(),
-          const SizedBox(height: 20),
-          _loading ? _SkeletonRow(4) : _buildTypeCards(),
-          const SizedBox(height: 24),
-          Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 700;
+
+        // ── Compute all dashboard data from the port-filtered base ──────────
+        final base = _portBaseList; // in-yard or port-scoped
+        final baseAll = _filterPort == 'All'
+            ? _allContainers
+            : _allContainers.where((c) {
+                final port = _portList.firstWhere(
+                  (p) => p.portDesc == _filterPort,
+                  orElse: () => _portList.first,
+                );
+                return c.currentPortId == port.portId;
+              }).toList();
+
+        // Container Flow — Inbound / Outbound
+        final inbound = baseAll.where((c) => c.yardEntryDate != null).length;
+        final outbound = baseAll.where((c) => c.isMovedOut).length;
+
+        // ── Real daily data for charts (last 7 days: index 0=oldest, 6=today) ──
+        final now = DateTime.now();
+        final inboundByDay = List<int>.filled(7, 0);
+        final outboundByDay = List<int>.filled(7, 0);
+        final ladenByDay = List<int>.filled(7, 0);
+        for (final c in baseAll) {
+          // Inbound — grouped by yardEntryDate
+          if (c.yardEntryDate != null) {
+            try {
+              final d = DateTime.parse(c.yardEntryDate!);
+              final diff = now.difference(d).inDays;
+              if (diff >= 0 && diff < 7) inboundByDay[6 - diff]++;
+            } catch (_) {}
+          }
+          // Outbound — grouped by moveConfirmedDate
+          if (c.isMovedOut && c.moveConfirmedDate != null) {
+            try {
+              final d = DateTime.parse(c.moveConfirmedDate!);
+              final diff = now.difference(d).inDays;
+              if (diff >= 0 && diff < 7) outboundByDay[6 - diff]++;
+            } catch (_) {}
+          }
+          // Laden — grouped by yardEntryDate, statusId==1
+          if (c.statusId == 1 && c.yardEntryDate != null) {
+            try {
+              final d = DateTime.parse(c.yardEntryDate!);
+              final diff = now.difference(d).inDays;
+              if (diff >= 0 && diff < 7) ladenByDay[6 - diff]++;
+            } catch (_) {}
+          }
+        }
+        // Day labels: "May 11", "May 12"... for last 7 days
+        const months = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ];
+        final dayLabels = List.generate(7, (i) {
+          final d = now.subtract(Duration(days: 6 - i));
+          return '${months[d.month - 1]} ${d.day}';
+        });
+
+        // ── Trend vs prior 7 days ────────────────────────────────
+        final inboundPrior = List<int>.filled(7, 0);
+        final outboundPrior = List<int>.filled(7, 0);
+        final ladenPrior = List<int>.filled(7, 0);
+        for (final c in baseAll) {
+          if (c.yardEntryDate != null) {
+            try {
+              final d = DateTime.parse(c.yardEntryDate!);
+              final diff = now.difference(d).inDays;
+              if (diff >= 7 && diff < 14) inboundPrior[13 - diff]++;
+            } catch (_) {}
+          }
+          if (c.isMovedOut && c.moveConfirmedDate != null) {
+            try {
+              final d = DateTime.parse(c.moveConfirmedDate!);
+              final diff = now.difference(d).inDays;
+              if (diff >= 7 && diff < 14) outboundPrior[13 - diff]++;
+            } catch (_) {}
+          }
+          if (c.statusId == 1 && c.yardEntryDate != null) {
+            try {
+              final d = DateTime.parse(c.yardEntryDate!);
+              final diff = now.difference(d).inDays;
+              if (diff >= 7 && diff < 14) ladenPrior[13 - diff]++;
+            } catch (_) {}
+          }
+        }
+        String trendPct(List<int> cur, List<int> prior) {
+          final cSum = cur.fold(0, (a, b) => a + b);
+          final pSum = prior.fold(0, (a, b) => a + b);
+          if (pSum == 0) return cSum > 0 ? '+100%' : '0%';
+          final pct = ((cSum - pSum) / pSum * 100).round();
+          return pct >= 0 ? '+$pct%' : '$pct%';
+        }
+
+        final inboundTrend = trendPct(inboundByDay, inboundPrior);
+        final outboundTrend = trendPct(outboundByDay, outboundPrior);
+        final ladenTrend = trendPct(ladenByDay, ladenPrior);
+        final inboundTrendUp = !inboundTrend.startsWith('-');
+        final outboundTrendUp = !outboundTrend.startsWith('-');
+        final ladenTrendUp = !ladenTrend.startsWith('-');
+
+        // Empty breakdown
+        final emptyContainers = base.where((c) => c.statusId == 2);
+        final emptyFoodGrade = emptyContainers.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return d.contains('food') && !d.contains('non');
+        }).length;
+        final emptyNonFoodGrade = emptyContainers.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return d.contains('non') && d.contains('food');
+        }).length;
+        final emptyRepairable = emptyContainers.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return d.contains('repair');
+        }).length;
+        final emptyFrmd = emptyContainers.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return d.contains('frmd');
+        }).length;
+        final emptyTotal = base.where((c) => c.statusId == 2).length;
+
+        // Laden breakdown
+        final ladenTotal = base.where((c) => c.statusId == 1).length;
+        final tempoGrounding = base.where((c) {
+          final d = c.containerDesc?.toLowerCase() ?? '';
+          return c.statusId == 1 &&
+              (d.contains('tempo') || d.contains('grounding'));
+        }).length;
+
+        // Yard In / Out
+        final yardIn = base.where((c) => c.yardId != null).length;
+        final yardOut = baseAll.where((c) => c.isMovedOut).length;
+
+        // Customer transactions — scoped to port
+        final customerMap = <int, int>{};
+        for (final c in base) {
+          if (c.customerId != null) {
+            customerMap[c.customerId!] = (customerMap[c.customerId!] ?? 0) + 1;
+          }
+        }
+
+        // Port leaderboard — scoped to port
+        final portContainers = _filterPort == 'All' ? _inYard : base;
+
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(isMobile ? 16 : 24),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                flex: 3,
-                child: Column(
-                  children: [
-                    _DonutCard(laden: _laden, empty: _empty, total: _total),
-                    const SizedBox(height: 20),
-                    _OccupancyCard(
-                      laden: _laden,
-                      empty: _empty,
-                      mtFood: _mtFood,
-                      fsl: _fsl,
-                      stripping: _stripping,
-                      mtNonFood: _mtNonFood,
-                      total: _total,
-                    ),
-                  ],
+              // ── Search & Filter bar ──────────────────────────────
+              _DashboardFilterBar(
+                searchCtrl: _searchCtrl,
+                searchQuery: _searchQuery,
+                filterPort: _filterPort,
+                filterStatus: _filterStatus,
+                portList: _portList,
+                resultCount: _filteredContainers.length,
+                onSearchChanged: (v) => setState(() => _searchQuery = v),
+                onPortChanged: (v) => setState(() => _filterPort = v),
+                onStatusChanged: (v) => setState(() => _filterStatus = v),
+                onClear: () => setState(() {
+                  _searchQuery = '';
+                  _filterPort = 'All';
+                  _filterStatus = 'All';
+                  _searchCtrl.clear();
+                }),
+              ),
+              const SizedBox(height: 24),
+
+              _SectionHeader(
+                title: 'OVERVIEW',
+                icon: Icons.analytics_rounded,
+                color: _C.emerald,
+              ),
+              const SizedBox(height: 14),
+              _loading ? _SkeletonRow(isMobile ? 2 : 5) : _buildStatCards(),
+              const SizedBox(height: 24),
+              _SectionHeader(
+                title: 'CONTAINER FLOW',
+                icon: Icons.swap_horiz_rounded,
+                color: _C.teal,
+              ),
+              const SizedBox(height: 14),
+              if (!_loading) ...[
+                // ── Row 1: Inbound | Outbound | Empty Breakdown | Laden ──
+                isMobile
+                    ? Column(
+                        children: [
+                          _CF_InboundCard(allContainers: baseAll),
+                          const SizedBox(height: 12),
+                          _CF_OutboundCard(allContainers: baseAll),
+                          const SizedBox(height: 12),
+                          _CF_EmptyDonutCard(
+                            foodGrade: emptyFoodGrade,
+                            nonFoodGrade: emptyNonFoodGrade,
+                            repairable: emptyRepairable,
+                            frmd: emptyFrmd,
+                            total: emptyTotal,
+                            allEmpty: base
+                                .where((c) => c.statusId == 2)
+                                .toList(),
+                          ),
+                          const SizedBox(height: 12),
+                          _CF_LadenSparkCard(
+                            allContainers: base,
+                            tempoGrounding: tempoGrounding,
+                          ),
+                        ],
+                      )
+                    : IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: _CF_InboundCard(allContainers: baseAll),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: _CF_OutboundCard(allContainers: baseAll),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: _CF_EmptyDonutCard(
+                                foodGrade: emptyFoodGrade,
+                                nonFoodGrade: emptyNonFoodGrade,
+                                repairable: emptyRepairable,
+                                frmd: emptyFrmd,
+                                total: emptyTotal,
+                                allEmpty: base
+                                    .where((c) => c.statusId == 2)
+                                    .toList(),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: _CF_LadenSparkCard(
+                                allContainers: base,
+                                tempoGrounding: tempoGrounding,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                const SizedBox(height: 14),
+                // ── Row 2: Total In Yard | Status Overview | Containers per Port ──
+                isMobile
+                    ? Column(
+                        children: [
+                          _CF_YardInOutCard(
+                            allInYard: base
+                                .where((c) => c.yardId != null)
+                                .toList(),
+                            allOutYard: baseAll
+                                .where((c) => c.isMovedOut)
+                                .toList(),
+                          ),
+                          const SizedBox(height: 12),
+                          _CF_StatusOverviewCard(
+                            inYard: base.where((c) => !c.isMovedOut).length,
+                            laden: ladenTotal,
+                            empty: emptyTotal,
+                            allContainers: base,
+                          ),
+                          const SizedBox(height: 12),
+                          _CF_ContainersPerPortCard(
+                            portList: _portList,
+                            containers: portContainers,
+                            allContainers: baseAll,
+                            onTapPort: (port, list) => _showContainerList(
+                              context,
+                              '${port.portDesc} Containers',
+                              list,
+                              _C.blue,
+                            ),
+                          ),
+                        ],
+                      )
+                    : IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: _CF_YardInOutCard(
+                                allInYard: base
+                                    .where((c) => c.yardId != null)
+                                    .toList(),
+                                allOutYard: baseAll
+                                    .where((c) => c.isMovedOut)
+                                    .toList(),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: _CF_StatusOverviewCard(
+                                inYard: base.where((c) => !c.isMovedOut).length,
+                                laden: ladenTotal,
+                                empty: emptyTotal,
+                                allContainers: base,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: _CF_ContainersPerPortCard(
+                                portList: _portList,
+                                containers: portContainers,
+                                allContainers: baseAll,
+                                onTapPort: (port, list) => _showContainerList(
+                                  context,
+                                  '${port.portDesc} Containers',
+                                  list,
+                                  _C.blue,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              ],
+              const SizedBox(height: 24),
+
+              // ── Customer Transactions — port-scoped ───────────────
+              if (!_loading && customerMap.isNotEmpty) ...[
+                _SectionHeader(
+                  title: 'CUSTOMER TRANSACTIONS',
+                  icon: Icons.people_alt_rounded,
+                  color: _C.purple,
+                ),
+                const SizedBox(height: 14),
+                _CustomerSummaryCard(
+                  containersByCustomer: customerMap,
+                  totalContainers: base.length,
+                  allContainers: base,
+                  onTapCustomer: (custId, list) => _showContainerList(
+                    context,
+                    'Customer #$custId Containers',
+                    list,
+                    _C.purple,
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              // ── Filtered results ─────────────────────────────────
+              if (!_loading &&
+                  (_searchQuery.isNotEmpty ||
+                      _filterPort != 'All' ||
+                      _filterStatus != 'All')) ...[
+                _SectionHeader(
+                  title: 'FILTERED RESULTS',
+                  icon: Icons.filter_list_rounded,
+                  color: _C.orange,
+                ),
+                const SizedBox(height: 14),
+                _FilteredContainerList(
+                  containers: _filteredContainers,
+                  portList: _portList,
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              _SectionHeader(
+                title: 'PORT ACTIVITY',
+                icon: Icons.anchor_rounded,
+                color: _C.blue,
+              ),
+              const SizedBox(height: 14),
+              _PortLeaderboard(
+                portList: _portList,
+                containers: portContainers,
+                allContainers: baseAll,
+                onTapPort: (port, list) => _showContainerList(
+                  context,
+                  '${port.portDesc} Containers',
+                  list,
+                  _C.blue,
                 ),
               ),
-              const SizedBox(width: 20),
-              Expanded(
-                flex: 2,
-                child: Column(children: [_ActivityCard(containers: _inYard)]),
-              ),
+              const SizedBox(height: 16),
+              _Footer(year: _now.year),
             ],
           ),
-          const SizedBox(height: 24),
-          _SectionHeader(
-            title: 'PORT ACTIVITY',
-            icon: Icons.anchor_rounded,
-            color: _C.blue,
-          ),
-          const SizedBox(height: 14),
-          _PortLeaderboard(portList: _portList, containers: _inYard),
-          const SizedBox(height: 16),
-          _Footer(year: _now.year),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -487,97 +967,109 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildStatCards() {
+    // Use port-filtered data when a port is selected — real data per port
+    final base = _portBaseList;
+    final baseAll = _filterPort != 'All'
+        ? _allContainers.where((c) {
+            final port = _portList.firstWhere(
+              (p) => p.portDesc == _filterPort,
+              orElse: () => _portList.first,
+            );
+            return c.currentPortId == port.portId;
+          }).toList()
+        : _allContainers;
+
+    final total = base.where((c) => !c.isMovedOut).length;
+    final laden = base.where((c) => c.statusId == 1 && !c.isMovedOut).length;
+    final empty = base.where((c) => c.statusId == 2 && !c.isMovedOut).length;
+    final inTransit = base.where((c) => c.locationStatusId == 3).length;
+    final movedOut = baseAll.where((c) => c.isMovedOut).length;
+
+    final portLabel = _filterPort == 'All' ? 'In yard' : _filterPort;
+
     final cards = [
       (
         label: 'Total Containers',
-        value: '$_total',
+        value: '$total',
         icon: Icons.inventory_2_rounded,
         color: _C.emerald,
-        sub: 'In yard',
-        trend: '+2.4%',
+        sub: portLabel,
+        trend: '+16.0%',
         up: true,
         dark: false,
         filter: 'all',
       ),
       (
-        label: 'Laden',
-        value: '$_laden',
+        label: 'Laden Containers',
+        value: '$laden',
         icon: Icons.check_circle_rounded,
         color: _C.gold,
         sub: 'Loaded',
-        trend: '+1.1%',
+        trend: '+11.1%',
         up: true,
         dark: true,
         filter: 'laden',
       ),
       (
-        label: 'Empty',
-        value: '$_empty',
+        label: 'Empty Containers',
+        value: '$empty',
         icon: Icons.radio_button_unchecked_rounded,
         color: _C.red,
         sub: 'Available',
-        trend: '-0.8%',
+        trend: '-6.7%',
         up: false,
         dark: false,
         filter: 'empty',
       ),
       (
-        label: 'Active Ports',
-        value: '$_ports',
-        icon: Icons.anchor_rounded,
-        color: _C.blue,
-        sub: 'Operational',
-        trend: 'Stable',
-        up: true,
-        dark: false,
-        filter: '',
-      ),
-      (
-        label: 'In Transit',
-        value: '$_inTransit',
+        label: 'Pending Deliveries',
+        value: '$movedOut',
         icon: Icons.local_shipping_rounded,
         color: _C.orange,
-        sub: 'Move requests',
-        trend: '+3.2%',
-        up: true,
+        sub: 'Dispatched',
+        trend: '-12.5%',
+        up: false,
         dark: false,
-        filter: '',
+        filter: 'out',
       ),
       (
-        label: 'Moved Out',
-        value: '$_movedOut',
-        icon: Icons.exit_to_app_rounded,
-        color: _C.teal,
-        sub: 'Dispatched',
-        trend: '+5.0%',
+        label: 'Containers In Transit',
+        value: '$inTransit',
+        icon: Icons.directions_boat_rounded,
+        color: _C.blue,
+        sub: 'Move requests',
+        trend: '+14.3%',
         up: true,
         dark: false,
-        filter: '',
+        filter: 'transit',
       ),
     ];
     return LayoutBuilder(
       builder: (context, constraints) {
-        return Row(
+        // Always show all 5 cards at equal size
+        const n = 5;
+        const spacing = 14.0;
+        final cardW = (constraints.maxWidth - spacing * (n - 1)) / n;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
           children: cards.asMap().entries.map((e) {
             final c = e.value;
-            return Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  right: e.key < cards.length - 1 ? 14 : 0,
-                ),
-                child: _StatCard(
-                  label: c.label,
-                  value: c.value,
-                  icon: c.icon,
-                  color: c.color,
-                  subtitle: c.sub,
-                  trend: c.trend,
-                  trendUp: c.up,
-                  textDark: c.dark,
-                  anim: _statsAnim,
-                  delay: e.key * 0.1,
-                  onTap: c.filter.isNotEmpty ? () => _showList(c.filter) : null,
-                ),
+            return SizedBox(
+              width: cardW,
+              child: _StatCard(
+                label: c.label,
+                value: c.value,
+                icon: c.icon,
+                color: c.color,
+                subtitle: c.sub,
+                trend: c.trend,
+                trendUp: c.up,
+                textDark: c.dark,
+                anim: _statsAnim,
+                delay: e.key * 0.1,
+                onTap: c.filter.isNotEmpty ? () => _showList(c.filter) : null,
               ),
             );
           }).toList(),
@@ -586,72 +1078,49 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildTypeCards() {
-    final types = [
-      (
-        label: 'MT Food',
-        value: '$_mtFood',
-        color: _C.emeraldL,
-        icon: Icons.restaurant_rounded,
-      ),
-      (
-        label: 'FSL',
-        value: '$_fsl',
-        color: _C.blue,
-        icon: Icons.inventory_2_rounded,
-      ),
-      (
-        label: 'Stripping',
-        value: '$_stripping',
-        color: _C.orange,
-        icon: Icons.content_cut_rounded,
-      ),
-      (
-        label: 'MT Non-Food',
-        value: '$_mtNonFood',
-        color: _C.purple,
-        icon: Icons.no_food_rounded,
-      ),
-    ];
-    return Row(
-      children: types.asMap().entries.map((e) {
-        final t = e.value;
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(right: e.key < types.length - 1 ? 14 : 0),
-            child: _TypeCard(
-              label: t.label,
-              value: t.value,
-              color: t.color,
-              icon: t.icon,
-            ),
-          ),
-        );
-      }).toList(),
+  void _showContainerList(
+    BuildContext context,
+    String title,
+    List<ContainerModel> containers,
+    Color accent,
+  ) {
+    showDialog(
+      context: context,
+      builder: (_) =>
+          _ListDialog(title: title, containers: containers, accent: accent),
     );
   }
 
   void _showList(String filter) {
+    final base = _portBaseList;
     final filtered = filter == 'laden'
-        ? _inYard.where((c) => c.statusId == 1).toList()
+        ? base.where((c) => c.statusId == 1).toList()
         : filter == 'empty'
-        ? _inYard.where((c) => c.statusId == 2).toList()
-        : _inYard;
+        ? base.where((c) => c.statusId == 2).toList()
+        : filter == 'transit'
+        ? base.where((c) => c.locationStatusId == 3).toList()
+        : filter == 'out'
+        ? _allContainers.where((c) => c.isMovedOut).toList()
+        : base;
     final title = filter == 'laden'
         ? 'Laden Containers'
         : filter == 'empty'
         ? 'Empty Containers'
+        : filter == 'transit'
+        ? 'In Transit Containers'
+        : filter == 'out'
+        ? 'Moved Out Containers'
         : 'All Containers';
     final accent = filter == 'laden'
         ? _C.gold
         : filter == 'empty'
         ? _C.red
+        : filter == 'transit'
+        ? _C.orange
+        : filter == 'out'
+        ? _C.teal
         : _C.emerald;
-    showDialog(
-      context: context,
-      builder: (_) =>
-          _ListDialog(title: title, containers: filtered, accent: accent),
-    );
+    _showContainerList(context, title, filtered, accent);
   }
 }
 
@@ -676,7 +1145,7 @@ class _Sidebar extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeInOut,
-      width: collapsed ? 68 : 236,
+      width: collapsed ? 52 : 180,
       decoration: const BoxDecoration(
         color: _C.navBg,
         boxShadow: [
@@ -691,8 +1160,8 @@ class _Sidebar extends StatelessWidget {
         children: [
           // Logo
           Container(
-            height: 68,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: Colors.white.withOpacity(0.08)),
@@ -701,16 +1170,16 @@ class _Sidebar extends StatelessWidget {
             child: Row(
               children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 30,
+                  height: 30,
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(9),
+                    borderRadius: BorderRadius.circular(7),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(9),
+                    borderRadius: BorderRadius.circular(7),
                     child: Padding(
-                      padding: const EdgeInsets.all(5),
+                      padding: const EdgeInsets.all(4),
                       child: Image.asset(
                         'assets/gothong_logo.png',
                         fit: BoxFit.contain,
@@ -719,7 +1188,7 @@ class _Sidebar extends StatelessWidget {
                   ),
                 ),
                 if (!collapsed) ...[
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -730,7 +1199,7 @@ class _Sidebar extends StatelessWidget {
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,
-                            fontSize: 12,
+                            fontSize: 11,
                             letterSpacing: 1.5,
                           ),
                         ),
@@ -738,7 +1207,7 @@ class _Sidebar extends StatelessWidget {
                           'SOUTHERN',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.5),
-                            fontSize: 8,
+                            fontSize: 7,
                             letterSpacing: 2,
                           ),
                         ),
@@ -867,10 +1336,10 @@ class _NavItemState extends State<_NavItem> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
           padding: EdgeInsets.symmetric(
-            horizontal: widget.collapsed ? 0 : 12,
-            vertical: 11,
+            horizontal: widget.collapsed ? 0 : 9,
+            vertical: 8,
           ),
           decoration: BoxDecoration(
             color: widget.active
@@ -897,22 +1366,22 @@ class _NavItemState extends State<_NavItem> {
                   if (widget.active && !widget.collapsed)
                     Container(
                       width: 3,
-                      height: 16,
-                      margin: const EdgeInsets.only(right: 9),
+                      height: 14,
+                      margin: const EdgeInsets.only(right: 7),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.9),
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                  Icon(widget.icon, color: c, size: 17),
+                  Icon(widget.icon, color: c, size: 15),
                   if (!widget.collapsed) ...[
-                    const SizedBox(width: 11),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         widget.label,
                         style: TextStyle(
                           color: c,
-                          fontSize: 12.5,
+                          fontSize: 11.5,
                           fontWeight: widget.active
                               ? FontWeight.w700
                               : FontWeight.w500,
@@ -1612,6 +2081,7 @@ class _SkeletonRow extends StatelessWidget {
 }
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
+// White-background card with colored icon, large value, trend badge, sparkline.
 class _StatCard extends StatefulWidget {
   final String label, value, subtitle, trend;
   final IconData icon;
@@ -1639,9 +2109,27 @@ class _StatCard extends StatefulWidget {
 
 class _StatCardState extends State<_StatCard> {
   bool _h = false;
+
+  // Fixed sparkline points — unique wavy shape per card based on color hue
+  List<double> get _sparkPoints {
+    final seed = widget.color.value % 7;
+    const waves = [
+      [0.5, 0.55, 0.45, 0.6, 0.5, 0.65, 0.55, 0.7],
+      [0.6, 0.5, 0.65, 0.55, 0.7, 0.6, 0.75, 0.65],
+      [0.7, 0.6, 0.55, 0.65, 0.5, 0.6, 0.45, 0.55],
+      [0.45, 0.55, 0.5, 0.6, 0.55, 0.65, 0.6, 0.7],
+      [0.55, 0.65, 0.6, 0.5, 0.65, 0.55, 0.7, 0.6],
+      [0.6, 0.7, 0.55, 0.65, 0.5, 0.6, 0.55, 0.65],
+      [0.5, 0.45, 0.55, 0.5, 0.6, 0.5, 0.65, 0.55],
+    ];
+    return List<double>.from(waves[seed]);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final tc = widget.textDark ? _C.textD : Colors.white;
+    final trendColor = widget.trendUp
+        ? const Color(0xFF2E7D32)
+        : const Color(0xFFC62828);
     return AnimatedBuilder(
       animation: widget.anim,
       builder: (_, child) {
@@ -1665,20 +2153,14 @@ class _StatCardState extends State<_StatCard> {
           onTap: widget.onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.all(18),
             transform: Matrix4.translationValues(0, _h ? -3 : 0, 0),
             decoration: BoxDecoration(
-              color: widget.color,
-              borderRadius: BorderRadius.circular(16),
-              border: Border(
-                left: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.35),
-                  width: 4,
-                ),
-              ),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFEEEEEE)),
               boxShadow: [
                 BoxShadow(
-                  color: widget.color.withValues(alpha: _h ? 0.25 : 0.10),
+                  color: Colors.black.withValues(alpha: _h ? 0.10 : 0.05),
                   blurRadius: _h ? 16 : 8,
                   offset: const Offset(0, 4),
                 ),
@@ -1686,75 +2168,102 @@ class _StatCardState extends State<_StatCard> {
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(9),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(10),
+                // ── Top section: icon + label + value + trend ──
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Colored icon box
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: widget.color.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              widget.icon,
+                              color: widget.color,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.label,
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF616161),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  widget.value,
+                                  style: const TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF1A1A1A),
+                                    height: 1.1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      child: Icon(widget.icon, color: tc, size: 20),
+                      const SizedBox(height: 10),
+                      // Trend badge: ↑ 16.0% from yesterday
+                      Row(
+                        children: [
+                          Icon(
+                            widget.trendUp
+                                ? Icons.arrow_upward_rounded
+                                : Icons.arrow_downward_rounded,
+                            size: 12,
+                            color: trendColor,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${widget.trend} from yesterday',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: trendColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                // ── Sparkline at bottom ──
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(14),
+                  ),
+                  child: SizedBox(
+                    height: 44,
+                    child: CustomPaint(
+                      painter: _SparklinePainter(
+                        points: _sparkPoints,
+                        color: widget.color,
+                        trendUp: widget.trendUp,
+                      ),
+                      size: const Size(double.infinity, 44),
                     ),
-                    if (widget.trend.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              widget.trendUp
-                                  ? Icons.trending_up_rounded
-                                  : Icons.trending_down_rounded,
-                              color: tc,
-                              size: 11,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              widget.trend,
-                              style: TextStyle(
-                                color: tc,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  widget.value,
-                  style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.w900,
-                    color: tc,
-                    height: 1,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: tc.withOpacity(0.9),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  widget.subtitle,
-                  style: TextStyle(fontSize: 10, color: tc.withOpacity(0.65)),
                 ),
               ],
             ),
@@ -1765,87 +2274,65 @@ class _StatCardState extends State<_StatCard> {
   }
 }
 
-// ── Type Card ─────────────────────────────────────────────────────────────────
-class _TypeCard extends StatefulWidget {
-  final String label, value;
+// ── Sparkline painter ──────────────────────────────────────────────────────────
+class _SparklinePainter extends CustomPainter {
+  final List<double> points;
   final Color color;
-  final IconData icon;
-  const _TypeCard({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.icon,
-  });
-  @override
-  State<_TypeCard> createState() => _TypeCardState();
-}
+  final bool trendUp;
 
-class _TypeCardState extends State<_TypeCard> {
-  bool _h = false;
+  const _SparklinePainter({
+    required this.points,
+    required this.color,
+    required this.trendUp,
+  });
+
   @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _h = true),
-      onExit: (_) => setState(() => _h = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.all(16),
-        transform: Matrix4.translationValues(0, _h ? -2 : 0, 0),
-        decoration: BoxDecoration(
-          color: _C.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _h ? widget.color.withOpacity(0.4) : _C.border,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: _h ? widget.color.withOpacity(0.12) : _C.shadow,
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: widget.color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(widget.icon, color: widget.color, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.value,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: widget.color,
-                      height: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    widget.label,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: _C.textM,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) return;
+
+    final n = points.length;
+    final xs = List.generate(n, (i) => i / (n - 1) * size.width);
+    final ys = points.map((p) => (1.0 - p) * size.height).toList();
+
+    // Build path
+    final path = Path();
+    path.moveTo(xs[0], ys[0]);
+    for (int i = 1; i < n; i++) {
+      final cpx = (xs[i - 1] + xs[i]) / 2;
+      path.cubicTo(cpx, ys[i - 1], cpx, ys[i], xs[i], ys[i]);
+    }
+
+    // Fill under the line
+    final fillPath = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    canvas.drawPath(
+      fillPath,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [color.withValues(alpha: 0.18), color.withValues(alpha: 0.0)],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
+
+    // Draw line
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..strokeWidth = 2.0
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
     );
   }
+
+  @override
+  bool shouldRepaint(_SparklinePainter old) =>
+      old.points != points || old.color != color;
 }
 
 // ── Donut Chart Card ──────────────────────────────────────────────────────────
@@ -2346,7 +2833,14 @@ class _ActivityCard extends StatelessWidget {
 class _PortLeaderboard extends StatelessWidget {
   final List<Port> portList;
   final List<ContainerModel> containers;
-  const _PortLeaderboard({required this.portList, required this.containers});
+  final List<ContainerModel> allContainers;
+  final void Function(Port port, List<ContainerModel> list)? onTapPort;
+  const _PortLeaderboard({
+    required this.portList,
+    required this.containers,
+    this.allContainers = const [],
+    this.onTapPort,
+  });
   @override
   Widget build(BuildContext context) {
     if (portList.isEmpty) return const SizedBox.shrink();
@@ -2459,129 +2953,151 @@ class _PortLeaderboard extends StatelessWidget {
                 : i == 2
                 ? const Color(0xFFCD7F32)
                 : _C.textL;
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: i.isEven ? _C.surface : _C.bg,
-                borderRadius: i == data.length - 1
-                    ? const BorderRadius.vertical(bottom: Radius.circular(18))
+            final portContainers = allContainers.isNotEmpty
+                ? allContainers
+                      .where((c) => c.currentPortId == d.port.portId)
+                      .toList()
+                : containers
+                      .where((c) => c.currentPortId == d.port.portId)
+                      .toList();
+            return MouseRegion(
+              cursor: onTapPort != null
+                  ? SystemMouseCursors.click
+                  : MouseCursor.defer,
+              child: GestureDetector(
+                onTap: onTapPort != null
+                    ? () => onTapPort!(d.port, portContainers)
                     : null,
-                border: Border(
-                  bottom: BorderSide(
-                    color: _C.border,
-                    width: i < data.length - 1 ? 1 : 0,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
                   ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 28,
-                    child: Text(
-                      '${i + 1}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: rankColor,
+                  decoration: BoxDecoration(
+                    color: i.isEven ? _C.surface : _C.bg,
+                    borderRadius: i == data.length - 1
+                        ? const BorderRadius.vertical(
+                            bottom: Radius.circular(18),
+                          )
+                        : null,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: _C.border,
+                        width: i < data.length - 1 ? 1 : 0,
                       ),
                     ),
                   ),
-                  Expanded(
-                    flex: 3,
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: _C.emerald.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(7),
-                          ),
-                          child: const Icon(
-                            Icons.anchor_rounded,
-                            color: _C.emerald,
-                            size: 13,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 28,
+                        child: Text(
+                          '${i + 1}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: rankColor,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            d.port.portDesc,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: _C.textD,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      '${d.total}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: _C.textD,
                       ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      '${d.laden}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _C.gold,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      '${d.empty}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _C.red,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: pct,
-                              minHeight: 7,
-                              backgroundColor: _C.emerald.withOpacity(0.1),
-                              valueColor: const AlwaysStoppedAnimation(
-                                _C.emerald,
+                      Expanded(
+                        flex: 3,
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: _C.emerald.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(7),
+                              ),
+                              child: const Icon(
+                                Icons.anchor_rounded,
+                                color: _C.emerald,
+                                size: 13,
                               ),
                             ),
-                          ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                d.port.portDesc,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: _C.textD,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 7),
-                        Text(
-                          '${(pct * 100).round()}%',
+                      ),
+                      Expanded(
+                        child: Text(
+                          '${d.total}',
+                          textAlign: TextAlign.center,
                           style: const TextStyle(
-                            fontSize: 10,
-                            color: _C.textL,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _C.textD,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          '${d.laden}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _C.gold,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          '${d.empty}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _C.red,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: pct,
+                                  minHeight: 7,
+                                  backgroundColor: _C.emerald.withOpacity(0.1),
+                                  valueColor: const AlwaysStoppedAnimation(
+                                    _C.emerald,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              '${(pct * 100).round()}%',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: _C.textL,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            );
+                ), // Container
+              ), // GestureDetector
+            ); // MouseRegion
           }),
         ],
       ),
@@ -2980,6 +3496,4358 @@ class _TableRowState extends State<_TableRow> {
             }).toList(),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// NEW CONTAINER FLOW WIDGETS
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Shared card shell ─────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// CONTAINER FLOW WIDGETS  (rewritten with full interactivity)
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Time-range enum shared by all CF cards ────────────────────────────────────
+enum _CFRange { thisWeek, lastWeek, thisMonth }
+
+extension _CFRangeLabel on _CFRange {
+  String get label {
+    switch (this) {
+      case _CFRange.thisWeek:
+        return 'This Week';
+      case _CFRange.lastWeek:
+        return 'Last Week';
+      case _CFRange.thisMonth:
+        return 'This Month';
+    }
+  }
+}
+
+// ── Shared card shell ─────────────────────────────────────────────────────────
+class _CF_Card extends StatelessWidget {
+  final Widget child;
+  const _CF_Card({required this.child});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFEEEEEE)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+// ── Range dropdown pill ───────────────────────────────────────────────────────
+class _CF_RangePill extends StatelessWidget {
+  final _CFRange value;
+  final ValueChanged<_CFRange> onChanged;
+  const _CF_RangePill({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (details) async {
+        final RenderBox box = context.findRenderObject() as RenderBox;
+        final Offset offset = box.localToGlobal(Offset.zero);
+        final result = await showMenu<_CFRange>(
+          context: context,
+          position: RelativeRect.fromLTRB(
+            offset.dx,
+            offset.dy + box.size.height + 4,
+            offset.dx + box.size.width,
+            0,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          elevation: 6,
+          items: _CFRange.values
+              .map(
+                (r) => PopupMenuItem(
+                  value: r,
+                  child: Row(
+                    children: [
+                      Icon(
+                        r == value
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                        size: 14,
+                        color: r == value ? _C.emerald : _C.textL,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        r.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: r == value
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: r == value ? _C.emerald : _C.textD,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+              .toList(),
+        );
+        if (result != null) onChanged(result);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFFE0E0E0)),
+          borderRadius: BorderRadius.circular(6),
+          color: Colors.white,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              value.label,
+              style: const TextStyle(fontSize: 10, color: Color(0xFF757575)),
+            ),
+            const SizedBox(width: 3),
+            const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 12,
+              color: Color(0xFF757575),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── CF header row with live range picker ──────────────────────────────────────
+class _CF_Header extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String? subtitle;
+  final _CFRange range;
+  final ValueChanged<_CFRange>? onRangeChanged;
+  const _CF_Header({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    this.subtitle,
+    this.range = _CFRange.thisWeek,
+    this.onRangeChanged,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, color: iconColor, size: 18),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF212121),
+                ),
+              ),
+              if (subtitle != null)
+                Text(
+                  subtitle!,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Color(0xFF9E9E9E),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (onRangeChanged != null)
+          _CF_RangePill(value: range, onChanged: onRangeChanged!),
+      ],
+    );
+  }
+}
+
+// ── Helper: filter daily data by range ───────────────────────────────────────
+List<int> _cfFilterByRange(
+  List<ContainerModel> containers,
+  _CFRange range,
+  String Function(ContainerModel) getDate,
+) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  int days;
+  int offsetStart;
+  switch (range) {
+    case _CFRange.thisWeek:
+      days = 7;
+      offsetStart = 0;
+      break;
+    case _CFRange.lastWeek:
+      days = 7;
+      offsetStart = 7;
+      break;
+    case _CFRange.thisMonth:
+      days = 30;
+      offsetStart = 0;
+      break;
+  }
+  final result = List<int>.filled(days, 0);
+  for (final c in containers) {
+    final dateStr = getDate(c);
+    if (dateStr.isEmpty) continue;
+    try {
+      final d = DateTime.parse(dateStr);
+      final dayDate = DateTime(d.year, d.month, d.day);
+      final diff = today.difference(dayDate).inDays;
+      if (diff >= offsetStart && diff < offsetStart + days) {
+        result[(days - 1) - (diff - offsetStart)]++;
+      }
+    } catch (_) {}
+  }
+  return result;
+}
+
+List<String> _cfDayLabels(_CFRange range) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  int days;
+  int offsetStart;
+  switch (range) {
+    case _CFRange.thisWeek:
+      days = 7;
+      offsetStart = 0;
+      break;
+    case _CFRange.lastWeek:
+      days = 7;
+      offsetStart = 7;
+      break;
+    case _CFRange.thisMonth:
+      days = 30;
+      offsetStart = 0;
+      break;
+  }
+  return List.generate(days, (i) {
+    final d = today.subtract(Duration(days: (days - 1 - i) + offsetStart));
+    return '${months[d.month - 1]} ${d.day}';
+  });
+}
+
+String _cfTrendPct(List<int> cur, List<int> prior) {
+  final c = cur.fold(0, (a, b) => a + b);
+  final p = prior.fold(0, (a, b) => a + b);
+  if (p == 0) return c > 0 ? '+100%' : '0%';
+  final pct = ((c - p) / p * 100).round();
+  return pct >= 0 ? '+$pct%' : '$pct%';
+}
+
+// ── 1. Total Inbound Card ─────────────────────────────────────────────────────
+class _CF_InboundCard extends StatefulWidget {
+  final List<ContainerModel> allContainers;
+  const _CF_InboundCard({required this.allContainers});
+  @override
+  State<_CF_InboundCard> createState() => _CF_InboundCardState();
+}
+
+class _CF_InboundCardState extends State<_CF_InboundCard> {
+  _CFRange _range = _CFRange.thisWeek;
+  int? _sel;
+
+  @override
+  Widget build(BuildContext context) {
+    final inboundAll = widget.allContainers
+        .where((c) => c.yardEntryDate != null)
+        .toList();
+    final cur = _cfFilterByRange(
+      inboundAll,
+      _range,
+      (c) => c.yardEntryDate ?? '',
+    );
+    final prev = _cfFilterByRange(
+      inboundAll,
+      _range == _CFRange.lastWeek ? _CFRange.thisWeek : _CFRange.lastWeek,
+      (c) => c.yardEntryDate ?? '',
+    );
+    final labels = _cfDayLabels(_range);
+    final total = cur.fold(0, (a, b) => a + b);
+    final trend = _cfTrendPct(cur, prev);
+    final trendUp = !trend.startsWith('-');
+    final trendColor = trendUp ? _C.emerald : _C.red;
+    final data = cur.map((v) => v.toDouble()).toList();
+    final maxV = data
+        .reduce((a, b) => a > b ? a : b)
+        .clamp(1.0, double.infinity);
+    final weekTotal = total.clamp(1, 999999);
+
+    return _CF_Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CF_Header(
+            icon: Icons.arrow_downward_rounded,
+            iconColor: _C.emerald,
+            title: 'Total Inbound Containers',
+            range: _range,
+            onRangeChanged: (r) => setState(() {
+              _range = r;
+              _sel = null;
+            }),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '$total',
+            style: const TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF212121),
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(
+                trendUp
+                    ? Icons.arrow_upward_rounded
+                    : Icons.arrow_downward_rounded,
+                size: 12,
+                color: trendColor,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                '$trend from previous period',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  color: trendColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                'Total Inbound',
+                style: TextStyle(fontSize: 10, color: Color(0xFF9E9E9E)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // ── Bar chart ──
+          SizedBox(
+            height: 90,
+            child: Column(
+              children: [
+                // Inline info panel
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  height: _sel != null ? 22 : 0,
+                  child: _sel != null
+                      ? Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _C.emerald.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: _C.emerald.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 10,
+                                  color: _C.emerald,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  '${labels[_sel!]}  ·  ${data[_sel!].round()} containers  ·  ${((data[_sel!] / weekTotal) * 100).round()}% of total',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    color: _C.emerald,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                const SizedBox(height: 2),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: List.generate(data.length, (i) {
+                      final pct = maxV > 0 ? data[i] / maxV : 0.0;
+                      final barH = data[i] == 0
+                          ? 0.0
+                          : (58 * pct).clamp(3.0, 58.0);
+                      final isActive = _sel == i;
+                      return Expanded(
+                        child: GestureDetector(
+                          onTap: () =>
+                              setState(() => _sel = _sel == i ? null : i),
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                right: i < data.length - 1 ? 3 : 0,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 220),
+                                    height: barH,
+                                    decoration: BoxDecoration(
+                                      color: isActive
+                                          ? _C.emerald
+                                          : _C.emerald.withValues(alpha: 0.35),
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(4),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    labels[i]
+                                        .split(' ')
+                                        .last, // show day number only
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      color: isActive
+                                          ? _C.emerald
+                                          : const Color(0xFF9E9E9E),
+                                      fontWeight: isActive
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 2. Total Outbound Card ────────────────────────────────────────────────────
+class _CF_OutboundCard extends StatefulWidget {
+  final List<ContainerModel> allContainers;
+  const _CF_OutboundCard({required this.allContainers});
+  @override
+  State<_CF_OutboundCard> createState() => _CF_OutboundCardState();
+}
+
+class _CF_OutboundCardState extends State<_CF_OutboundCard> {
+  _CFRange _range = _CFRange.thisWeek;
+  int? _sel;
+
+  @override
+  Widget build(BuildContext context) {
+    final outboundAll = widget.allContainers
+        .where((c) => c.isMovedOut && c.moveConfirmedDate != null)
+        .toList();
+    final cur = _cfFilterByRange(
+      outboundAll,
+      _range,
+      (c) => c.moveConfirmedDate ?? '',
+    );
+    final prev = _cfFilterByRange(
+      outboundAll,
+      _range == _CFRange.lastWeek ? _CFRange.thisWeek : _CFRange.lastWeek,
+      (c) => c.moveConfirmedDate ?? '',
+    );
+    final labels = _cfDayLabels(_range);
+    final total = cur.fold(0, (a, b) => a + b);
+    final trend = _cfTrendPct(cur, prev);
+    final trendUp = !trend.startsWith('-');
+    final trendColor = trendUp ? _C.emerald : _C.red;
+    final data = cur.map((v) => v.toDouble()).toList();
+    final maxV = data
+        .reduce((a, b) => a > b ? a : b)
+        .clamp(1.0, double.infinity);
+    final weekTotal = total.clamp(1, 999999);
+
+    return _CF_Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CF_Header(
+            icon: Icons.arrow_upward_rounded,
+            iconColor: _C.blue,
+            title: 'Total Outbound Containers',
+            range: _range,
+            onRangeChanged: (r) => setState(() {
+              _range = r;
+              _sel = null;
+            }),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '$total',
+            style: const TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF212121),
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(
+                trendUp
+                    ? Icons.arrow_upward_rounded
+                    : Icons.arrow_downward_rounded,
+                size: 12,
+                color: trendColor,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                '$trend from previous period',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  color: trendColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                'Total Outbound',
+                style: TextStyle(fontSize: 10, color: Color(0xFF9E9E9E)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 90,
+            child: Column(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  height: _sel != null ? 22 : 0,
+                  child: _sel != null
+                      ? Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _C.blue.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: _C.blue.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 10,
+                                  color: _C.blue,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  '${labels[_sel!]}  ·  ${data[_sel!].round()} containers  ·  ${((data[_sel!] / weekTotal) * 100).round()}% of total',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    color: _C.blue,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                const SizedBox(height: 2),
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: List.generate(data.length, (i) {
+                      final pct = maxV > 0 ? data[i] / maxV : 0.0;
+                      final barH = data[i] == 0
+                          ? 0.0
+                          : (58 * pct).clamp(3.0, 58.0);
+                      final isActive = _sel == i;
+                      return Expanded(
+                        child: GestureDetector(
+                          onTap: () =>
+                              setState(() => _sel = _sel == i ? null : i),
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                right: i < data.length - 1 ? 3 : 0,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 220),
+                                    height: barH,
+                                    decoration: BoxDecoration(
+                                      color: isActive
+                                          ? _C.blue
+                                          : _C.blue.withValues(alpha: 0.35),
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(4),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    labels[i].split(' ').last,
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      color: isActive
+                                          ? _C.blue
+                                          : const Color(0xFF9E9E9E),
+                                      fontWeight: isActive
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 3. Total Empty Containers — donut + legend ────────────────────────────────
+class _CF_EmptyDonutCard extends StatefulWidget {
+  final int foodGrade, nonFoodGrade, repairable, frmd, total;
+  final List<ContainerModel> allEmpty;
+  final void Function(String label, List<ContainerModel> list)? onTapType;
+  const _CF_EmptyDonutCard({
+    required this.foodGrade,
+    required this.nonFoodGrade,
+    required this.repairable,
+    required this.frmd,
+    required this.total,
+    this.allEmpty = const [],
+    this.onTapType,
+  });
+  @override
+  State<_CF_EmptyDonutCard> createState() => _CF_EmptyDonutCardState();
+}
+
+class _CF_EmptyDonutCardState extends State<_CF_EmptyDonutCard> {
+  int? _sel;
+  _CFRange _range = _CFRange.thisWeek;
+
+  @override
+  Widget build(BuildContext context) {
+    final slices = [
+      (label: 'Food Grade', count: widget.foodGrade, color: _C.emerald),
+      (label: 'Non-Food Grade', count: widget.nonFoodGrade, color: _C.blue),
+      (label: 'Repairable', count: widget.repairable, color: _C.gold),
+      (label: 'FRMD Containers', count: widget.frmd, color: _C.red),
+    ];
+    final total = widget.total.clamp(1, 999999);
+    final selSlice = _sel != null ? slices[_sel!] : null;
+
+    return _CF_Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CF_Header(
+            icon: Icons.donut_large_rounded,
+            iconColor: _C.orange,
+            title: 'Total Empty Containers',
+            subtitle: '(By Type)',
+            range: _range,
+            onRangeChanged: (r) => setState(() => _range = r),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // ── Donut (tappable) ──
+              GestureDetector(
+                onTapUp: (d) => _handleDonutTap(d.localPosition, slices),
+                child: SizedBox(
+                  width: 110,
+                  height: 110,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CustomPaint(
+                        size: const Size(110, 110),
+                        painter: _CF_DonutPainter(
+                          values: slices
+                              .map((s) => s.count.toDouble())
+                              .toList(),
+                          colors: slices.map((s) => s.color).toList(),
+                          selected: _sel,
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            selSlice != null
+                                ? '${selSlice.count}'
+                                : '${widget.total}',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: selSlice != null
+                                  ? selSlice.color
+                                  : const Color(0xFF212121),
+                            ),
+                          ),
+                          Text(
+                            selSlice != null ? selSlice.label : 'Total',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: Color(0xFF9E9E9E),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              // ── Legend ──
+              Expanded(
+                child: Column(
+                  children: slices.asMap().entries.map((e) {
+                    final i = e.key;
+                    final s = e.value;
+                    final pct = (s.count / total * 100).round();
+                    final isSelected = _sel == i;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() => _sel = _sel == i ? null : i);
+                        if (widget.onTapType != null && _sel == i) {
+                          final list = widget.allEmpty.where((c) {
+                            final d = c.containerDesc?.toLowerCase() ?? '';
+                            if (s.label == 'Food Grade') {
+                              return d.contains('food') && !d.contains('non');
+                            }
+                            if (s.label == 'Non-Food Grade') {
+                              return d.contains('non') && d.contains('food');
+                            }
+                            if (s.label == 'Repairable') {
+                              return d.contains('repair');
+                            }
+                            return d.contains('frmd');
+                          }).toList();
+                          widget.onTapType!(s.label, list);
+                        }
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        margin: const EdgeInsets.only(bottom: 5),
+                        padding: isSelected
+                            ? const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 3,
+                              )
+                            : EdgeInsets.zero,
+                        decoration: isSelected
+                            ? BoxDecoration(
+                                color: s.color.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: s.color.withValues(alpha: 0.25),
+                                ),
+                              )
+                            : null,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: s.color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                s.label,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? s.color
+                                      : const Color(0xFF424242),
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '${s.count}  ($pct%)',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: s.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+          // ── Inline detail bar ──
+          if (_sel != null)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: slices[_sel!].color.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: slices[_sel!].color.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 14,
+                    color: slices[_sel!].color,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${slices[_sel!].label}: ${slices[_sel!].count} containers  ·  ${(slices[_sel!].count / total * 100).round()}% of empty stock',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: slices[_sel!].color,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => setState(() => _sel = null),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: slices[_sel!].color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _handleDonutTap(
+    Offset pos,
+    List<({Color color, int count, String label})> slices,
+  ) {
+    final cx = 55.0;
+    final cy = 55.0;
+    final dx = pos.dx - cx;
+    final dy = pos.dy - cy;
+    final dist = math.sqrt(dx * dx + dy * dy);
+    final r = 55.0 - 6;
+    const hole = 0.55;
+    final innerR = r * hole;
+    final outerR = r;
+    if (dist < innerR || dist > outerR) {
+      setState(() => _sel = null);
+      return;
+    }
+    double angle = math.atan2(dy, dx) + math.pi / 2;
+    if (angle < 0) angle += 2 * math.pi;
+    final total = slices.fold(0, (a, s) => a + s.count).toDouble();
+    if (total == 0) return;
+    double start = 0;
+    for (int i = 0; i < slices.length; i++) {
+      if (slices[i].count == 0) continue;
+      final sweep = (slices[i].count / total) * 2 * math.pi;
+      if (angle >= start && angle < start + sweep) {
+        setState(() => _sel = _sel == i ? null : i);
+        return;
+      }
+      start += sweep;
+    }
+  }
+}
+
+// ── Donut painter ─────────────────────────────────────────────────────────────
+class _CF_DonutPainter extends CustomPainter {
+  final List<double> values;
+  final List<Color> colors;
+  final int? selected;
+  const _CF_DonutPainter({
+    required this.values,
+    required this.colors,
+    this.selected,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = values.fold(0.0, (a, b) => a + b);
+    if (total == 0) return;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = size.width / 2 - 6;
+    const hole = 0.55;
+    double start = -math.pi / 2;
+    for (int i = 0; i < values.length; i++) {
+      if (values[i] == 0) continue;
+      final sweep = (values[i] / total) * 2 * math.pi;
+      final isSelected = i == selected;
+      final offset = isSelected ? 5.0 : 0.0;
+      final mid = start + sweep / 2;
+      final ox = math.cos(mid) * offset;
+      final oy = math.sin(mid) * offset;
+      final innerR = r * hole + (r * (1 - hole) / 2);
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset(cx + ox, cy + oy), radius: innerR),
+        start,
+        sweep - 0.03,
+        false,
+        Paint()
+          ..color = isSelected ? colors[i] : colors[i].withValues(alpha: 0.7)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = r * (1 - hole)
+          ..strokeCap = StrokeCap.butt,
+      );
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CF_DonutPainter old) =>
+      old.selected != selected ||
+      old.values.length != values.length ||
+      List.generate(
+        values.length,
+        (i) => old.values[i] != values[i],
+      ).any((e) => e);
+}
+
+// ── 4. Total Laden Card — interactive sparkline ───────────────────────────────
+class _CF_LadenSparkCard extends StatefulWidget {
+  final List<ContainerModel> allContainers;
+  final int tempoGrounding;
+  final void Function(String label, List<ContainerModel> list)? onTap;
+  const _CF_LadenSparkCard({
+    required this.allContainers,
+    required this.tempoGrounding,
+    this.onTap,
+  });
+  @override
+  State<_CF_LadenSparkCard> createState() => _CF_LadenSparkCardState();
+}
+
+class _CF_LadenSparkCardState extends State<_CF_LadenSparkCard> {
+  _CFRange _range = _CFRange.thisWeek;
+  int? _sel;
+
+  @override
+  Widget build(BuildContext context) {
+    final ladenAll = widget.allContainers
+        .where((c) => c.statusId == 1 && c.yardEntryDate != null)
+        .toList();
+    final cur = _cfFilterByRange(
+      ladenAll,
+      _range,
+      (c) => c.yardEntryDate ?? '',
+    );
+    final prev = _cfFilterByRange(
+      ladenAll,
+      _range == _CFRange.lastWeek ? _CFRange.thisWeek : _CFRange.lastWeek,
+      (c) => c.yardEntryDate ?? '',
+    );
+    final labels = _cfDayLabels(_range);
+    final total = widget.allContainers.where((c) => c.statusId == 1).length;
+    final trend = _cfTrendPct(cur, prev);
+    final trendUp = !trend.startsWith('-');
+    final trendColor = trendUp ? _C.emerald : _C.red;
+    final data = cur.map((v) => v.toDouble()).toList();
+    final weekTotal = cur.fold(0, (a, b) => a + b).clamp(1, 999999);
+
+    return _CF_Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CF_Header(
+            icon: Icons.check_circle_rounded,
+            iconColor: _C.gold,
+            title: 'Total Laden Containers',
+            subtitle: '(Including Tempo Grounding)',
+            range: _range,
+            onRangeChanged: (r) => setState(() {
+              _range = r;
+              _sel = null;
+            }),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '$total',
+            style: const TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF212121),
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(
+                trendUp
+                    ? Icons.arrow_upward_rounded
+                    : Icons.arrow_downward_rounded,
+                size: 12,
+                color: trendColor,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                '$trend from previous period',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  color: trendColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                'Total Laden',
+                style: TextStyle(fontSize: 10, color: Color(0xFF9E9E9E)),
+              ),
+            ],
+          ),
+          if (widget.tempoGrounding > 0) ...[
+            const SizedBox(height: 3),
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: _C.purple,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  'Tempo Grounding: ${widget.tempoGrounding}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Color(0xFF616161),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 10),
+          // ── Interactive sparkline — fixed height, chip overlays inside ──
+          SizedBox(
+            height: 90,
+            child: LayoutBuilder(
+              builder: (ctx, constraints) {
+                return Stack(
+                  children: [
+                    // Sparkline + day labels
+                    Column(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTapUp: (d) {
+                              if (data.isEmpty || data.length < 2) return;
+                              final step =
+                                  constraints.maxWidth / (data.length - 1);
+                              final i = (d.localPosition.dx / step)
+                                  .round()
+                                  .clamp(0, data.length - 1);
+                              setState(() => _sel = _sel == i ? null : i);
+                            },
+                            child: CustomPaint(
+                              size: Size(
+                                constraints.maxWidth,
+                                constraints.maxHeight - 16,
+                              ),
+                              painter: _CF_InteractiveSparklinePainter(
+                                values: data,
+                                color: _C.gold,
+                                selectedIndex: _sel,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: labels
+                              .map(
+                                (d) => Text(
+                                  d.split(' ').last,
+                                  style: const TextStyle(
+                                    fontSize: 8,
+                                    color: Color(0xFF9E9E9E),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ],
+                    ),
+                    // Detail chip overlays at top — does NOT resize card
+                    if (_sel != null)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _C.gold,
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.show_chart_rounded,
+                                size: 11,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  '${labels[_sel!]}  ·  ${data[_sel!].round()} laden  ·  ${((data[_sel!] / weekTotal) * 100).round()}%',
+                                  style: const TextStyle(
+                                    fontSize: 9.5,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => setState(() => _sel = null),
+                                child: const Icon(
+                                  Icons.close_rounded,
+                                  size: 11,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Interactive sparkline painter ─────────────────────────────────────────────
+class _CF_InteractiveSparklinePainter extends CustomPainter {
+  final List<double> values;
+  final Color color;
+  final int? selectedIndex;
+  const _CF_InteractiveSparklinePainter({
+    required this.values,
+    required this.color,
+    this.selectedIndex,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty || values.length < 2) return;
+    final maxV = values
+        .reduce((a, b) => a > b ? a : b)
+        .clamp(1.0, double.infinity);
+    final n = values.length;
+    final step = size.width / (n - 1);
+
+    Offset pt(int i) =>
+        Offset(i * step, size.height - (values[i] / maxV) * size.height * 0.88);
+
+    final path = Path()..moveTo(pt(0).dx, pt(0).dy);
+    for (int i = 1; i < n; i++) {
+      final cpx = (pt(i - 1).dx + pt(i).dx) / 2;
+      path.cubicTo(cpx, pt(i - 1).dy, cpx, pt(i).dy, pt(i).dx, pt(i).dy);
+    }
+    // Fill
+    canvas.drawPath(
+      Path.from(path)
+        ..lineTo(size.width, size.height)
+        ..lineTo(0, size.height)
+        ..close(),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [color.withValues(alpha: 0.15), color.withValues(alpha: 0.0)],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
+    // Line
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    // Dots + selected highlight
+    for (int i = 0; i < n; i++) {
+      final isSelected = i == selectedIndex;
+      if (isSelected) {
+        // Vertical guide line
+        canvas.drawLine(
+          Offset(pt(i).dx, 0),
+          Offset(pt(i).dx, size.height),
+          Paint()
+            ..color = color.withValues(alpha: 0.2)
+            ..strokeWidth = 1
+            ..style = PaintingStyle.stroke,
+        );
+        // Large dot
+        canvas.drawCircle(
+          pt(i),
+          6,
+          Paint()..color = color.withValues(alpha: 0.15),
+        );
+        canvas.drawCircle(pt(i), 4, Paint()..color = Colors.white);
+        canvas.drawCircle(
+          pt(i),
+          4,
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2,
+        );
+      } else {
+        canvas.drawCircle(pt(i), 2.5, Paint()..color = Colors.white);
+        canvas.drawCircle(
+          pt(i),
+          2,
+          Paint()..color = color.withValues(alpha: 0.7),
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CF_InteractiveSparklinePainter old) =>
+      old.selectedIndex != selectedIndex ||
+      old.color != color ||
+      old.values.length != values.length ||
+      List.generate(
+        values.length,
+        (i) => old.values[i] != values[i],
+      ).any((e) => e);
+}
+
+// ── Sparkline painter (non-interactive, for yard sub-cards) ───────────────────
+class _CF_SparklinePainter extends CustomPainter {
+  final List<double> values;
+  final Color color;
+  const _CF_SparklinePainter({required this.values, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty || values.length < 2) return;
+    final maxV = values
+        .reduce((a, b) => a > b ? a : b)
+        .clamp(1.0, double.infinity);
+    final n = values.length;
+    final step = size.width / (n - 1);
+    Offset pt(int i) =>
+        Offset(i * step, size.height - (values[i] / maxV) * size.height * 0.85);
+    final path = Path()..moveTo(pt(0).dx, pt(0).dy);
+    for (int i = 1; i < n; i++) {
+      final cpx = (pt(i - 1).dx + pt(i).dx) / 2;
+      path.cubicTo(cpx, pt(i - 1).dy, cpx, pt(i).dy, pt(i).dx, pt(i).dy);
+    }
+    canvas.drawPath(
+      Path.from(path)
+        ..lineTo(size.width, size.height)
+        ..lineTo(0, size.height)
+        ..close(),
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [color.withValues(alpha: 0.15), color.withValues(alpha: 0.0)],
+        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height)),
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    for (int i = 0; i < n; i++) {
+      canvas.drawCircle(pt(i), 2.5, Paint()..color = Colors.white);
+      canvas.drawCircle(pt(i), 2, Paint()..color = color);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CF_SparklinePainter old) =>
+      old.color != color ||
+      old.values.length != values.length ||
+      List.generate(
+        values.length,
+        (i) => old.values[i] != values[i],
+      ).any((e) => e);
+}
+
+// ── 5. Total Container In Yard ────────────────────────────────────────────────
+class _CF_YardInOutCard extends StatefulWidget {
+  final List<ContainerModel> allInYard;
+  final List<ContainerModel> allOutYard;
+  final void Function(String label, List<ContainerModel> list)? onTap;
+  const _CF_YardInOutCard({
+    required this.allInYard,
+    required this.allOutYard,
+    this.onTap,
+  });
+  @override
+  State<_CF_YardInOutCard> createState() => _CF_YardInOutCardState();
+}
+
+class _CF_YardInOutCardState extends State<_CF_YardInOutCard> {
+  _CFRange _range = _CFRange.thisWeek;
+
+  @override
+  Widget build(BuildContext context) {
+    final labels = _cfDayLabels(_range);
+    final inData = _cfFilterByRange(
+      widget.allInYard,
+      _range,
+      (c) => c.yardEntryDate ?? '',
+    );
+    final outData = _cfFilterByRange(
+      widget.allOutYard,
+      _range,
+      (c) => c.moveConfirmedDate ?? '',
+    );
+
+    return _CF_Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Total Container In Yard',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF212121),
+                  ),
+                ),
+              ),
+              _CF_RangePill(
+                value: _range,
+                onChanged: (r) => setState(() => _range = r),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _CF_YardSubCard(
+                  label: 'Container Yard In',
+                  value: widget.allInYard.length,
+                  color: _C.emerald,
+                  icon: Icons.arrow_downward_rounded,
+                  dailyData: inData,
+                  dayLabels: labels,
+                  onTap: widget.onTap != null
+                      ? () =>
+                            widget.onTap!('Container Yard In', widget.allInYard)
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _CF_YardSubCard(
+                  label: 'Container Yard Out',
+                  value: widget.allOutYard.length,
+                  color: _C.blue,
+                  icon: Icons.arrow_upward_rounded,
+                  dailyData: outData,
+                  dayLabels: labels,
+                  onTap: widget.onTap != null
+                      ? () => widget.onTap!(
+                          'Container Yard Out',
+                          widget.allOutYard,
+                        )
+                      : null,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Yard sub-card with interactive sparkline ──────────────────────────────────
+class _CF_YardSubCard extends StatefulWidget {
+  final String label;
+  final int value;
+  final Color color;
+  final IconData icon;
+  final List<int> dailyData;
+  final List<String> dayLabels;
+  final VoidCallback? onTap;
+  const _CF_YardSubCard({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+    required this.dailyData,
+    required this.dayLabels,
+    this.onTap,
+  });
+  @override
+  State<_CF_YardSubCard> createState() => _CF_YardSubCardState();
+}
+
+class _CF_YardSubCardState extends State<_CF_YardSubCard> {
+  int? _sel;
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.dailyData.map((v) => v.toDouble()).toList();
+    final weekTotal = widget.dailyData
+        .fold(0, (a, b) => a + b)
+        .clamp(1, 999999);
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Container(
+        // Fixed height so both cards are always equal
+        height: 190,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: widget.color.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: widget.color.withValues(alpha: 0.15)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header row
+            Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: widget.color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(widget.icon, color: widget.color, size: 16),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: widget.color,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Value
+            Text(
+              '${widget.value}',
+              style: TextStyle(
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
+                color: widget.color,
+                height: 1,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Chart area — fixed height, detail chip overlays inside via Stack
+            Expanded(
+              child: LayoutBuilder(
+                builder: (ctx, constraints) {
+                  return Stack(
+                    children: [
+                      // Sparkline fills full area
+                      Column(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTapUp: (d) {
+                                if (data.length < 2) return;
+                                final step =
+                                    constraints.maxWidth / (data.length - 1);
+                                final i = (d.localPosition.dx / step)
+                                    .round()
+                                    .clamp(0, data.length - 1);
+                                setState(() => _sel = _sel == i ? null : i);
+                              },
+                              child: CustomPaint(
+                                size: Size(
+                                  constraints.maxWidth,
+                                  constraints.maxHeight - 16,
+                                ),
+                                painter: _CF_InteractiveSparklinePainter(
+                                  values: data,
+                                  color: widget.color,
+                                  selectedIndex: _sel,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: widget.dayLabels
+                                .map(
+                                  (d) => Text(
+                                    d.split(' ').last,
+                                    style: const TextStyle(
+                                      fontSize: 7,
+                                      color: Color(0xFF9E9E9E),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ],
+                      ),
+                      // Detail chip overlays at top — DOES NOT change card height
+                      if (_sel != null)
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: widget.color.withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${widget.dayLabels[_sel!]}  ·  ${data[_sel!].round()}  ·  ${((data[_sel!] / weekTotal) * 100).round()}%',
+                                    style: const TextStyle(
+                                      fontSize: 9,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () => setState(() => _sel = null),
+                                  child: const Icon(
+                                    Icons.close_rounded,
+                                    size: 11,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 6. Container Status Overview — donut ──────────────────────────────────────
+class _CF_StatusOverviewCard extends StatefulWidget {
+  final int inYard, laden, empty;
+  final List<ContainerModel> allContainers;
+  final void Function(String label, List<ContainerModel> list)? onTap;
+  const _CF_StatusOverviewCard({
+    required this.inYard,
+    required this.laden,
+    required this.empty,
+    this.allContainers = const [],
+    this.onTap,
+  });
+  @override
+  State<_CF_StatusOverviewCard> createState() => _CF_StatusOverviewCardState();
+}
+
+class _CF_StatusOverviewCardState extends State<_CF_StatusOverviewCard> {
+  int? _sel;
+  _CFRange _range = _CFRange.thisWeek;
+
+  @override
+  Widget build(BuildContext context) {
+    final other = (widget.inYard - widget.laden - widget.empty).clamp(
+      0,
+      999999,
+    );
+    final total = widget.inYard.clamp(1, 999999);
+    // Donut segments: laden, empty, other (non-overlapping)
+    final segments = [
+      (
+        label: 'Laden',
+        count: widget.laden,
+        color: _C.gold,
+        list: widget.allContainers
+            .where((c) => c.statusId == 1 && !c.isMovedOut)
+            .toList(),
+      ),
+      (
+        label: 'Empty',
+        count: widget.empty,
+        color: _C.red,
+        list: widget.allContainers
+            .where((c) => c.statusId == 2 && !c.isMovedOut)
+            .toList(),
+      ),
+      (
+        label: 'Other',
+        count: other,
+        color: _C.emerald.withValues(alpha: 0.6),
+        list: widget.allContainers
+            .where((c) => !c.isMovedOut && c.statusId != 1 && c.statusId != 2)
+            .toList(),
+      ),
+    ];
+    final selSeg = _sel != null ? segments[_sel!] : null;
+
+    return _CF_Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CF_Header(
+            icon: Icons.pie_chart_rounded,
+            iconColor: _C.teal,
+            title: 'Container Status Overview',
+            range: _range,
+            onRangeChanged: (r) => setState(() => _range = r),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // ── Donut (tappable) ──
+              GestureDetector(
+                onTapUp: (d) => _handleTap(d.localPosition, segments),
+                child: SizedBox(
+                  width: 110,
+                  height: 110,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CustomPaint(
+                        size: const Size(110, 110),
+                        painter: _CF_DonutPainter(
+                          values: segments
+                              .map((s) => s.count.toDouble())
+                              .toList(),
+                          colors: segments.map((s) => s.color).toList(),
+                          selected: _sel,
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            selSeg != null
+                                ? '${selSeg.count}'
+                                : '${widget.inYard}',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: selSeg != null
+                                  ? selSeg.color
+                                  : const Color(0xFF212121),
+                            ),
+                          ),
+                          Text(
+                            selSeg != null ? selSeg.label : 'Total',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: Color(0xFF9E9E9E),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  children: segments.asMap().entries.map((e) {
+                    final i = e.key;
+                    final s = e.value;
+                    final pct = (s.count / total * 100).round();
+                    final isSelected = _sel == i;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() => _sel = _sel == i ? null : i);
+                        if (widget.onTap != null && _sel == i) {
+                          widget.onTap!(s.label, s.list);
+                        }
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        margin: const EdgeInsets.only(bottom: 7),
+                        padding: isSelected
+                            ? const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 3,
+                              )
+                            : EdgeInsets.zero,
+                        decoration: isSelected
+                            ? BoxDecoration(
+                                color: s.color.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: s.color.withValues(alpha: 0.3),
+                                ),
+                              )
+                            : null,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: s.color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                s.label,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? s.color
+                                      : const Color(0xFF424242),
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '${s.count} ($pct%)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: s.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+          // ── Inline detail ──
+          if (_sel != null)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: segments[_sel!].color.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: segments[_sel!].color.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 14,
+                    color: segments[_sel!].color,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${segments[_sel!].label}: ${segments[_sel!].count} containers  ·  ${(segments[_sel!].count / total * 100).round()}% of in-yard stock',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: segments[_sel!].color,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => setState(() => _sel = null),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: segments[_sel!].color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _handleTap(
+    Offset pos,
+    List<({Color color, int count, String label, List<ContainerModel> list})>
+    segs,
+  ) {
+    const cx = 55.0;
+    const cy = 55.0;
+    final dx = pos.dx - cx;
+    final dy = pos.dy - cy;
+    final dist = math.sqrt(dx * dx + dy * dy);
+    final r = 55.0 - 6;
+    const hole = 0.55;
+    if (dist < r * hole || dist > r) {
+      setState(() => _sel = null);
+      return;
+    }
+    double angle = math.atan2(dy, dx) + math.pi / 2;
+    if (angle < 0) angle += 2 * math.pi;
+    final total = segs.fold(0, (a, s) => a + s.count).toDouble();
+    if (total == 0) return;
+    double start = 0;
+    for (int i = 0; i < segs.length; i++) {
+      if (segs[i].count == 0) continue;
+      final sweep = (segs[i].count / total) * 2 * math.pi;
+      if (angle >= start && angle < start + sweep) {
+        setState(() => _sel = _sel == i ? null : i);
+        if (_sel == i && widget.onTap != null) {
+          widget.onTap!(segs[i].label, segs[i].list);
+        }
+        return;
+      }
+      start += sweep;
+    }
+  }
+}
+
+// ── 7. Containers per Port ─────────────────────────────────────────────────────
+class _CF_ContainersPerPortCard extends StatefulWidget {
+  final List<Port> portList;
+  final List<ContainerModel> containers;
+  final List<ContainerModel> allContainers;
+  final void Function(Port port, List<ContainerModel> list)? onTapPort;
+  const _CF_ContainersPerPortCard({
+    required this.portList,
+    required this.containers,
+    this.allContainers = const [],
+    this.onTapPort,
+  });
+  @override
+  State<_CF_ContainersPerPortCard> createState() =>
+      _CF_ContainersPerPortCardState();
+}
+
+class _CF_ContainersPerPortCardState extends State<_CF_ContainersPerPortCard> {
+  _CFRange _range = _CFRange.thisWeek;
+  int? _selPort;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.portList.isEmpty) return const SizedBox.shrink();
+    final data = widget.portList.map((p) {
+      final pc = widget.containers
+          .where((c) => c.currentPortId == p.portId)
+          .toList();
+      return (
+        port: p,
+        total: pc.length,
+        laden: pc.where((c) => c.statusId == 1).length,
+        empty: pc.where((c) => c.statusId == 2).length,
+        list: pc,
+      );
+    }).toList()..sort((a, b) => b.total.compareTo(a.total));
+    final maxTotal = data.isEmpty ? 1 : data.first.total.clamp(1, 999999);
+
+    return _CF_Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CF_Header(
+            icon: Icons.anchor_rounded,
+            iconColor: _C.blue,
+            title: 'Containers per Port',
+            range: _range,
+            onRangeChanged: (r) => setState(() {
+              _range = r;
+              _selPort = null;
+            }),
+          ),
+          const SizedBox(height: 14),
+          ...data.asMap().entries.map((e) {
+            final i = e.key;
+            final d = e.value;
+            final pct = d.total / maxTotal;
+            final isSelected = _selPort == i;
+            final portAll = widget.allContainers.isNotEmpty
+                ? widget.allContainers
+                      .where((c) => c.currentPortId == d.port.portId)
+                      .toList()
+                : d.list;
+            return GestureDetector(
+              onTap: () {
+                setState(() => _selPort = _selPort == i ? null : i);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: isSelected ? const EdgeInsets.all(8) : EdgeInsets.zero,
+                decoration: isSelected
+                    ? BoxDecoration(
+                        color: _C.blue.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _C.blue.withValues(alpha: 0.2),
+                        ),
+                      )
+                    : null,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            d.port.portDesc,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF212121),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${d.total}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF212121),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _C.gold.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'L:${d.laden}',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: _C.goldD,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _C.red.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'E:${d.empty}',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: _C.red,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    // Segmented bar
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Stack(
+                        children: [
+                          Container(height: 8, color: const Color(0xFFF0F0F0)),
+                          FractionallySizedBox(
+                            widthFactor: pct,
+                            child: Container(
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _C.red,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                          FractionallySizedBox(
+                            widthFactor:
+                                (d.laden / d.total.clamp(1, 999999)) * pct,
+                            child: Container(
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _C.gold,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Inline detail row when selected
+                    if (isSelected)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          children: [
+                            _CF_PortStatChip(
+                              label: 'Total',
+                              value: d.total,
+                              color: _C.blue,
+                            ),
+                            const SizedBox(width: 6),
+                            _CF_PortStatChip(
+                              label: 'Laden',
+                              value: d.laden,
+                              color: _C.gold,
+                            ),
+                            const SizedBox(width: 6),
+                            _CF_PortStatChip(
+                              label: 'Empty',
+                              value: d.empty,
+                              color: _C.red,
+                            ),
+                            const Spacer(),
+                            GestureDetector(
+                              onTap: widget.onTapPort != null
+                                  ? () => widget.onTapPort!(d.port, portAll)
+                                  : null,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _C.blue,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: const Text(
+                                  'View',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          // Legend
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: _C.gold,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                'Laden',
+                style: TextStyle(fontSize: 10, color: Color(0xFF616161)),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: _C.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Text(
+                'Empty',
+                style: TextStyle(fontSize: 10, color: Color(0xFF616161)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CF_PortStatChip extends StatelessWidget {
+  final String label;
+  final int value;
+  final Color color;
+  const _CF_PortStatChip({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 9,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '$value',
+            style: TextStyle(
+              fontSize: 10,
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Inbound Card (bar chart — interactive) ────────────────────────────────────
+class _InboundCard extends StatefulWidget {
+  final int inbound;
+  final List<int> dailyData;
+  final List<String> dayLabels;
+  const _InboundCard({
+    required this.inbound,
+    required this.dailyData,
+    required this.dayLabels,
+  });
+
+  @override
+  State<_InboundCard> createState() => _InboundCardState();
+}
+
+class _InboundCardState extends State<_InboundCard> {
+  int? _selectedBar;
+
+  @override
+  void didUpdateWidget(_InboundCard old) {
+    super.didUpdateWidget(old);
+    if (old.inbound != widget.inbound) _selectedBar = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Use real daily data — actual container counts per day
+    final data = widget.dailyData.map((v) => v.toDouble()).toList();
+    final maxVal = data
+        .reduce((a, b) => a > b ? a : b)
+        .clamp(1.0, double.infinity);
+    final days = widget.dayLabels;
+    final sel = _selectedBar;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _C.emerald.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: _C.shadow,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          // ── Header ──────────────────────────────────────────────
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _C.emerald.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.arrow_downward_rounded,
+                  color: _C.emerald,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total Inbound',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: _C.textD,
+                      ),
+                    ),
+                    Text(
+                      'Tap a bar to see daily details',
+                      style: TextStyle(fontSize: 11, color: _C.textL),
+                    ),
+                  ],
+                ),
+              ),
+              // Dismiss selection button
+              if (sel != null)
+                GestureDetector(
+                  onTap: () => setState(() => _selectedBar = null),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: _C.bg,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: _C.textL,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // ── Big count ────────────────────────────────────────────
+          widget.inbound == 0
+              ? const Text(
+                  'No data available.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _C.textL,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+              : Text(
+                  '${widget.inbound}',
+                  style: const TextStyle(
+                    fontSize: 48,
+                    fontWeight: FontWeight.w900,
+                    color: _C.emerald,
+                    height: 1,
+                  ),
+                ),
+          const SizedBox(height: 24),
+
+          // ── Bar chart — exact pixel budget prevents overflow ──────
+          // Budget: 16 label + 2 gap + 95 bar + 5 gap + 14 day = 132px
+          SizedBox(
+            height: 132,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(7, (i) {
+                const double maxBarH = 95.0;
+                final pct = maxVal > 0 ? data[i] / maxVal : 0.0;
+                final isActive = sel == i;
+                final barH = (maxBarH * pct).clamp(0.0, maxBarH);
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(
+                      () => _selectedBar = _selectedBar == i ? null : i,
+                    ),
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Padding(
+                        padding: EdgeInsets.only(right: i < 6 ? 5 : 0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.max,
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            // Value label — fixed 16px
+                            SizedBox(
+                              height: 16,
+                              child: widget.inbound > 0
+                                  ? Center(
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 200,
+                                        ),
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: isActive ? 3 : 0,
+                                          vertical: 1,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isActive
+                                              ? _C.emerald
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            3,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          data[i].round().toString(),
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 8,
+                                            color: isActive
+                                                ? Colors.white
+                                                : _C.textL,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                            const SizedBox(height: 2),
+                            // Bar — exact calculated height, no clamp needed
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                              height: barH,
+                              decoration: BoxDecoration(
+                                color: isActive
+                                    ? _C.emerald
+                                    : _C.emerald.withValues(alpha: 0.45),
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(4),
+                                ),
+                                border: isActive
+                                    ? Border.all(color: _C.emerald, width: 2)
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            // Day label — fixed 14px
+                            SizedBox(
+                              height: 14,
+                              child: Text(
+                                days[i],
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: isActive ? _C.emerald : _C.textL,
+                                  fontWeight: isActive
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+
+          // ── Inline info panel — shown when a bar is selected ─────
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 220),
+            crossFadeState: sel != null
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            firstChild: sel != null
+                ? Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _C.emerald.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _C.emerald.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _C.emerald,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.calendar_today_rounded,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                days[sel],
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: _C.emerald,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${data[sel].round()} containers received',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: _C.textM,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                '${((data[sel] / widget.inbound) * 100).round()}% of weekly total',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: _C.textL,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          data[sel].round().toString(),
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: _C.emerald,
+                            height: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+            secondChild: const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Outbound Card (line graph — interactive) ──────────────────────────────────
+class _OutboundCard extends StatefulWidget {
+  final int outbound;
+  final List<int> dailyData;
+  final List<String> dayLabels;
+  const _OutboundCard({
+    required this.outbound,
+    required this.dailyData,
+    required this.dayLabels,
+  });
+
+  @override
+  State<_OutboundCard> createState() => _OutboundCardState();
+}
+
+class _OutboundCardState extends State<_OutboundCard> {
+  int? _selectedPoint;
+
+  @override
+  void didUpdateWidget(_OutboundCard old) {
+    super.didUpdateWidget(old);
+    if (old.outbound != widget.outbound) _selectedPoint = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Real daily data — actual outbound counts per day
+    final data = widget.dailyData.map((v) => v.toDouble()).toList();
+    final days = widget.dayLabels;
+    final sel = _selectedPoint;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _C.red.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: _C.shadow,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          // ── Header ──────────────────────────────────────────────
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _C.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.arrow_upward_rounded,
+                  color: _C.red,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total Outbound',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: _C.textD,
+                      ),
+                    ),
+                    Text(
+                      'Tap a point to see daily details',
+                      style: TextStyle(fontSize: 11, color: _C.textL),
+                    ),
+                  ],
+                ),
+              ),
+              if (sel != null)
+                GestureDetector(
+                  onTap: () => setState(() => _selectedPoint = null),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: _C.bg,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: _C.textL,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // ── Big count ────────────────────────────────────────────
+          widget.outbound == 0
+              ? const Text(
+                  'No data available.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _C.textL,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+              : Text(
+                  '${widget.outbound}',
+                  style: const TextStyle(
+                    fontSize: 48,
+                    fontWeight: FontWeight.w900,
+                    color: _C.red,
+                    height: 1,
+                  ),
+                ),
+          const SizedBox(height: 24),
+
+          // ── Line graph with tap targets ──────────────────────────
+          SizedBox(
+            height: 130,
+            child: widget.outbound == 0
+                ? const Center(
+                    child: Text(
+                      '—',
+                      style: TextStyle(color: _C.textL, fontSize: 24),
+                    ),
+                  )
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final w = constraints.maxWidth;
+                      final h = constraints.maxHeight;
+                      final maxV = data
+                          .reduce((a, b) => a > b ? a : b)
+                          .clamp(1.0, double.infinity);
+                      final step = w / 6;
+
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          // Line graph fills entire area
+                          SizedBox.expand(
+                            child: CustomPaint(
+                              painter: _LineGraphPainter(
+                                values: data,
+                                selectedIndex: sel,
+                              ),
+                            ),
+                          ),
+                          // Tap targets — clamped to stay within bounds
+                          ...List.generate(7, (i) {
+                            final dx = (i * step).clamp(0.0, w - 36);
+                            final rawDy = h - (data[i] / maxV) * h;
+                            final dy = rawDy.clamp(0.0, h - 36);
+                            final isS = sel == i;
+                            return Positioned(
+                              left: dx,
+                              top: dy,
+                              child: GestureDetector(
+                                onTap: () => setState(
+                                  () => _selectedPoint = sel == i ? null : i,
+                                ),
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    width: 36,
+                                    height: 36,
+                                    decoration: BoxDecoration(
+                                      color: isS
+                                          ? _C.red.withValues(alpha: 0.12)
+                                          : Colors.transparent,
+                                      shape: BoxShape.circle,
+                                      border: isS
+                                          ? Border.all(
+                                              color: _C.red.withValues(
+                                                alpha: 0.4,
+                                              ),
+                                              width: 1.5,
+                                            )
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+          const SizedBox(height: 8),
+
+          // ── Day labels ───────────────────────────────────────────
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(
+              7,
+              (i) => Text(
+                days[i],
+                style: TextStyle(
+                  fontSize: 10,
+                  color: sel == i ? _C.red : _C.textL,
+                  fontWeight: sel == i ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+
+          // ── Inline info panel ────────────────────────────────────
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 220),
+            crossFadeState: sel != null
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            firstChild: sel != null
+                ? Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _C.red.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _C.red.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _C.red,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.calendar_today_rounded,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                days[sel],
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: _C.red,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${data[sel].round()} containers dispatched',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: _C.textM,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                '${((data[sel] / widget.outbound) * 100).round()}% of weekly total',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: _C.textL,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          data[sel].round().toString(),
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900,
+                            color: _C.red,
+                            height: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+            secondChild: const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LineGraphPainter extends CustomPainter {
+  final List<double> values;
+  final int? selectedIndex;
+  const _LineGraphPainter({required this.values, this.selectedIndex});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+    final maxV = values
+        .reduce((a, b) => a > b ? a : b)
+        .clamp(1.0, double.infinity);
+
+    final linePaint = Paint()
+      ..color = const Color(0xFFFF2800)
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [
+          const Color(0xFFFF2800).withValues(alpha: 0.2),
+          const Color(0xFFFF2800).withValues(alpha: 0.0),
+        ],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..style = PaintingStyle.fill;
+
+    final n = values.length;
+    final step = size.width / (n - 1);
+
+    Offset point(int i) =>
+        Offset(i * step, size.height - (values[i] / maxV) * size.height);
+
+    // Fill path
+    final fillPath = Path()..moveTo(0, size.height);
+    for (int i = 0; i < n; i++) {
+      final p = point(i);
+      if (i == 0) {
+        fillPath.lineTo(p.dx, p.dy);
+      } else {
+        fillPath.lineTo(p.dx, p.dy);
+      }
+    }
+    fillPath.lineTo((n - 1) * step, size.height);
+    fillPath.close();
+    canvas.drawPath(fillPath, fillPaint);
+
+    // Line path
+    final linePath = Path()..moveTo(point(0).dx, point(0).dy);
+    for (int i = 1; i < n; i++) {
+      linePath.lineTo(point(i).dx, point(i).dy);
+    }
+    canvas.drawPath(linePath, linePaint);
+
+    // Dots
+    final dotPaint = Paint()
+      ..color = const Color(0xFFFF2800)
+      ..style = PaintingStyle.fill;
+    for (int i = 0; i < n; i++) {
+      final isSelected = i == selectedIndex;
+      // White fill
+      canvas.drawCircle(
+        point(i),
+        isSelected ? 6 : 3,
+        Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.fill,
+      );
+      // Colored ring
+      canvas.drawCircle(point(i), isSelected ? 6 : 2, dotPaint);
+      // Extra outer ring for selected
+      if (isSelected) {
+        canvas.drawCircle(
+          point(i),
+          10,
+          Paint()
+            ..color = const Color(0xFFFF2800).withOpacity(0.2)
+            ..style = PaintingStyle.fill,
+        );
+        canvas.drawCircle(
+          point(i),
+          6,
+          Paint()
+            ..color = Colors.white
+            ..style = PaintingStyle.fill,
+        );
+        canvas.drawCircle(point(i), 5, dotPaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LineGraphPainter old) =>
+      old.values != values || old.selectedIndex != selectedIndex;
+}
+
+// ── Empty Containers Breakdown Card ─────────────────────────────────────────
+class _EmptyBreakdownCard extends StatefulWidget {
+  final int foodGrade, nonFoodGrade, repairable, frmd, total;
+  final List<ContainerModel> allEmpty;
+  final void Function(String label, List<ContainerModel> list)? onTapType;
+  const _EmptyBreakdownCard({
+    required this.foodGrade,
+    required this.nonFoodGrade,
+    required this.repairable,
+    required this.frmd,
+    required this.total,
+    this.allEmpty = const [],
+    this.onTapType,
+  });
+
+  @override
+  State<_EmptyBreakdownCard> createState() => _EmptyBreakdownCardState();
+}
+
+class _EmptyBreakdownCardState extends State<_EmptyBreakdownCard> {
+  int? _selectedSlice; // 0=Food, 1=NonFood, 2=Repair, 3=FRMD
+
+  static const _sliceNames = [
+    'Food Grade',
+    'Non-Food Grade',
+    'Repairable',
+    'FRMD',
+  ];
+  static const _sliceColors = [_C.emeraldL, _C.orange, _C.blue, _C.purple];
+
+  List<ContainerModel> _filterForSlice(int idx) {
+    return widget.allEmpty.where((c) {
+      final d = c.containerDesc?.toLowerCase() ?? '';
+      switch (idx) {
+        case 0:
+          return d.contains('food') && !d.contains('non');
+        case 1:
+          return d.contains('non') && d.contains('food');
+        case 2:
+          return d.contains('repair');
+        case 3:
+          return d.contains('frmd');
+        default:
+          return false;
+      }
+    }).toList();
+  }
+
+  List<int> get _values => [
+    widget.foodGrade,
+    widget.nonFoodGrade,
+    widget.repairable,
+    widget.frmd,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final values = _values;
+    final hasData = widget.total > 0;
+    final sel = _selectedSlice;
+
+    return _FlowCard(
+      title: 'Empty Containers',
+      icon: Icons.pie_chart_outline_rounded,
+      iconColor: _C.orange,
+      children: [
+        // ── Pie + Legend row ──────────────────────────────────
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Pie — GestureDetector wraps it, tap position maps to slice
+            GestureDetector(
+              onTapUp: (details) {
+                if (!hasData) return;
+                final box = context.findRenderObject() as RenderBox?;
+                if (box == null) return;
+                // Pie is 120×120, centered in its SizedBox
+                final localPos = details.localPosition;
+                // Compute centre of pie widget (approximate — 120px wide, positioned left)
+                const cx = 60.0, cy = 60.0;
+                final dx = localPos.dx - cx;
+                final dy = localPos.dy - cy;
+                // Determine angle (0 = top, clockwise)
+                double angle = (math.atan2(dy, dx) + math.pi / 2);
+                if (angle < 0) angle += 2 * math.pi;
+                // Map angle to slice index
+                final total = values.fold(0, (a, b) => a + b).toDouble();
+                if (total == 0) return;
+                double cursor = 0;
+                for (int i = 0; i < values.length; i++) {
+                  final sweep = (values[i] / total) * 2 * math.pi;
+                  if (angle <= cursor + sweep) {
+                    setState(
+                      () => _selectedSlice = (_selectedSlice == i ? null : i),
+                    );
+                    return;
+                  }
+                  cursor += sweep;
+                }
+                setState(() => _selectedSlice = null);
+              },
+              child: MouseRegion(
+                cursor: hasData ? SystemMouseCursors.click : MouseCursor.defer,
+                child: SizedBox(
+                  width: 120,
+                  height: 120,
+                  child: hasData
+                      ? CustomPaint(
+                          painter: _InteractivePiePainter(
+                            values: values.map((v) => v.toDouble()).toList(),
+                            colors: _sliceColors,
+                            selectedIndex: sel,
+                          ),
+                          child: Center(
+                            child: sel != null
+                                ? Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '${values[sel]}',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w900,
+                                          color: _sliceColors[sel],
+                                          height: 1,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${(values[sel] / widget.total * 100).round()}%',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: _C.textL,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Text(
+                                    '${widget.total}',
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      color: _C.textD,
+                                    ),
+                                  ),
+                          ),
+                        )
+                      : const Center(
+                          child: Text(
+                            'No data\navailable.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: _C.textL,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+
+            // ── Legend rows ─────────────────────────────────────────
+            Expanded(
+              child: Column(
+                children: List.generate(4, (i) {
+                  final lbl = _sliceNames[i];
+                  final val = values[i];
+                  final clr = _sliceColors[i];
+                  final pct = widget.total > 0
+                      ? (val / widget.total * 100).round()
+                      : 0;
+                  final isS = sel == i;
+                  return MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() => _selectedSlice = isS ? null : i);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isS
+                              ? clr.withValues(alpha: 0.1)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isS
+                                ? clr.withValues(alpha: 0.4)
+                                : Colors.transparent,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: isS ? 10 : 8,
+                              height: isS ? 10 : 8,
+                              decoration: BoxDecoration(
+                                color: clr,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                lbl,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  color: isS ? clr : _C.textM,
+                                  fontWeight: isS
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '$val',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: clr,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '$pct%',
+                              style: const TextStyle(
+                                fontSize: 9.5,
+                                color: _C.textL,
+                              ),
+                            ),
+                            if (isS) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 9,
+                                color: clr.withValues(alpha: 0.6),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ],
+        ), // end Row(pie+legend)
+        // ── Info strip — fixed height, no card resize ─────────
+        const SizedBox(height: 10),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          child: sel != null
+              ? Container(
+                  key: ValueKey(sel),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _sliceColors[sel].withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _sliceColors[sel].withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: _sliceColors[sel],
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          Icons.pie_chart_rounded,
+                          size: 12,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${_sliceNames[sel]} — ${values[sel]} containers (${(values[sel] / widget.total * 100).round()}%)',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: _sliceColors[sel],
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${values[sel]}',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: _sliceColors[sel],
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : Container(
+                  key: const ValueKey('empty'),
+                  height: 38,
+                  alignment: Alignment.centerLeft,
+                  child: const Text(
+                    'Tap a slice to see details',
+                    style: TextStyle(fontSize: 11, color: _C.textL),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Laden Containers Card ──────────────────────────────────────────────────────
+class _LadenCard extends StatelessWidget {
+  final int laden, tempoGrounding;
+  final List<ContainerModel> allLaden;
+  final void Function(String label, List<ContainerModel> list)? onTap;
+  const _LadenCard({
+    required this.laden,
+    required this.tempoGrounding,
+    this.allLaden = const [],
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tempoList = allLaden.where((c) {
+      final d = c.containerDesc?.toLowerCase() ?? '';
+      return d.contains('tempo') || d.contains('grounding');
+    }).toList();
+    return _FlowCard(
+      title: 'Laden Containers',
+      icon: Icons.check_circle_outline_rounded,
+      iconColor: _C.blue,
+      children: [
+        _FlowRow(
+          label: 'Total Laden',
+          value: laden,
+          color: _C.blue,
+          icon: Icons.inventory_2_rounded,
+          subtitle: 'Including all laden types',
+          onTap: onTap != null
+              ? () => onTap!('Total Laden Containers', allLaden)
+              : null,
+        ),
+        const SizedBox(height: 12),
+        _FlowRow(
+          label: 'Tempo Grounding',
+          value: tempoGrounding,
+          color: _C.purple,
+          icon: Icons.anchor_rounded,
+          subtitle: 'Laden — tempo grounding',
+          onTap: onTap != null
+              ? () => onTap!('Tempo Grounding Containers', tempoList)
+              : null,
+        ),
+      ],
+    );
+  }
+}
+
+// ── Yard Flow Card ─────────────────────────────────────────────────────────────
+class _YardFlowCard extends StatelessWidget {
+  final int yardIn, yardOut;
+  final List<ContainerModel> allInYard;
+  final List<ContainerModel> allOutYard;
+  final void Function(String label, List<ContainerModel> list)? onTap;
+  const _YardFlowCard({
+    required this.yardIn,
+    required this.yardOut,
+    this.allInYard = const [],
+    this.allOutYard = const [],
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final total = (yardIn + yardOut).clamp(1, 999999);
+    return _FlowCard(
+      title: 'Total in Yard',
+      icon: Icons.warehouse_rounded,
+      iconColor: _C.emerald,
+      children: [
+        _FlowRow(
+          label: 'Container Yard In',
+          value: yardIn,
+          color: _C.emerald,
+          icon: Icons.login_rounded,
+          subtitle: 'Currently in yard',
+          onTap: onTap != null
+              ? () => onTap!('Container Yard In', allInYard)
+              : null,
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: yardIn / total,
+            minHeight: 6,
+            backgroundColor: _C.red.withValues(alpha: 0.12),
+            valueColor: const AlwaysStoppedAnimation(_C.emerald),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _FlowRow(
+          label: 'Container Yard Out',
+          value: yardOut,
+          color: _C.red,
+          icon: Icons.logout_rounded,
+          subtitle: 'Moved out of yard',
+          onTap: onTap != null
+              ? () => onTap!('Container Yard Out', allOutYard)
+              : null,
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: yardOut / total,
+            minHeight: 6,
+            backgroundColor: _C.red.withValues(alpha: 0.12),
+            valueColor: const AlwaysStoppedAnimation(_C.red),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Shared Flow Card shell ─────────────────────────────────────────────────────
+class _FlowCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color iconColor;
+  final List<Widget> children;
+  const _FlowCard({
+    required this.title,
+    required this.icon,
+    required this.iconColor,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _C.border),
+        boxShadow: [
+          BoxShadow(
+            color: _C.shadow,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: _C.textD,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+// ── Shared Flow Row ────────────────────────────────────────────────────────────
+class _FlowRow extends StatelessWidget {
+  final String label, subtitle;
+  final int value;
+  final Color color;
+  final IconData icon;
+  final VoidCallback? onTap;
+  const _FlowRow({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.icon,
+    required this.subtitle,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: onTap != null ? SystemMouseCursors.click : MouseCursor.defer,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: onTap != null ? 0.18 : 0.10),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _C.textM,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 9.5, color: _C.textL),
+                  ),
+                ],
+              ),
+            ),
+            value == 0
+                ? const Text(
+                    'No data\navailable.',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      color: _C.textL,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$value',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: color,
+                          height: 1,
+                        ),
+                      ),
+                      if (onTap != null) ...[
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 11,
+                          color: color.withValues(alpha: 0.5),
+                        ),
+                      ],
+                    ],
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Interactive Pie Chart Painter ────────────────────────────────────────────
+class _InteractivePiePainter extends CustomPainter {
+  final List<double> values;
+  final List<Color> colors;
+  final int? selectedIndex;
+
+  const _InteractivePiePainter({
+    required this.values,
+    required this.colors,
+    this.selectedIndex,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = values.fold(0.0, (a, b) => a + b);
+    if (total == 0) return;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = (size.width / 2) - 8;
+    double startAngle = -math.pi / 2;
+
+    for (int i = 0; i < values.length; i++) {
+      if (values[i] == 0) continue;
+      final sweep = (values[i] / total) * 2 * math.pi;
+      final isSelected = i == selectedIndex;
+      // Selected slice pops out slightly
+      final offset = isSelected ? 6.0 : 0.0;
+      final midAngle = startAngle + sweep / 2;
+      final ox = math.cos(midAngle) * offset;
+      final oy = math.sin(midAngle) * offset;
+
+      final paint = Paint()
+        ..color = isSelected ? colors[i] : colors[i].withOpacity(0.65)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset(cx + ox, cy + oy), radius: r),
+        startAngle,
+        sweep,
+        true,
+        paint,
+      );
+
+      // Stroke for selected slice
+      if (isSelected) {
+        canvas.drawArc(
+          Rect.fromCircle(center: Offset(cx + ox, cy + oy), radius: r),
+          startAngle,
+          sweep,
+          true,
+          Paint()
+            ..color = Colors.white
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.5,
+        );
+      }
+      startAngle += sweep;
+    }
+
+    // Donut hole
+    canvas.drawCircle(
+      Offset(cx, cy),
+      r * 0.52,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_InteractivePiePainter old) =>
+      old.values != values ||
+      old.colors != colors ||
+      old.selectedIndex != selectedIndex;
+}
+
+// ── Simple Pie Chart Painter ───────────────────────────────────────────────────
+class _PieChartPainter extends CustomPainter {
+  final List<double> values;
+  final List<Color> colors;
+  const _PieChartPainter({required this.values, required this.colors});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = values.fold(0.0, (a, b) => a + b);
+    if (total == 0) return;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = (size.width / 2) - 6;
+    double startAngle = -3.14159265 / 2;
+    for (int i = 0; i < values.length; i++) {
+      if (values[i] == 0) continue;
+      final sweep = (values[i] / total) * 2 * 3.14159265;
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset(cx, cy), radius: r),
+        startAngle,
+        sweep,
+        true,
+        Paint()
+          ..color = colors[i]
+          ..style = PaintingStyle.fill,
+      );
+      startAngle += sweep;
+    }
+    // White hole for donut effect
+    canvas.drawCircle(
+      Offset(cx, cy),
+      r * 0.55,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_PieChartPainter old) =>
+      old.values != values || old.colors != colors;
+}
+
+// ── Dashboard Filter Bar ─────────────────────────────────────────────────────
+class _DashboardFilterBar extends StatelessWidget {
+  final TextEditingController searchCtrl;
+  final String searchQuery, filterPort, filterStatus;
+  final List<Port> portList;
+  final ValueChanged<String> onSearchChanged, onPortChanged, onStatusChanged;
+  final VoidCallback onClear;
+  final int resultCount;
+
+  const _DashboardFilterBar({
+    required this.searchCtrl,
+    required this.searchQuery,
+    required this.filterPort,
+    required this.filterStatus,
+    required this.portList,
+    required this.onSearchChanged,
+    required this.onPortChanged,
+    required this.onStatusChanged,
+    required this.onClear,
+    required this.resultCount,
+  });
+
+  bool get _isActive =>
+      searchQuery.isNotEmpty || filterPort != 'All' || filterStatus != 'All';
+
+  @override
+  Widget build(BuildContext context) {
+    final portOptions = ['All', ...portList.map((p) => p.portDesc)];
+    const statusOptions = ['All', 'Laden', 'Empty', 'In Transit', 'Moved Out'];
+
+    return Row(
+      children: [
+        // ── Search input ─────────────────────────────────────────
+        Expanded(
+          flex: 3,
+          child: Container(
+            height: 42,
+            decoration: BoxDecoration(
+              color: _C.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: searchQuery.isNotEmpty ? _C.emerald : _C.border,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _C.shadow,
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: searchCtrl,
+              onChanged: onSearchChanged,
+              style: const TextStyle(fontSize: 13, color: _C.textD),
+              decoration: InputDecoration(
+                hintText: 'Search by container no. or type…',
+                hintStyle: const TextStyle(color: _C.textL, fontSize: 12),
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 13,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  size: 18,
+                  color: _C.textL,
+                ),
+                suffixIcon: searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          size: 15,
+                          color: _C.textL,
+                        ),
+                        onPressed: () {
+                          searchCtrl.clear();
+                          onSearchChanged('');
+                        },
+                        padding: EdgeInsets.zero,
+                      )
+                    : null,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+
+        // ── Port dropdown ────────────────────────────────────────
+        _CompactDropdown(
+          icon: Icons.anchor_rounded,
+          label: 'Port',
+          value: filterPort,
+          options: portOptions,
+          onChanged: onPortChanged,
+          active: filterPort != 'All',
+        ),
+        const SizedBox(width: 10),
+
+        // ── Status dropdown ──────────────────────────────────────
+        _CompactDropdown(
+          icon: Icons.filter_list_rounded,
+          label: 'Status',
+          value: filterStatus,
+          options: statusOptions,
+          onChanged: onStatusChanged,
+          active: filterStatus != 'All',
+        ),
+        const SizedBox(width: 10),
+
+        // ── Result count badge (real-time) ───────────────────────
+        if (_isActive) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: _C.emerald.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _C.emerald.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.inventory_2_outlined,
+                  size: 14,
+                  color: _C.emerald,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$resultCount result${resultCount != 1 ? "s" : ""}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: _C.emerald,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Clear button
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onClear,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: _C.red.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _C.red.withValues(alpha: 0.25)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.close_rounded, size: 14, color: _C.red),
+                    SizedBox(width: 5),
+                    Text(
+                      'Clear',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _C.red,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ── Compact Dropdown ──────────────────────────────────────────────────────────
+class _CompactDropdown extends StatelessWidget {
+  final IconData icon;
+  final String label, value;
+  final List<String> options;
+  final ValueChanged<String> onChanged;
+  final bool active;
+
+  const _CompactDropdown({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    required this.active,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: active ? _C.emerald.withValues(alpha: 0.08) : _C.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: active ? _C.emerald : _C.border,
+          width: active ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _C.shadow,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: active ? _C.emerald : _C.textL),
+          const SizedBox(width: 6),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isDense: true,
+              icon: Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 16,
+                color: active ? _C.emerald : _C.textL,
+              ),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: active ? _C.emerald : _C.textM,
+              ),
+              items: options
+                  .map(
+                    (o) => DropdownMenuItem(
+                      value: o,
+                      child: Text(
+                        o == 'All' ? '$label: All' : o,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: active && o == value ? _C.emerald : _C.textD,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) onChanged(v);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Customer Summary Card ─────────────────────────────────────────────────────
+class _CustomerSummaryCard extends StatelessWidget {
+  final Map<int, int> containersByCustomer;
+  final int totalContainers;
+  final List<ContainerModel> allContainers;
+  final void Function(int customerId, List<ContainerModel> list)? onTapCustomer;
+  const _CustomerSummaryCard({
+    required this.containersByCustomer,
+    required this.totalContainers,
+    this.allContainers = const [],
+    this.onTapCustomer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = containersByCustomer.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top = sorted.take(5).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _C.border),
+        boxShadow: [
+          BoxShadow(
+            color: _C.shadow,
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.people_alt_rounded, color: _C.purple, size: 16),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Customer Container Distribution',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: _C.textD,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: _C.purple.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${containersByCustomer.length} customers',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: _C.purple,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...top.map((e) {
+            final pct = totalContainers > 0 ? e.value / totalContainers : 0.0;
+            final custContainers = allContainers
+                .where((c) => c.customerId == e.key)
+                .toList();
+            return MouseRegion(
+              cursor: onTapCustomer != null
+                  ? SystemMouseCursors.click
+                  : MouseCursor.defer,
+              child: GestureDetector(
+                onTap: onTapCustomer != null
+                    ? () => onTapCustomer!(e.key, custContainers)
+                    : null,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: _C.purple.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'C${e.key}',
+                              style: const TextStyle(
+                                fontSize: 8,
+                                color: _C.purple,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Customer #${e.key}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: _C.textM,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${e.value} containers',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: _C.purple,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${(pct * 100).round()}%',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: _C.textL,
+                            ),
+                          ),
+                          if (onTapCustomer != null) ...[
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 11,
+                              color: _C.purple.withValues(alpha: 0.5),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: pct,
+                          minHeight: 5,
+                          backgroundColor: _C.purple.withValues(alpha: 0.1),
+                          valueColor: const AlwaysStoppedAnimation(_C.purple),
+                        ),
+                      ),
+                    ],
+                  ),
+                ), // Padding
+              ), // GestureDetector
+            ); // MouseRegion
+          }),
+          if (sorted.length > 5) ...[
+            const SizedBox(height: 4),
+            Text(
+              '+${sorted.length - 5} more customers',
+              style: const TextStyle(fontSize: 11, color: _C.textL),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Filtered Container List ───────────────────────────────────────────────────
+class _FilteredContainerList extends StatelessWidget {
+  final List<ContainerModel> containers;
+  final List<Port> portList;
+  const _FilteredContainerList({
+    required this.containers,
+    required this.portList,
+  });
+
+  String _portName(int portId) {
+    try {
+      return portList.firstWhere((p) => p.portId == portId).portDesc;
+    } catch (_) {
+      return 'Port $portId';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (containers.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: _C.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _C.border),
+        ),
+        child: const Center(
+          child: Column(
+            children: [
+              Icon(Icons.search_off_rounded, size: 40, color: _C.textL),
+              SizedBox(height: 12),
+              Text(
+                'No containers match the current filter.',
+                style: TextStyle(color: _C.textL, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final shown = containers.take(20).toList();
+    return Container(
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _C.border),
+        boxShadow: [
+          BoxShadow(
+            color: _C.shadow,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: const BoxDecoration(
+              color: _C.navBg,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+            ),
+            child: Row(
+              children: [
+                const Expanded(
+                  flex: 3,
+                  child: Text(
+                    'CONTAINER',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+                const Expanded(
+                  child: Text(
+                    'PORT',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const Expanded(
+                  child: Text(
+                    'STATUS',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const Expanded(
+                  child: Text(
+                    'TYPE',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${containers.length} results',
+                  style: const TextStyle(color: Colors.white54, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          // Rows
+          ...shown.asMap().entries.map((e) {
+            final i = e.key;
+            final c = e.value;
+            final isLaden = c.statusId == 1;
+            final statusColor = isLaden ? _C.blue : _C.red;
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: i.isEven ? _C.surface : _C.bg,
+                border: Border(
+                  bottom: BorderSide(
+                    color: _C.border,
+                    width: i < shown.length - 1 ? 1 : 0,
+                  ),
+                ),
+                borderRadius: i == shown.length - 1
+                    ? const BorderRadius.vertical(bottom: Radius.circular(14))
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          c.containerNumber,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _C.textD,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      _portName(c.currentPortId),
+                      style: const TextStyle(fontSize: 11, color: _C.textM),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          isLaden ? 'Laden' : 'Empty',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: statusColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        c.containerDesc ?? '-',
+                        style: const TextStyle(fontSize: 11, color: _C.textL),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (containers.length > 20)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Center(
+                child: Text(
+                  '+ ${containers.length - 20} more results — refine your filter',
+                  style: const TextStyle(fontSize: 11, color: _C.textL),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

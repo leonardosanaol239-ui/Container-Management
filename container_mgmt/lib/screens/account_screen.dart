@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
 import '../models/session.dart';
-import '../theme/app_theme.dart';
 import 'user_management_screen.dart';
+
+// ── Brand tokens ──────────────────────────────────────────────────────────────
+const _navBg = Color(0xFF0B3D0F);
+const _green = Color(0xFF0B560D);
+const _bg = Color(0xFFF0F2EE);
+const _surface = Color(0xFFFFFFFF);
+const _border = Color(0xFFE8EAE4);
+const _textD = Color(0xFF1A1A0A);
+const _textM = Color(0xFF4A4A4A);
+const _textL = Color(0xFF757575);
 
 // ── Account Screen ────────────────────────────────────────────────────────────
 // Full-page screen with a permanent left sidebar.
@@ -37,7 +46,7 @@ class _AccountScreenState extends State<AccountScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: const Color(0xFFF0F2EE),
       body: Column(
         children: [
           // ── Top bar ──────────────────────────────────────────────
@@ -81,42 +90,41 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 64,
-      decoration: const BoxDecoration(
-        color: AppColors.yellow,
-        boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
-        ],
-      ),
+      height: 60,
+      color: _navBg,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
           // Back button
-          GestureDetector(
-            onTap: onBack,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.green,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: AppColors.yellow,
-                size: 16,
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onBack,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Container(
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: AppColors.green,
+              color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Icon(
               Icons.manage_accounts_rounded,
-              color: AppColors.yellow,
+              color: Colors.white,
               size: 20,
             ),
           ),
@@ -128,18 +136,18 @@ class _TopBar extends StatelessWidget {
               Text(
                 'Account Settings',
                 style: TextStyle(
-                  color: AppColors.green,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
                   letterSpacing: 0.3,
                 ),
               ),
               Text(
                 'Manage your profile and system users',
                 style: TextStyle(
-                  color: AppColors.green,
+                  color: Colors.white70,
                   fontSize: 11,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
             ],
@@ -173,7 +181,7 @@ class _Sidebar extends StatelessWidget {
       width: 220,
       constraints: const BoxConstraints(minWidth: 180, maxWidth: 240),
       decoration: const BoxDecoration(
-        color: AppColors.green,
+        color: _green,
         boxShadow: [
           BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(2, 0)),
         ],
@@ -193,7 +201,7 @@ class _Sidebar extends StatelessWidget {
                   width: 60,
                   height: 60,
                   decoration: BoxDecoration(
-                    color: AppColors.yellow,
+                    color: Colors.white.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.3),
@@ -204,7 +212,7 @@ class _Sidebar extends StatelessWidget {
                   child: Text(
                     initials,
                     style: const TextStyle(
-                      color: AppColors.green,
+                      color: Colors.white,
                       fontWeight: FontWeight.w900,
                       fontSize: 20,
                     ),
@@ -229,16 +237,16 @@ class _Sidebar extends StatelessWidget {
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.yellow.withValues(alpha: 0.2),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: AppColors.yellow.withValues(alpha: 0.5),
+                      color: Colors.white.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Text(
                     session.role,
                     style: const TextStyle(
-                      color: AppColors.yellow,
+                      color: Colors.white,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5,
@@ -350,14 +358,14 @@ class _SidebarItemState extends State<_SidebarItem> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: active
-                ? AppColors.yellow.withValues(alpha: 0.18)
+                ? Colors.white.withValues(alpha: 0.15)
                 : _hovered
                 ? Colors.white.withValues(alpha: 0.08)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             border: active
                 ? Border.all(
-                    color: AppColors.yellow.withValues(alpha: 0.4),
+                    color: Colors.white.withValues(alpha: 0.35),
                     width: 1,
                   )
                 : null,
@@ -370,7 +378,7 @@ class _SidebarItemState extends State<_SidebarItem> {
                 width: 3,
                 height: 20,
                 decoration: BoxDecoration(
-                  color: active ? AppColors.yellow : Colors.transparent,
+                  color: active ? Colors.white : Colors.transparent,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -379,7 +387,7 @@ class _SidebarItemState extends State<_SidebarItem> {
                 widget.icon,
                 size: 18,
                 color: active
-                    ? AppColors.yellow
+                    ? Colors.white
                     : Colors.white.withValues(alpha: 0.7),
               ),
               const SizedBox(width: 10),
@@ -388,7 +396,7 @@ class _SidebarItemState extends State<_SidebarItem> {
                   widget.label,
                   style: TextStyle(
                     color: active
-                        ? AppColors.yellow
+                        ? Colors.white
                         : Colors.white.withValues(alpha: 0.85),
                     fontWeight: active ? FontWeight.w800 : FontWeight.w500,
                     fontSize: 13,
@@ -400,7 +408,7 @@ class _SidebarItemState extends State<_SidebarItem> {
                   width: 6,
                   height: 6,
                   decoration: const BoxDecoration(
-                    color: AppColors.yellow,
+                    color: Colors.white,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -440,7 +448,7 @@ class _ProfilePanel extends StatelessWidget {
                 width: 4,
                 height: 24,
                 decoration: BoxDecoration(
-                  color: AppColors.green,
+                  color: _green,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -450,7 +458,7 @@ class _ProfilePanel extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
-                  color: AppColors.textDark,
+                  color: _textD,
                   letterSpacing: 1.0,
                 ),
               ),
@@ -483,72 +491,48 @@ class _ProfileHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _border),
         boxShadow: [
           BoxShadow(
-            color: AppColors.green.withValues(alpha: 0.25),
-            blurRadius: 32,
-            offset: const Offset(0, 12),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         child: Stack(
           children: [
-            // ── Gradient background ───────────────────────────
-            Container(
-              height: 200,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF084515), Color(0xFF0F7A28)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-            ),
-
-            // ── Decorative circles ────────────────────────────
-            Positioned(
-              top: -40,
-              right: -40,
-              child: _DecorativeCircle(size: 180, opacity: 0.06),
-            ),
-            Positioned(
-              bottom: -20,
-              right: 80,
-              child: _DecorativeCircle(size: 120, opacity: 0.05),
-            ),
-            Positioned(
-              top: 20,
-              right: 160,
-              child: _DecorativeCircle(size: 60, opacity: 0.08),
-            ),
-
-            // ── Gold accent stripe ────────────────────────────
+            // Left accent stripe — dark green
             Positioned(
               left: 0,
               top: 0,
               bottom: 0,
-              child: Container(
-                width: 5,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFFF5C400), Color(0xFFD4A900)],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                ),
-              ),
+              child: Container(width: 5, color: _navBg),
             ),
 
-            // ── Content ───────────────────────────────────────
+            // Decorative circles on the right
+            Positioned(
+              top: -30,
+              right: -30,
+              child: _DecorativeCircle(size: 160, opacity: 0.06),
+            ),
+            Positioned(
+              bottom: -10,
+              right: 80,
+              child: _DecorativeCircle(size: 100, opacity: 0.05),
+            ),
+
+            // Content
             Padding(
-              padding: const EdgeInsets.fromLTRB(32, 28, 32, 28),
+              padding: const EdgeInsets.fromLTRB(36, 28, 32, 28),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Avatar with ring
+                  // Avatar
                   _AvatarRing(initials: initials),
                   const SizedBox(width: 24),
 
@@ -561,7 +545,7 @@ class _ProfileHeroCard extends StatelessWidget {
                         Text(
                           session.fullName,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: _textD,
                             fontWeight: FontWeight.w900,
                             fontSize: 22,
                             letterSpacing: -0.3,
@@ -582,13 +566,13 @@ class _ProfileHeroCard extends StatelessWidget {
                               Icon(
                                 Icons.location_on_rounded,
                                 size: 13,
-                                color: Colors.white.withValues(alpha: 0.55),
+                                color: _textL,
                               ),
                               const SizedBox(width: 4),
                               Text(
                                 session.portDesc!,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.7),
+                                style: const TextStyle(
+                                  color: _textL,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -600,46 +584,32 @@ class _ProfileHeroCard extends StatelessWidget {
                     ),
                   ),
 
-                  // Status indicator
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.15),
+                  // Status badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFA5D6A7)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.circle, size: 7, color: Color(0xFF2E7D32)),
+                        SizedBox(width: 6),
+                        Text(
+                          'Active',
+                          style: TextStyle(
+                            color: Color(0xFF2E7D32),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 7,
-                              height: 7,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF4ADE80),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'Active',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -662,44 +632,30 @@ class _AvatarRing extends StatelessWidget {
     return Stack(
       alignment: Alignment.center,
       children: [
-        // Outer glow ring
+        // Outer border ring
         Container(
-          width: 96,
-          height: 96,
+          width: 90,
+          height: 90,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(
-              color: AppColors.yellow.withValues(alpha: 0.35),
-              width: 2,
-            ),
+            border: Border.all(color: _border, width: 3),
           ),
         ),
-        // Inner avatar
+        // Inner avatar — dark nav green bg, white initials
         Container(
-          width: 82,
-          height: 82,
-          decoration: BoxDecoration(
+          width: 76,
+          height: 76,
+          decoration: const BoxDecoration(
+            color: _navBg,
             shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              colors: [Color(0xFFF5C400), Color(0xFFD4A900)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.yellow.withValues(alpha: 0.4),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
           alignment: Alignment.center,
           child: Text(
             initials,
             style: const TextStyle(
-              color: AppColors.green,
+              color: Colors.white,
               fontWeight: FontWeight.w900,
-              fontSize: 28,
+              fontSize: 26,
               letterSpacing: -0.5,
             ),
           ),
@@ -720,24 +676,13 @@ class _RoleBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFF5C400), Color(0xFFD4A900)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: _navBg,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.yellow.withValues(alpha: 0.35),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Text(
         role,
         style: const TextStyle(
-          color: AppColors.green,
+          color: Colors.white,
           fontSize: 11,
           fontWeight: FontWeight.w800,
           letterSpacing: 0.6,
@@ -758,23 +703,19 @@ class _CodeChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
+        color: _bg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: _border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.tag_rounded,
-            size: 11,
-            color: Colors.white.withValues(alpha: 0.7),
-          ),
+          const Icon(Icons.tag_rounded, size: 11, color: _textL),
           const SizedBox(width: 4),
           Text(
             code,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
+            style: const TextStyle(
+              color: _textM,
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.5,
@@ -801,7 +742,7 @@ class _DecorativeCircle extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: Colors.white.withValues(alpha: opacity),
+          color: _border.withValues(alpha: opacity * 3),
           width: 1.5,
         ),
       ),
@@ -822,7 +763,7 @@ class _ProfileInfoGrid extends StatelessWidget {
         icon: Icons.badge_outlined,
         label: 'User Code',
         value: session.userCode,
-        accent: AppColors.green,
+        accent: _green,
       ),
       _InfoItem(
         icon: Icons.person_outline_rounded,
@@ -955,7 +896,7 @@ class _InfoCardState extends State<_InfoCard> {
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.textDark,
+                      color: _textD,
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,

@@ -1840,66 +1840,89 @@ class _MultiPortPickerField extends StatelessWidget {
                     itemBuilder: (ctx2, i) {
                       final p = ports[i];
                       final isSelected = temp.contains(p.portId);
+                      // Only Cebu and Manila are enabled
+                      final name = p.portDesc.toLowerCase();
+                      final isEnabled =
+                          name.contains('cebu') || name.contains('manila');
                       return InkWell(
-                        onTap: () {
-                          setS(() {
-                            if (multiSelect) {
-                              if (isSelected) {
-                                temp.remove(p.portId);
-                              } else {
-                                temp.add(p.portId);
+                        onTap: isEnabled
+                            ? () {
+                                setS(() {
+                                  if (multiSelect) {
+                                    if (isSelected) {
+                                      temp.remove(p.portId);
+                                    } else {
+                                      temp.add(p.portId);
+                                    }
+                                  } else {
+                                    temp = [p.portId];
+                                  }
+                                });
                               }
-                            } else {
-                              temp = [p.portId];
-                            }
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppColors.green.withValues(alpha: 0.08)
-                                : Colors.white,
-                            border: Border(
-                              bottom: BorderSide(
-                                color: Colors.grey.withValues(alpha: 0.12),
-                              ),
+                            : null,
+                        child: Opacity(
+                          opacity: isEnabled ? 1.0 : 0.38,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                multiSelect
-                                    ? (isSelected
-                                          ? Icons.check_box_rounded
-                                          : Icons
-                                                .check_box_outline_blank_rounded)
-                                    : (isSelected
-                                          ? Icons.radio_button_checked_rounded
-                                          : Icons
-                                                .radio_button_unchecked_rounded),
-                                size: 20,
-                                color: isSelected
-                                    ? AppColors.green
-                                    : AppColors.textGrey,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  p.portDesc,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: isSelected
-                                        ? FontWeight.w700
-                                        : FontWeight.w500,
-                                    color: AppColors.textDark,
-                                  ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.green.withValues(alpha: 0.08)
+                                  : Colors.white,
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: Colors.grey.withValues(alpha: 0.12),
                                 ),
                               ),
-                            ],
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  multiSelect
+                                      ? (isSelected
+                                            ? Icons.check_box_rounded
+                                            : Icons
+                                                  .check_box_outline_blank_rounded)
+                                      : (isSelected
+                                            ? Icons.radio_button_checked_rounded
+                                            : Icons
+                                                  .radio_button_unchecked_rounded),
+                                  size: 20,
+                                  color: isSelected
+                                      ? AppColors.green
+                                      : AppColors.textGrey,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    p.portDesc,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: isEnabled
+                                          ? AppColors.textDark
+                                          : AppColors.textGrey,
+                                    ),
+                                  ),
+                                ),
+                                if (!isEnabled)
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 6),
+                                    child: Text(
+                                      'Coming soon',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: AppColors.textGrey,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       );

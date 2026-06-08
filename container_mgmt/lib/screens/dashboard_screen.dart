@@ -14,7 +14,7 @@ import '../widgets/notification_panel.dart';
 import 'landing_screen.dart';
 import 'account_screen.dart';
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
+// -- Design tokens -------------------------------------------------------------
 // Gothong Southern Brand Colors
 // PRIMARY:  Lincoln Green #0B560D | Scarlet Red #FF2800 | Canary Yellow #FFF200
 // SECONDARY: Live Green #98F29B   | Smiley Red #E0474C  | Cyber Yellow #FFD300
@@ -60,7 +60,7 @@ class _C {
   static const shadow = Color(0x0A000000);
 }
 
-// ── DashboardScreen ───────────────────────────────────────────────────────────
+// -- DashboardScreen -----------------------------------------------------------
 class DashboardScreen extends StatefulWidget {
   final Session session;
   const DashboardScreen({super.key, required this.session});
@@ -82,7 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       _emptyFrmd = 0;
   int _ladenTotal = 0, _tempoGrounding = 0;
   int _yardIn = 0, _yardOut = 0;
-  // ── Dashboard search & filter state ─────────────────────────────────────────
+  // -- Dashboard search & filter state -----------------------------------------
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
   String _filterPort = 'All'; // 'All' or specific portDesc
@@ -182,7 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         _portList = portList;
         _allContainers = all;
         _loading = false;
-        // ── New widget data ───────────────────────────────────
+        // -- New widget data -----------------------------------
         // Inbound = containers that have a yardEntryDate (entered a yard)
         _inboundCount = all.where((c) => c.yardEntryDate != null).length;
         // Outbound = containers moved out
@@ -263,7 +263,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         _inYard = inYard;
         _portList = portList;
         _allContainers = all;
-        // ── New widget data ───────────────────────────────────
+        // -- New widget data -----------------------------------
         _inboundCount = all.where((c) => c.yardEntryDate != null).length;
         _outboundCount = all.where((c) => c.isMovedOut).length;
         final emptyC = inYard.where((c) => c.statusId == 2);
@@ -297,7 +297,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
   }
 
-  // ── Filtered containers (search + port + status) ─────────────────────────
+  // -- Filtered containers (search + port + status) -------------------------
   // Filters _allContainers (all ports, including moved-out) so port filter
   // shows the actual real data from that port — not just in-yard subset.
   List<ContainerModel> get _filteredContainers {
@@ -342,7 +342,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     return list;
   }
 
-  // ── Port-filtered stats (updates KPI cards when port filter is active) ────
+  // -- Port-filtered stats (updates KPI cards when port filter is active) ----
   List<ContainerModel> get _portBaseList {
     if (_filterPort == 'All') return _inYard;
     final port = _portList.firstWhere(
@@ -352,7 +352,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     return _allContainers.where((c) => c.currentPortId == port.portId).toList();
   }
 
-  // ── Customer transaction summary ─────────────────────────────────────────
+  // -- Customer transaction summary -----------------------------------------
   Map<int, int> get _containersByCustomer {
     final map = <int, int>{};
     for (final c in _inYard) {
@@ -451,8 +451,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 700;
+        final isTablet = constraints.maxWidth < 1000 && !isMobile;
 
-        // ── Compute all dashboard data from the port-filtered base ──────────
+        // -- Compute all dashboard data from the port-filtered base ----------
         final base = _portBaseList; // in-yard or port-scoped
         final baseAll = _filterPort == 'All'
             ? _allContainers
@@ -468,7 +469,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         final inbound = baseAll.where((c) => c.yardEntryDate != null).length;
         final outbound = baseAll.where((c) => c.isMovedOut).length;
 
-        // ── Real daily data for charts (last 7 days: index 0=oldest, 6=today) ──
+        // -- Real daily data for charts (last 7 days: index 0=oldest, 6=today) --
         final now = DateTime.now();
         final inboundByDay = List<int>.filled(7, 0);
         final outboundByDay = List<int>.filled(7, 0);
@@ -519,7 +520,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           return '${months[d.month - 1]} ${d.day}';
         });
 
-        // ── Trend vs prior 7 days ────────────────────────────────
+        // -- Trend vs prior 7 days --------------------------------
         final inboundPrior = List<int>.filled(7, 0);
         final outboundPrior = List<int>.filled(7, 0);
         final ladenPrior = List<int>.filled(7, 0);
@@ -609,7 +610,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Search & Filter bar ──────────────────────────────
+              // -- Search & Filter bar ------------------------------
               _DashboardFilterBar(
                 searchCtrl: _searchCtrl,
                 searchQuery: _searchQuery,
@@ -644,7 +645,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
               const SizedBox(height: 14),
               if (!_loading) ...[
-                // ── Row 1: Inbound | Outbound | Empty Breakdown | Laden ──
+                // -- Row 1: Inbound | Outbound | Empty Breakdown | Laden --
                 isMobile
                     ? Column(
                         children: [
@@ -669,42 +670,75 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                         ],
                       )
-                    : IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(
-                              child: _CF_InboundCard(allContainers: baseAll),
+                    : isTablet
+                    ? Wrap(
+                        spacing: 14,
+                        runSpacing: 14,
+                        children: [
+                          SizedBox(
+                            width: (constraints.maxWidth - 14) / 2,
+                            child: _CF_InboundCard(allContainers: baseAll),
+                          ),
+                          SizedBox(
+                            width: (constraints.maxWidth - 14) / 2,
+                            child: _CF_OutboundCard(allContainers: baseAll),
+                          ),
+                          SizedBox(
+                            width: (constraints.maxWidth - 14) / 2,
+                            child: _CF_EmptyDonutCard(
+                              foodGrade: emptyFoodGrade,
+                              nonFoodGrade: emptyNonFoodGrade,
+                              repairable: emptyRepairable,
+                              frmd: emptyFrmd,
+                              total: emptyTotal,
+                              allEmpty: base
+                                  .where((c) => c.statusId == 2)
+                                  .toList(),
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: _CF_OutboundCard(allContainers: baseAll),
+                          ),
+                          SizedBox(
+                            width: (constraints.maxWidth - 14) / 2,
+                            child: _CF_LadenSparkCard(
+                              allContainers: base,
+                              tempoGrounding: tempoGrounding,
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: _CF_EmptyDonutCard(
-                                foodGrade: emptyFoodGrade,
-                                nonFoodGrade: emptyNonFoodGrade,
-                                repairable: emptyRepairable,
-                                frmd: emptyFrmd,
-                                total: emptyTotal,
-                                allEmpty: base
-                                    .where((c) => c.statusId == 2)
-                                    .toList(),
-                              ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _CF_InboundCard(allContainers: baseAll),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _CF_OutboundCard(allContainers: baseAll),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _CF_EmptyDonutCard(
+                              foodGrade: emptyFoodGrade,
+                              nonFoodGrade: emptyNonFoodGrade,
+                              repairable: emptyRepairable,
+                              frmd: emptyFrmd,
+                              total: emptyTotal,
+                              allEmpty: base
+                                  .where((c) => c.statusId == 2)
+                                  .toList(),
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: _CF_LadenSparkCard(
-                                allContainers: base,
-                                tempoGrounding: tempoGrounding,
-                              ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _CF_LadenSparkCard(
+                              allContainers: base,
+                              tempoGrounding: tempoGrounding,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                 const SizedBox(height: 14),
-                // ── Row 2: Total In Yard | Status Overview | Containers per Port ──
+                // -- Row 2: Total In Yard | Status Overview | Containers per Port --
                 isMobile
                     ? Column(
                         children: [
@@ -737,51 +771,90 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                         ],
                       )
-                    : IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: _CF_YardInOutCard(
-                                allInYard: base
-                                    .where((c) => c.yardId != null)
-                                    .toList(),
-                                allOutYard: baseAll
-                                    .where((c) => c.isMovedOut)
-                                    .toList(),
+                    : isTablet
+                    ? Wrap(
+                        spacing: 14,
+                        runSpacing: 14,
+                        children: [
+                          SizedBox(
+                            width: (constraints.maxWidth - 14) / 2,
+                            child: _CF_YardInOutCard(
+                              allInYard: base
+                                  .where((c) => c.yardId != null)
+                                  .toList(),
+                              allOutYard: baseAll
+                                  .where((c) => c.isMovedOut)
+                                  .toList(),
+                            ),
+                          ),
+                          SizedBox(
+                            width: (constraints.maxWidth - 14) / 2,
+                            child: _CF_StatusOverviewCard(
+                              inYard: base.where((c) => !c.isMovedOut).length,
+                              laden: ladenTotal,
+                              empty: emptyTotal,
+                              allContainers: base,
+                            ),
+                          ),
+                          SizedBox(
+                            width: constraints.maxWidth,
+                            child: _CF_ContainersPerPortCard(
+                              portList: _portList,
+                              containers: portContainers,
+                              allContainers: baseAll,
+                              onTapPort: (port, list) => _showContainerList(
+                                context,
+                                '${port.portDesc} Containers',
+                                list,
+                                _C.blue,
                               ),
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: _CF_StatusOverviewCard(
-                                inYard: base.where((c) => !c.isMovedOut).length,
-                                laden: ladenTotal,
-                                empty: emptyTotal,
-                                allContainers: base,
+                          ),
+                        ],
+                      )
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: _CF_YardInOutCard(
+                              allInYard: base
+                                  .where((c) => c.yardId != null)
+                                  .toList(),
+                              allOutYard: baseAll
+                                  .where((c) => c.isMovedOut)
+                                  .toList(),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _CF_StatusOverviewCard(
+                              inYard: base.where((c) => !c.isMovedOut).length,
+                              laden: ladenTotal,
+                              empty: emptyTotal,
+                              allContainers: base,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _CF_ContainersPerPortCard(
+                              portList: _portList,
+                              containers: portContainers,
+                              allContainers: baseAll,
+                              onTapPort: (port, list) => _showContainerList(
+                                context,
+                                '${port.portDesc} Containers',
+                                list,
+                                _C.blue,
                               ),
                             ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: _CF_ContainersPerPortCard(
-                                portList: _portList,
-                                containers: portContainers,
-                                allContainers: baseAll,
-                                onTapPort: (port, list) => _showContainerList(
-                                  context,
-                                  '${port.portDesc} Containers',
-                                  list,
-                                  _C.blue,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
               ],
               const SizedBox(height: 24),
 
-              // ── Customer Transactions — port-scoped ───────────────
+              // -- Customer Transactions — port-scoped ---------------
               if (!_loading && customerMap.isNotEmpty) ...[
                 _SectionHeader(
                   title: 'CUSTOMER TRANSACTIONS',
@@ -803,7 +876,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 const SizedBox(height: 24),
               ],
 
-              // ── Filtered results ─────────────────────────────────
+              // -- Filtered results ---------------------------------
               if (!_loading &&
                   (_searchQuery.isNotEmpty ||
                       _filterPort != 'All' ||
@@ -1046,10 +1119,15 @@ class _DashboardScreenState extends State<DashboardScreen>
     ];
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Always show all 5 cards at equal size
-        const n = 5;
         const spacing = 14.0;
-        final cardW = (constraints.maxWidth - spacing * (n - 1)) / n;
+        final w = constraints.maxWidth;
+        // Responsive column count: 5 on wide, 3 on medium, 2 on small
+        final n = w >= 900
+            ? 5
+            : w >= 560
+            ? 3
+            : 2;
+        final cardW = (w - spacing * (n - 1)) / n;
 
         return Wrap(
           spacing: spacing,
@@ -1124,7 +1202,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
+// -- Sidebar -------------------------------------------------------------------
 class _Sidebar extends StatelessWidget {
   final List<Map<String, dynamic>> items;
   final int activeIndex;
@@ -1434,7 +1512,7 @@ class _NavItemState extends State<_NavItem> {
   }
 }
 
-// ── Top Nav ───────────────────────────────────────────────────────────────────
+// -- Top Nav -------------------------------------------------------------------
 class _TopNav extends StatelessWidget {
   final Session session;
   final String timeStr, dateStr;
@@ -1515,7 +1593,7 @@ class _TopNav extends StatelessWidget {
   }
 }
 
-// ── Profile Button ────────────────────────────────────────────────────────────
+// -- Profile Button ------------------------------------------------------------
 class _ProfileBtn extends StatefulWidget {
   final Session session;
   const _ProfileBtn({required this.session});
@@ -1670,7 +1748,7 @@ class _ProfileBtnState extends State<_ProfileBtn> {
   }
 }
 
-// ── Profile Dropdown ──────────────────────────────────────────────────────────
+// -- Profile Dropdown ----------------------------------------------------------
 class _ProfileDropdown extends StatefulWidget {
   final LayerLink link;
   final String initials;
@@ -1867,7 +1945,7 @@ class _DDItemState extends State<_DDItem> {
   }
 }
 
-// ── Welcome Banner ────────────────────────────────────────────────────────────
+// -- Welcome Banner ------------------------------------------------------------
 class _WelcomeBanner extends StatelessWidget {
   final Session session;
   final VoidCallback onRefresh;
@@ -2007,7 +2085,7 @@ class _WelcomeBanner extends StatelessWidget {
   }
 }
 
-// ── Section Header ────────────────────────────────────────────────────────────
+// -- Section Header ------------------------------------------------------------
 class _SectionHeader extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -2046,7 +2124,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ── Skeleton ──────────────────────────────────────────────────────────────────
+// -- Skeleton ------------------------------------------------------------------
 class _SkeletonRow extends StatelessWidget {
   final int count;
   const _SkeletonRow(this.count);
@@ -2080,7 +2158,7 @@ class _SkeletonRow extends StatelessWidget {
   }
 }
 
-// ── Stat Card ─────────────────────────────────────────────────────────────────
+// -- Stat Card -----------------------------------------------------------------
 // White-background card with colored icon, large value, trend badge, sparkline.
 class _StatCard extends StatefulWidget {
   final String label, value, subtitle, trend;
@@ -2170,7 +2248,7 @@ class _StatCardState extends State<_StatCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // ── Top section: icon + label + value + trend ──
+                // -- Top section: icon + label + value + trend --
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Column(
@@ -2224,7 +2302,7 @@ class _StatCardState extends State<_StatCard> {
                         ],
                       ),
                       const SizedBox(height: 10),
-                      // Trend badge: ↑ 16.0% from yesterday
+                      // Trend badge: ? 16.0% from yesterday
                       Row(
                         children: [
                           Icon(
@@ -2248,7 +2326,7 @@ class _StatCardState extends State<_StatCard> {
                     ],
                   ),
                 ),
-                // ── Sparkline at bottom ──
+                // -- Sparkline at bottom --
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(
                     bottom: Radius.circular(14),
@@ -2274,7 +2352,7 @@ class _StatCardState extends State<_StatCard> {
   }
 }
 
-// ── Sparkline painter ──────────────────────────────────────────────────────────
+// -- Sparkline painter ----------------------------------------------------------
 class _SparklinePainter extends CustomPainter {
   final List<double> points;
   final Color color;
@@ -2335,7 +2413,7 @@ class _SparklinePainter extends CustomPainter {
       old.points != points || old.color != color;
 }
 
-// ── Donut Chart Card ──────────────────────────────────────────────────────────
+// -- Donut Chart Card ----------------------------------------------------------
 class _DonutCard extends StatelessWidget {
   final int laden, empty, total;
   const _DonutCard({
@@ -2554,7 +2632,7 @@ class _DonutPainter extends CustomPainter {
       o.ladenPct != ladenPct || o.emptyPct != emptyPct;
 }
 
-// ── Occupancy Card ────────────────────────────────────────────────────────────
+// -- Occupancy Card ------------------------------------------------------------
 class _OccupancyCard extends StatelessWidget {
   final int laden, empty, mtFood, fsl, stripping, mtNonFood, total;
   const _OccupancyCard({
@@ -2693,7 +2771,7 @@ class _OccupancyCard extends StatelessWidget {
   }
 }
 
-// ── Recent Activity Card ──────────────────────────────────────────────────────
+// -- Recent Activity Card ------------------------------------------------------
 class _ActivityCard extends StatelessWidget {
   final List<ContainerModel> containers;
   const _ActivityCard({required this.containers});
@@ -2829,7 +2907,7 @@ class _ActivityCard extends StatelessWidget {
   }
 }
 
-// ── Port Leaderboard ──────────────────────────────────────────────────────────
+// -- Port Leaderboard ----------------------------------------------------------
 class _PortLeaderboard extends StatelessWidget {
   final List<Port> portList;
   final List<ContainerModel> containers;
@@ -3105,7 +3183,7 @@ class _PortLeaderboard extends StatelessWidget {
   }
 }
 
-// ── Container Table ───────────────────────────────────────────────────────────
+// -- Container Table -----------------------------------------------------------
 class _ContainerTable extends StatefulWidget {
   final List<ContainerModel> containers;
   final List<Port> portList;
@@ -3501,16 +3579,16 @@ class _TableRowState extends State<_TableRow> {
   }
 }
 
-// ════════════════════════════════════════════════════════════════════════════
+// ----------------------------------------------------------------------------
 // NEW CONTAINER FLOW WIDGETS
-// ════════════════════════════════════════════════════════════════════════════
+// ----------------------------------------------------------------------------
 
-// ── Shared card shell ─────────────────────────────────────────────────────────
-// ════════════════════════════════════════════════════════════════════════════
+// -- Shared card shell ---------------------------------------------------------
+// ----------------------------------------------------------------------------
 // CONTAINER FLOW WIDGETS  (rewritten with full interactivity)
-// ════════════════════════════════════════════════════════════════════════════
+// ----------------------------------------------------------------------------
 
-// ── Time-range enum shared by all CF cards ────────────────────────────────────
+// -- Time-range enum shared by all CF cards ------------------------------------
 enum _CFRange { thisWeek, lastWeek, thisMonth }
 
 extension _CFRangeLabel on _CFRange {
@@ -3526,7 +3604,7 @@ extension _CFRangeLabel on _CFRange {
   }
 }
 
-// ── Shared card shell ─────────────────────────────────────────────────────────
+// -- Shared card shell ---------------------------------------------------------
 class _CF_Card extends StatelessWidget {
   final Widget child;
   const _CF_Card({required this.child});
@@ -3551,7 +3629,7 @@ class _CF_Card extends StatelessWidget {
   }
 }
 
-// ── Range dropdown pill ───────────────────────────────────────────────────────
+// -- Range dropdown pill -------------------------------------------------------
 class _CF_RangePill extends StatelessWidget {
   final _CFRange value;
   final ValueChanged<_CFRange> onChanged;
@@ -3634,7 +3712,7 @@ class _CF_RangePill extends StatelessWidget {
   }
 }
 
-// ── CF header row with live range picker ──────────────────────────────────────
+// -- CF header row with live range picker --------------------------------------
 class _CF_Header extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -3652,9 +3730,10 @@ class _CF_Header extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tight = constraints.maxWidth < 220;
+        final iconBox = Container(
           width: 36,
           height: 36,
           decoration: BoxDecoration(
@@ -3662,39 +3741,61 @@ class _CF_Header extends StatelessWidget {
             borderRadius: BorderRadius.circular(9),
           ),
           child: Icon(icon, color: iconColor, size: 18),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
+        );
+        final titleCol = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF212121),
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (subtitle != null)
+              Text(
+                subtitle!,
+                style: const TextStyle(fontSize: 10, color: Color(0xFF9E9E9E)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        );
+        if (tight && onRangeChanged != null) {
+          // Stacked layout when very narrow: icon+title on top, pill below
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF212121),
-                ),
+              Row(
+                children: [
+                  iconBox,
+                  const SizedBox(width: 10),
+                  Expanded(child: titleCol),
+                ],
               ),
-              if (subtitle != null)
-                Text(
-                  subtitle!,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: Color(0xFF9E9E9E),
-                  ),
-                ),
+              const SizedBox(height: 6),
+              _CF_RangePill(value: range, onChanged: onRangeChanged!),
             ],
-          ),
-        ),
-        if (onRangeChanged != null)
-          _CF_RangePill(value: range, onChanged: onRangeChanged!),
-      ],
+          );
+        }
+        return Row(
+          children: [
+            iconBox,
+            const SizedBox(width: 10),
+            Expanded(child: titleCol),
+            if (onRangeChanged != null)
+              _CF_RangePill(value: range, onChanged: onRangeChanged!),
+          ],
+        );
+      },
     );
   }
 }
 
-// ── Helper: filter daily data by range ───────────────────────────────────────
+// -- Helper: filter daily data by range ---------------------------------------
 List<int> _cfFilterByRange(
   List<ContainerModel> containers,
   _CFRange range,
@@ -3781,7 +3882,7 @@ String _cfTrendPct(List<int> cur, List<int> prior) {
   return pct >= 0 ? '+$pct%' : '$pct%';
 }
 
-// ── 1. Total Inbound Card ─────────────────────────────────────────────────────
+// -- 1. Total Inbound Card -----------------------------------------------------
 class _CF_InboundCard extends StatefulWidget {
   final List<ContainerModel> allContainers;
   const _CF_InboundCard({required this.allContainers});
@@ -3854,12 +3955,16 @@ class _CF_InboundCardState extends State<_CF_InboundCard> {
                 color: trendColor,
               ),
               const SizedBox(width: 3),
-              Text(
-                '$trend from previous period',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  color: trendColor,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  '$trend from previous period',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: trendColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 4),
@@ -3870,7 +3975,7 @@ class _CF_InboundCardState extends State<_CF_InboundCard> {
             ],
           ),
           const SizedBox(height: 12),
-          // ── Bar chart ──
+          // -- Bar chart --
           SizedBox(
             height: 90,
             child: Column(
@@ -3984,7 +4089,7 @@ class _CF_InboundCardState extends State<_CF_InboundCard> {
   }
 }
 
-// ── 2. Total Outbound Card ────────────────────────────────────────────────────
+// -- 2. Total Outbound Card ----------------------------------------------------
 class _CF_OutboundCard extends StatefulWidget {
   final List<ContainerModel> allContainers;
   const _CF_OutboundCard({required this.allContainers});
@@ -4057,12 +4162,16 @@ class _CF_OutboundCardState extends State<_CF_OutboundCard> {
                 color: trendColor,
               ),
               const SizedBox(width: 3),
-              Text(
-                '$trend from previous period',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  color: trendColor,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  '$trend from previous period',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: trendColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 4),
@@ -4183,7 +4292,7 @@ class _CF_OutboundCardState extends State<_CF_OutboundCard> {
   }
 }
 
-// ── 3. Total Empty Containers — donut + legend ────────────────────────────────
+// -- 3. Total Empty Containers — donut + legend --------------------------------
 class _CF_EmptyDonutCard extends StatefulWidget {
   final int foodGrade, nonFoodGrade, repairable, frmd, total;
   final List<ContainerModel> allEmpty;
@@ -4232,7 +4341,7 @@ class _CF_EmptyDonutCardState extends State<_CF_EmptyDonutCard> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // ── Donut (tappable) ──
+              // -- Donut (tappable) --
               GestureDetector(
                 onTapUp: (d) => _handleDonutTap(d.localPosition, slices),
                 child: SizedBox(
@@ -4281,7 +4390,7 @@ class _CF_EmptyDonutCardState extends State<_CF_EmptyDonutCard> {
                 ),
               ),
               const SizedBox(width: 12),
-              // ── Legend ──
+              // -- Legend --
               Expanded(
                 child: Column(
                   children: slices.asMap().entries.map((e) {
@@ -4369,7 +4478,7 @@ class _CF_EmptyDonutCardState extends State<_CF_EmptyDonutCard> {
               ),
             ],
           ),
-          // ── Inline detail bar ──
+          // -- Inline detail bar --
           if (_sel != null)
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
@@ -4450,7 +4559,7 @@ class _CF_EmptyDonutCardState extends State<_CF_EmptyDonutCard> {
   }
 }
 
-// ── Donut painter ─────────────────────────────────────────────────────────────
+// -- Donut painter -------------------------------------------------------------
 class _CF_DonutPainter extends CustomPainter {
   final List<double> values;
   final List<Color> colors;
@@ -4504,7 +4613,7 @@ class _CF_DonutPainter extends CustomPainter {
       ).any((e) => e);
 }
 
-// ── 4. Total Laden Card — interactive sparkline ───────────────────────────────
+// -- 4. Total Laden Card — interactive sparkline -------------------------------
 class _CF_LadenSparkCard extends StatefulWidget {
   final List<ContainerModel> allContainers;
   final int tempoGrounding;
@@ -4581,12 +4690,16 @@ class _CF_LadenSparkCardState extends State<_CF_LadenSparkCard> {
                 color: trendColor,
               ),
               const SizedBox(width: 3),
-              Text(
-                '$trend from previous period',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  color: trendColor,
-                  fontWeight: FontWeight.w600,
+              Flexible(
+                child: Text(
+                  '$trend from previous period',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: trendColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 4),
@@ -4620,7 +4733,7 @@ class _CF_LadenSparkCardState extends State<_CF_LadenSparkCard> {
             ),
           ],
           const SizedBox(height: 10),
-          // ── Interactive sparkline — fixed height, chip overlays inside ──
+          // -- Interactive sparkline — fixed height, chip overlays inside --
           SizedBox(
             height: 90,
             child: LayoutBuilder(
@@ -4728,7 +4841,7 @@ class _CF_LadenSparkCardState extends State<_CF_LadenSparkCard> {
   }
 }
 
-// ── Interactive sparkline painter ─────────────────────────────────────────────
+// -- Interactive sparkline painter ---------------------------------------------
 class _CF_InteractiveSparklinePainter extends CustomPainter {
   final List<double> values;
   final Color color;
@@ -4829,7 +4942,7 @@ class _CF_InteractiveSparklinePainter extends CustomPainter {
       ).any((e) => e);
 }
 
-// ── Sparkline painter (non-interactive, for yard sub-cards) ───────────────────
+// -- Sparkline painter (non-interactive, for yard sub-cards) -------------------
 class _CF_SparklinePainter extends CustomPainter {
   final List<double> values;
   final Color color;
@@ -4887,16 +5000,12 @@ class _CF_SparklinePainter extends CustomPainter {
       ).any((e) => e);
 }
 
-// ── 5. Total Container In Yard ────────────────────────────────────────────────
+// -- 5. Total Container In Yard ------------------------------------------------
 class _CF_YardInOutCard extends StatefulWidget {
   final List<ContainerModel> allInYard;
   final List<ContainerModel> allOutYard;
   final void Function(String label, List<ContainerModel> list)? onTap;
-  const _CF_YardInOutCard({
-    required this.allInYard,
-    required this.allOutYard,
-    this.onTap,
-  });
+  const _CF_YardInOutCard({required this.allInYard, required this.allOutYard, this.onTap});
   @override
   State<_CF_YardInOutCard> createState() => _CF_YardInOutCardState();
 }
@@ -4982,7 +5091,7 @@ class _CF_YardInOutCardState extends State<_CF_YardInOutCard> {
   }
 }
 
-// ── Yard sub-card with interactive sparkline ──────────────────────────────────
+// -- Yard sub-card with interactive sparkline ----------------------------------
 class _CF_YardSubCard extends StatefulWidget {
   final String label;
   final int value;
@@ -5167,7 +5276,7 @@ class _CF_YardSubCardState extends State<_CF_YardSubCard> {
   }
 }
 
-// ── 6. Container Status Overview — donut ──────────────────────────────────────
+// -- 6. Container Status Overview — donut --------------------------------------
 class _CF_StatusOverviewCard extends StatefulWidget {
   final int inYard, laden, empty;
   final List<ContainerModel> allContainers;
@@ -5238,7 +5347,7 @@ class _CF_StatusOverviewCardState extends State<_CF_StatusOverviewCard> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // ── Donut (tappable) ──
+              // -- Donut (tappable) --
               GestureDetector(
                 onTapUp: (d) => _handleTap(d.localPosition, segments),
                 child: SizedBox(
@@ -5361,7 +5470,7 @@ class _CF_StatusOverviewCardState extends State<_CF_StatusOverviewCard> {
               ),
             ],
           ),
-          // ── Inline detail ──
+          // -- Inline detail --
           if (_sel != null)
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
@@ -5444,7 +5553,7 @@ class _CF_StatusOverviewCardState extends State<_CF_StatusOverviewCard> {
   }
 }
 
-// ── 7. Containers per Port ─────────────────────────────────────────────────────
+// -- 7. Containers per Port -----------------------------------------------------
 class _CF_ContainersPerPortCard extends StatefulWidget {
   final List<Port> portList;
   final List<ContainerModel> containers;
@@ -5756,7 +5865,7 @@ class _CF_PortStatChip extends StatelessWidget {
   }
 }
 
-// ── Inbound Card (bar chart — interactive) ────────────────────────────────────
+// -- Inbound Card (bar chart — interactive) ------------------------------------
 class _InboundCard extends StatefulWidget {
   final int inbound;
   final List<int> dailyData;
@@ -5808,7 +5917,7 @@ class _InboundCardState extends State<_InboundCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.max,
         children: [
-          // ── Header ──────────────────────────────────────────────
+          // -- Header ----------------------------------------------
           Row(
             children: [
               Container(
@@ -5864,7 +5973,7 @@ class _InboundCardState extends State<_InboundCard> {
           ),
           const SizedBox(height: 16),
 
-          // ── Big count ────────────────────────────────────────────
+          // -- Big count --------------------------------------------
           widget.inbound == 0
               ? const Text(
                   'No data available.',
@@ -5885,7 +5994,7 @@ class _InboundCardState extends State<_InboundCard> {
                 ),
           const SizedBox(height: 24),
 
-          // ── Bar chart — exact pixel budget prevents overflow ──────
+          // -- Bar chart — exact pixel budget prevents overflow ------
           // Budget: 16 label + 2 gap + 95 bar + 5 gap + 14 day = 132px
           SizedBox(
             height: 132,
@@ -5989,7 +6098,7 @@ class _InboundCardState extends State<_InboundCard> {
             ),
           ),
 
-          // ── Inline info panel — shown when a bar is selected ─────
+          // -- Inline info panel — shown when a bar is selected -----
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 220),
             crossFadeState: sel != null
@@ -6077,7 +6186,7 @@ class _InboundCardState extends State<_InboundCard> {
   }
 }
 
-// ── Outbound Card (line graph — interactive) ──────────────────────────────────
+// -- Outbound Card (line graph — interactive) ----------------------------------
 class _OutboundCard extends StatefulWidget {
   final int outbound;
   final List<int> dailyData;
@@ -6126,7 +6235,7 @@ class _OutboundCardState extends State<_OutboundCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.max,
         children: [
-          // ── Header ──────────────────────────────────────────────
+          // -- Header ----------------------------------------------
           Row(
             children: [
               Container(
@@ -6181,7 +6290,7 @@ class _OutboundCardState extends State<_OutboundCard> {
           ),
           const SizedBox(height: 16),
 
-          // ── Big count ────────────────────────────────────────────
+          // -- Big count --------------------------------------------
           widget.outbound == 0
               ? const Text(
                   'No data available.',
@@ -6202,7 +6311,7 @@ class _OutboundCardState extends State<_OutboundCard> {
                 ),
           const SizedBox(height: 24),
 
-          // ── Line graph with tap targets ──────────────────────────
+          // -- Line graph with tap targets --------------------------
           SizedBox(
             height: 130,
             child: widget.outbound == 0
@@ -6278,7 +6387,7 @@ class _OutboundCardState extends State<_OutboundCard> {
           ),
           const SizedBox(height: 8),
 
-          // ── Day labels ───────────────────────────────────────────
+          // -- Day labels -------------------------------------------
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(
@@ -6294,7 +6403,7 @@ class _OutboundCardState extends State<_OutboundCard> {
             ),
           ),
 
-          // ── Inline info panel ────────────────────────────────────
+          // -- Inline info panel ------------------------------------
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 220),
             crossFadeState: sel != null
@@ -6479,7 +6588,7 @@ class _LineGraphPainter extends CustomPainter {
       old.values != values || old.selectedIndex != selectedIndex;
 }
 
-// ── Empty Containers Breakdown Card ─────────────────────────────────────────
+// -- Empty Containers Breakdown Card -----------------------------------------
 class _EmptyBreakdownCard extends StatefulWidget {
   final int foodGrade, nonFoodGrade, repairable, frmd, total;
   final List<ContainerModel> allEmpty;
@@ -6545,7 +6654,7 @@ class _EmptyBreakdownCardState extends State<_EmptyBreakdownCard> {
       icon: Icons.pie_chart_outline_rounded,
       iconColor: _C.orange,
       children: [
-        // ── Pie + Legend row ──────────────────────────────────
+        // -- Pie + Legend row ----------------------------------
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -6641,7 +6750,7 @@ class _EmptyBreakdownCardState extends State<_EmptyBreakdownCard> {
             ),
             const SizedBox(width: 16),
 
-            // ── Legend rows ─────────────────────────────────────────
+            // -- Legend rows -----------------------------------------
             Expanded(
               child: Column(
                 children: List.generate(4, (i) {
@@ -6735,7 +6844,7 @@ class _EmptyBreakdownCardState extends State<_EmptyBreakdownCard> {
             ),
           ],
         ), // end Row(pie+legend)
-        // ── Info strip — fixed height, no card resize ─────────
+        // -- Info strip — fixed height, no card resize ---------
         const SizedBox(height: 10),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
@@ -6806,17 +6915,12 @@ class _EmptyBreakdownCardState extends State<_EmptyBreakdownCard> {
   }
 }
 
-// ── Laden Containers Card ──────────────────────────────────────────────────────
+// -- Laden Containers Card ------------------------------------------------------
 class _LadenCard extends StatelessWidget {
   final int laden, tempoGrounding;
   final List<ContainerModel> allLaden;
   final void Function(String label, List<ContainerModel> list)? onTap;
-  const _LadenCard({
-    required this.laden,
-    required this.tempoGrounding,
-    this.allLaden = const [],
-    this.onTap,
-  });
+  const _LadenCard({required this.laden, required this.tempoGrounding, this.allLaden = const [], this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -6855,19 +6959,13 @@ class _LadenCard extends StatelessWidget {
   }
 }
 
-// ── Yard Flow Card ─────────────────────────────────────────────────────────────
+// -- Yard Flow Card -------------------------------------------------------------
 class _YardFlowCard extends StatelessWidget {
   final int yardIn, yardOut;
   final List<ContainerModel> allInYard;
   final List<ContainerModel> allOutYard;
   final void Function(String label, List<ContainerModel> list)? onTap;
-  const _YardFlowCard({
-    required this.yardIn,
-    required this.yardOut,
-    this.allInYard = const [],
-    this.allOutYard = const [],
-    this.onTap,
-  });
+  const _YardFlowCard({required this.yardIn, required this.yardOut, this.allInYard = const [], this.allOutYard = const [], this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -6923,7 +7021,7 @@ class _YardFlowCard extends StatelessWidget {
   }
 }
 
-// ── Shared Flow Card shell ─────────────────────────────────────────────────────
+// -- Shared Flow Card shell -----------------------------------------------------
 class _FlowCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -6984,7 +7082,7 @@ class _FlowCard extends StatelessWidget {
   }
 }
 
-// ── Shared Flow Row ────────────────────────────────────────────────────────────
+// -- Shared Flow Row ------------------------------------------------------------
 class _FlowRow extends StatelessWidget {
   final String label, subtitle;
   final int value;
@@ -7076,7 +7174,7 @@ class _FlowRow extends StatelessWidget {
   }
 }
 
-// ── Interactive Pie Chart Painter ────────────────────────────────────────────
+// -- Interactive Pie Chart Painter --------------------------------------------
 class _InteractivePiePainter extends CustomPainter {
   final List<double> values;
   final List<Color> colors;
@@ -7152,7 +7250,7 @@ class _InteractivePiePainter extends CustomPainter {
       old.selectedIndex != selectedIndex;
 }
 
-// ── Simple Pie Chart Painter ───────────────────────────────────────────────────
+// -- Simple Pie Chart Painter ---------------------------------------------------
 class _PieChartPainter extends CustomPainter {
   final List<double> values;
   final List<Color> colors;
@@ -7195,7 +7293,7 @@ class _PieChartPainter extends CustomPainter {
       old.values != values || old.colors != colors;
 }
 
-// ── Dashboard Filter Bar ─────────────────────────────────────────────────────
+// -- Dashboard Filter Bar -----------------------------------------------------
 class _DashboardFilterBar extends StatelessWidget {
   final TextEditingController searchCtrl;
   final String searchQuery, filterPort, filterStatus;
@@ -7222,69 +7320,74 @@ class _DashboardFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final portOptions = ['All', ...portList.map((p) => p.portDesc)];
+    // Only Cebu and Manila are active — filter port options accordingly
+    const enabledPorts = ['cebu', 'manila'];
+    final portOptions = [
+      'All',
+      ...portList
+          .where((p) {
+            final n = p.portDesc.toLowerCase();
+            return enabledPorts.any((e) => n.contains(e));
+          })
+          .map((p) => p.portDesc),
+    ];
     const statusOptions = ['All', 'Laden', 'Empty', 'In Transit', 'Moved Out'];
 
-    return Row(
-      children: [
-        // ── Search input ─────────────────────────────────────────
-        Expanded(
-          flex: 3,
-          child: Container(
-            height: 42,
-            decoration: BoxDecoration(
-              color: _C.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: searchQuery.isNotEmpty ? _C.emerald : _C.border,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: _C.shadow,
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: TextField(
-              controller: searchCtrl,
-              onChanged: onSearchChanged,
-              style: const TextStyle(fontSize: 13, color: _C.textD),
-              decoration: InputDecoration(
-                hintText: 'Search by container no. or type…',
-                hintStyle: const TextStyle(color: _C.textL, fontSize: 12),
-                isDense: true,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 13,
-                ),
-                prefixIcon: const Icon(
-                  Icons.search_rounded,
-                  size: 18,
-                  color: _C.textL,
-                ),
-                suffixIcon: searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          size: 15,
-                          color: _C.textL,
-                        ),
-                        onPressed: () {
-                          searchCtrl.clear();
-                          onSearchChanged('');
-                        },
-                        padding: EdgeInsets.zero,
-                      )
-                    : null,
-              ),
-            ),
-          ),
+    final searchField = Container(
+      height: 42,
+      decoration: BoxDecoration(
+        color: _C.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: searchQuery.isNotEmpty ? _C.emerald : _C.border,
         ),
-        const SizedBox(width: 10),
+        boxShadow: [
+          BoxShadow(
+            color: _C.shadow,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: searchCtrl,
+        onChanged: onSearchChanged,
+        style: const TextStyle(fontSize: 13, color: _C.textD),
+        decoration: InputDecoration(
+          hintText: 'Search by container no. or type…',
+          hintStyle: const TextStyle(color: _C.textL, fontSize: 12),
+          isDense: true,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 13,
+          ),
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            size: 18,
+            color: _C.textL,
+          ),
+          suffixIcon: searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 15,
+                    color: _C.textL,
+                  ),
+                  onPressed: () {
+                    searchCtrl.clear();
+                    onSearchChanged('');
+                  },
+                  padding: EdgeInsets.zero,
+                )
+              : null,
+        ),
+      ),
+    );
 
-        // ── Port dropdown ────────────────────────────────────────
+    final dropdowns = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
         _CompactDropdown(
           icon: Icons.anchor_rounded,
           label: 'Port',
@@ -7294,8 +7397,6 @@ class _DashboardFilterBar extends StatelessWidget {
           active: filterPort != 'All',
         ),
         const SizedBox(width: 10),
-
-        // ── Status dropdown ──────────────────────────────────────
         _CompactDropdown(
           icon: Icons.filter_list_rounded,
           label: 'Status',
@@ -7304,10 +7405,8 @@ class _DashboardFilterBar extends StatelessWidget {
           onChanged: onStatusChanged,
           active: filterStatus != 'All',
         ),
-        const SizedBox(width: 10),
-
-        // ── Result count badge (real-time) ───────────────────────
         if (_isActive) ...[
+          const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
@@ -7336,7 +7435,6 @@ class _DashboardFilterBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          // Clear button
           Material(
             color: Colors.transparent,
             child: InkWell(
@@ -7373,10 +7471,29 @@ class _DashboardFilterBar extends StatelessWidget {
         ],
       ],
     );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Stack search above dropdowns on narrow widths
+        if (constraints.maxWidth < 560) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [searchField, const SizedBox(height: 10), dropdowns],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(flex: 3, child: searchField),
+            const SizedBox(width: 10),
+            dropdowns,
+          ],
+        );
+      },
+    );
   }
 }
 
-// ── Compact Dropdown ──────────────────────────────────────────────────────────
+// -- Compact Dropdown ----------------------------------------------------------
 class _CompactDropdown extends StatelessWidget {
   final IconData icon;
   final String label, value;
@@ -7458,7 +7575,7 @@ class _CompactDropdown extends StatelessWidget {
   }
 }
 
-// ── Customer Summary Card ─────────────────────────────────────────────────────
+// -- Customer Summary Card -----------------------------------------------------
 class _CustomerSummaryCard extends StatelessWidget {
   final Map<int, int> containersByCustomer;
   final int totalContainers;
@@ -7631,7 +7748,7 @@ class _CustomerSummaryCard extends StatelessWidget {
   }
 }
 
-// ── Filtered Container List ───────────────────────────────────────────────────
+// -- Filtered Container List ---------------------------------------------------
 class _FilteredContainerList extends StatelessWidget {
   final List<ContainerModel> containers;
   final List<Port> portList;
@@ -7853,7 +7970,7 @@ class _FilteredContainerList extends StatelessWidget {
   }
 }
 
-// ── Footer ────────────────────────────────────────────────────────────────────
+// -- Footer --------------------------------------------------------------------
 class _Footer extends StatelessWidget {
   final int year;
   const _Footer({required this.year});
@@ -7903,7 +8020,7 @@ class _Footer extends StatelessWidget {
   }
 }
 
-// ── Container List Dialog ─────────────────────────────────────────────────────
+// -- Container List Dialog -----------------------------------------------------
 class _ListDialog extends StatelessWidget {
   final String title;
   final List<ContainerModel> containers;
@@ -8146,7 +8263,7 @@ class _MiniStat extends StatelessWidget {
   }
 }
 
-// ── Report Dialog ─────────────────────────────────────────────────────────────
+// -- Report Dialog -------------------------------------------------------------
 class _ReportDialog extends StatefulWidget {
   final List<ContainerModel> containers;
   final List<Port> portList;
@@ -8711,7 +8828,7 @@ class _ReportDialogState extends State<_ReportDialog>
   }
 }
 
-// ── Report Table ──────────────────────────────────────────────────────────────
+// -- Report Table --------------------------------------------------------------
 class _ReportTable extends StatelessWidget {
   final List<ContainerModel> containers;
   final String Function(String?) fmt, days;
@@ -8866,7 +8983,7 @@ class _ReportTable extends StatelessWidget {
   }
 }
 
-// ── Report Ports Table ────────────────────────────────────────────────────────
+// -- Report Ports Table --------------------------------------------------------
 class _ReportPortsTable extends StatelessWidget {
   final List<Port> portList;
   final List<ContainerModel> containers;
@@ -9087,7 +9204,7 @@ class _ReportPortsTable extends StatelessWidget {
   }
 }
 
-// ── Reports Page Content ──────────────────────────────────────────────────────
+// -- Reports Page Content ------------------------------------------------------
 class _ReportsPageContent extends StatelessWidget {
   final List<ContainerModel> containers;
   final List<Port> portList;
@@ -9262,7 +9379,7 @@ class _ReportStat extends StatelessWidget {
   }
 }
 
-// ── Notifications Page Content ────────────────────────────────────────────────
+// -- Notifications Page Content ------------------------------------------------
 class _NotificationsPageContent extends StatefulWidget {
   const _NotificationsPageContent();
 

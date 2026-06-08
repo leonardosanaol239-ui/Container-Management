@@ -13,21 +13,96 @@ class PortSelectionDialog extends StatefulWidget {
 
 class _PortSelectionDialogState extends State<PortSelectionDialog> {
   final List<Map<String, dynamic>> _ports = [
-    {'portId': 1, 'name': 'MANILA PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 2, 'name': 'CEBU PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 3, 'name': 'DAVAO PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 4, 'name': 'BACOLOD PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 5, 'name': 'CAGAYAN PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 6, 'name': 'BATANGAS PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 7, 'name': 'DUMAGUETE PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 8, 'name': 'GENERAL SANTOS PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 9, 'name': 'ILIGAN PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 10, 'name': 'ILOILO PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 11, 'name': 'MASBATE PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 12, 'name': 'OZAMIS PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 13, 'name': 'TACLOBAN PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 14, 'name': 'TAGBILARAN PORT', 'icon': Icons.anchor_rounded},
-    {'portId': 15, 'name': 'ZAMBOANGA PORT', 'icon': Icons.anchor_rounded},
+    {
+      'portId': 1,
+      'name': 'MANILA PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': true,
+    },
+    {
+      'portId': 2,
+      'name': 'CEBU PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': true,
+    },
+    {
+      'portId': 3,
+      'name': 'DAVAO PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
+    {
+      'portId': 4,
+      'name': 'BACOLOD PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
+    {
+      'portId': 5,
+      'name': 'CAGAYAN PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
+    {
+      'portId': 6,
+      'name': 'BATANGAS PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
+    {
+      'portId': 7,
+      'name': 'DUMAGUETE PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
+    {
+      'portId': 8,
+      'name': 'GENERAL SANTOS PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
+    {
+      'portId': 9,
+      'name': 'ILIGAN PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
+    {
+      'portId': 10,
+      'name': 'ILOILO PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
+    {
+      'portId': 11,
+      'name': 'MASBATE PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
+    {
+      'portId': 12,
+      'name': 'OZAMIS PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
+    {
+      'portId': 13,
+      'name': 'TACLOBAN PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
+    {
+      'portId': 14,
+      'name': 'TAGBILARAN PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
+    {
+      'portId': 15,
+      'name': 'ZAMBOANGA PORT',
+      'icon': Icons.anchor_rounded,
+      'enabled': false,
+    },
   ];
   int? _selected;
 
@@ -133,69 +208,83 @@ class _PortSelectionDialogState extends State<PortSelectionDialog> {
                   itemCount: _ports.length,
                   itemBuilder: (context, index) {
                     final p = _ports[index];
+                    final isEnabled = p['enabled'] as bool;
                     final isSelected = _selected == p['portId'];
                     return GestureDetector(
-                      onTap: () =>
-                          setState(() => _selected = p['portId'] as int),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.yellow.withOpacity(0.15)
-                              : const Color(0xFFF8F8F8),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.yellow
-                                : Colors.transparent,
-                            width: 2,
+                      onTap: isEnabled
+                          ? () => setState(() => _selected = p['portId'] as int)
+                          : null,
+                      child: Opacity(
+                        opacity: isEnabled ? 1.0 : 0.4,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
                           ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppColors.green
-                                    : AppColors.textGrey.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                p['icon'] as IconData,
-                                color: isSelected
-                                    ? AppColors.yellow
-                                    : AppColors.textGrey,
-                                size: 16,
-                              ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.yellow.withOpacity(0.15)
+                                : const Color(0xFFF8F8F8),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.yellow
+                                  : Colors.transparent,
+                              width: 2,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                p['name'] as String,
-                                style: TextStyle(
-                                  fontWeight: isSelected
-                                      ? FontWeight.w800
-                                      : FontWeight.w600,
-                                  fontSize: 14,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
                                   color: isSelected
-                                      ? AppColors.textDark
+                                      ? AppColors.green
+                                      : AppColors.textGrey.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  p['icon'] as IconData,
+                                  color: isSelected
+                                      ? AppColors.yellow
                                       : AppColors.textGrey,
+                                  size: 16,
                                 ),
                               ),
-                            ),
-                            if (isSelected)
-                              const Icon(
-                                Icons.check_circle_rounded,
-                                color: AppColors.green,
-                                size: 20,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  p['name'] as String,
+                                  style: TextStyle(
+                                    fontWeight: isSelected
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                    fontSize: 14,
+                                    color: isSelected
+                                        ? AppColors.textDark
+                                        : AppColors.textGrey,
+                                  ),
+                                ),
                               ),
-                          ],
+                              if (isSelected)
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: AppColors.green,
+                                  size: 20,
+                                )
+                              else if (!isEnabled)
+                                const Text(
+                                  'Coming soon',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.textGrey,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -215,6 +304,8 @@ class _PortSelectionDialogState extends State<PortSelectionDialog> {
                           final port = _ports.firstWhere(
                             (p) => p['portId'] == _selected,
                           );
+                          // Guard: don't open disabled ports
+                          if (!(port['enabled'] as bool)) return;
                           Navigator.pop(context);
                           Navigator.push(
                             context,

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/session.dart';
 import '../models/container_model.dart';
@@ -22,9 +22,9 @@ class DriverDashboardScreen extends StatefulWidget {
 class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     with TickerProviderStateMixin {
   final _api = ApiService();
-  bool _loading = true; // true only on first load — shows full-screen spinner
+  bool _loading = true; // true only on first load â€” shows full-screen spinner
   bool _refreshing =
-      false; // true during manual refresh — spins the button icon
+      false; // true during manual refresh â€” spins the button icon
   List<ContainerModel> _moveRequests = [];
   Map<int, Yard> _yardsById = {};
   Map<int, String> _portNames = {};
@@ -35,7 +35,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
   late AnimationController _fadeController;
   late AnimationController _slideController;
 
-  // ── Gothong Southern Brand Colors ──────────────────────────────────────────
+  // â”€â”€ Gothong Southern Brand Colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // PRIMARY:   Lincoln Green #0B560D | Scarlet Red #FF2800 | Canary Yellow #FFF200
   // SECONDARY: Live Green #98F29B    | Smiley Red #E0474C  | Cyber Yellow #FFD300
 
@@ -71,7 +71,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
       duration: const Duration(milliseconds: 600),
     );
     _loadData();
-    // No auto-poll — driver refreshes manually via the Refresh button
+    // No auto-poll â€” driver refreshes manually via the Refresh button
   }
 
   @override
@@ -155,7 +155,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     }
   }
 
-  /// Manual refresh — updates data silently, spins the refresh button icon,
+  /// Manual refresh â€” updates data silently, spins the refresh button icon,
   /// and shows a brief confirmation snackbar when done.
   Future<void> _silentRefresh() async {
     if (_refreshing) return;
@@ -255,7 +255,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Move request confirmed for ${container.containerNumber}',
+              'Operation confirmed for ${container.containerNumber}',
             ),
             backgroundColor: _successGreen,
             behavior: SnackBarBehavior.floating,
@@ -339,9 +339,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // MODERN HEADER
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildModernHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -477,9 +477,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // WELCOME CARD
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildWelcomeCard() {
     return FadeTransition(
       opacity: _fadeController,
@@ -528,7 +528,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
                         ),
                       ),
                       const SizedBox(width: 6),
-                      const Text('👋', style: TextStyle(fontSize: 18)),
+                      const Text('ðŸ‘‹', style: TextStyle(fontSize: 18)),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -593,16 +593,16 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
               ),
             ),
 
-            // Shipping icon accent — removed per design update
+            // Shipping icon accent â€” removed per design update
           ],
         ),
       ),
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // STATISTICS CARDS
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildStatisticsCards() {
     return Row(
       children: [
@@ -722,9 +722,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // ASSIGNED YARDS SECTION
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildAssignedYardsSection() {
     final yardsWithRequests = _requestCountByYard.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -956,9 +956,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // DRIVER TIPS CARD
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildDriverTipsCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1007,9 +1007,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // MOVE REQUESTS PANEL
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildMoveRequestsPanel() {
     return Container(
       decoration: BoxDecoration(
@@ -1274,7 +1274,7 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
                   elevation: 0,
                 ),
                 child: const Text(
-                  'Confirm',
+                  'Operation Confirm',
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                 ),
               ),
@@ -1298,9 +1298,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // FOOTER
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildFooter() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24),
@@ -1351,9 +1351,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // LOADING STATE
-  // ═══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   Widget _buildLoadingState() {
     return Center(
       child: Column(
@@ -1383,9 +1383,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
   }
 }
 
-// ── Nav Profile Button (avatar + name + role + dropdown) ─────────────────────
+// â”€â”€ Nav Profile Button (avatar + name + role + dropdown) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Shared by Driver, Checker, and Customer dashboards.
-// On dark nav bar — avatar is green circle, text is white, dropdown is white card.
+// On dark nav bar â€” avatar is green circle, text is white, dropdown is white card.
 
 class _NavProfileBtn extends StatefulWidget {
   final Session session;

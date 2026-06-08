@@ -3,6 +3,14 @@ import '../services/api_service.dart';
 import '../models/customer_model.dart';
 import '../theme/app_theme.dart';
 
+// ── Brand tokens ──────────────────────────────────────────────────────────────
+const _green = AppColors.green;
+const _yellow = AppColors.yellow;
+const _red = AppColors.red;
+const _white = AppColors.white;
+const _textDark = AppColors.textDark;
+const _textGrey = AppColors.textGrey;
+
 class AddContainerDialog extends StatefulWidget {
   final int portId;
   const AddContainerDialog({super.key, required this.portId});
@@ -13,45 +21,26 @@ class AddContainerDialog extends StatefulWidget {
 
 class _AddContainerDialogState extends State<AddContainerDialog> {
   final _api = ApiService();
-  final _descCtrl = TextEditingController();
-  final _customerCtrl = TextEditingController();
-  int _statusId = 2;
-  int _sizeId = 1;
-  String? _containerType; // Food, Non-Food, FSL, etc.
-  bool _loading = false;
-  String? _error;
-  List<CustomerModel> _customers = [];
+  final _formKey = GlobalKey<FormState>();
+
+  // Controllers
+  final _customerNameCtrl = TextEditingController();
+  final _containerNoCtrl = TextEditingController();
+  final _remarksCtrl = TextEditingController();
+
+  // Selections
+  int? _statusId; // 1 = Laden, 2 = Empty
+  int? _sizeId; // 1 = 20ft, 2 = 40ft
+  String? _containerType; // 'Food Grade' | 'Non-Food Grade'
+
+  // Customer search
+  List<CustomerModel> _allCustomers = [];
   List<CustomerModel> _filtered = [];
   CustomerModel? _selectedCustomer;
-  bool _showDropdown = false;
+  bool _showSuggestions = false;
 
-  static const List<Map<String, dynamic>> _containerTypes = [
-    {
-      'label': 'Food',
-      'icon': Icons.restaurant_rounded,
-      'color': Color(0xFF2E7D32),
-    },
-    {
-      'label': 'Non-Food',
-      'icon': Icons.no_food_rounded,
-      'color': Color(0xFFB71C1C),
-    },
-    {
-      'label': 'FSL',
-      'icon': Icons.inventory_2_rounded,
-      'color': Color(0xFF1565C0),
-    },
-    {
-      'label': 'Stripping',
-      'icon': Icons.content_cut_rounded,
-      'color': Color(0xFFE65100),
-    },
-    {
-      'label': 'Repair',
-      'icon': Icons.build_rounded,
-      'color': Color(0xFF6A1B9A),
-    },
-  ];
+  bool _loading = false;
+  String? _errorMsg;
 
   @override
   void initState() {
@@ -59,422 +48,563 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
     _loadCustomers();
   }
 
+  @override
+  void dispose() {
+    _customerNameCtrl.dispose();
+    _containerNoCtrl.dispose();
+    _remarksCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadCustomers() async {
     try {
       final list = await _api.getCustomers();
-      setState(() => _customers = list);
+      if (mounted) setState(() => _allCustomers = list);
     } catch (_) {}
   }
 
-  void _onCustomerSearch(String q) {
+  void _onCustomerType(String q) {
     setState(() {
       _selectedCustomer = null;
-      if (q.isEmpty) {
+      if (q.trim().isEmpty) {
         _filtered = [];
-        _showDropdown = false;
+        _showSuggestions = false;
       } else {
-        _filtered = _customers
+        _filtered = _allCustomers
             .where((c) => c.fullName.toLowerCase().contains(q.toLowerCase()))
+            .take(6)
             .toList();
-        _showDropdown = _filtered.isNotEmpty;
+        _showSuggestions = _filtered.isNotEmpty;
       }
     });
   }
 
-  @override
-  void dispose() {
-    _descCtrl.dispose();
-    _customerCtrl.dispose();
-    super.dispose();
-  }
-
   Future<void> _submit() async {
-    if (_containerType == null) {
-      setState(() => _error = 'Please select a container type.');
+    // Clear previous error
+    setState(() => _errorMsg = null);
+
+    // Validate form fields
+    if (!_formKey.currentState!.validate()) return;
+
+    // Validate radio selections
+    if (_statusId == null) {
+      setState(() => _errorMsg = 'Please select a Container Status.');
       return;
     }
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    // Combine type + optional extra description
-    final extra = _descCtrl.text.trim();
-    final fullDesc = extra.isEmpty
-        ? _containerType!
-        : '$_containerType — $extra';
+    if (_sizeId == null) {
+      setState(() => _errorMsg = 'Please select a Container Size.');
+      return;
+    }
+    if (_containerType == null) {
+      setState(() => _errorMsg = 'Please select a Container Type.');
+      return;
+    }
+
+    setState(() => _loading = true);
+
     try {
+      final remarks = _remarksCtrl.text.trim();
+      // Map container type string → ContainerTypeId (1=Food Grade, 2=Non-Food Grade)
+      final containerTypeId = _containerType == 'Food Grade' ? 1 : 2;
+      // ContainerDesc encodes both type label + remarks
+      final desc = remarks.isEmpty
+          ? _containerType!
+          : '$_containerType — $remarks';
+
       await _api.createContainer(
-        statusId: _statusId,
-        containerSizeId: _sizeId,
-        desc: fullDesc,
+        statusId: _statusId!,
+        containerSizeId: _sizeId!,
+        desc: desc,
         portId: widget.portId,
+        containerNumber: _containerNoCtrl.text.trim(),
         customerId: _selectedCustomer?.customerId,
+        containerStatusId: _statusId, // mirrors statusId (1=Laden,2=Empty)
+        containerTypeId: containerTypeId,
+        remarks: remarks.isEmpty ? null : remarks,
       );
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _errorMsg = e.toString().replaceFirst('Exception: ', '');
         _loading = false;
       });
     }
   }
 
+  // ── Build ───────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
-          maxWidth: 400,
+          maxWidth: 440,
+          maxHeight: MediaQuery.of(context).size.height * 0.92,
         ),
         child: Container(
-          width: 400,
           decoration: BoxDecoration(
-            color: AppColors.white,
+            color: _white,
             borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x28000000),
+                blurRadius: 32,
+                offset: Offset(0, 10),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ── Header ────────────────────────────────────────────────
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
-                decoration: const BoxDecoration(
-                  color: AppColors.yellow,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              _buildHeader(),
+              Flexible(child: _buildForm()),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Header ──────────────────────────────────────────────────────────────────
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
+      decoration: const BoxDecoration(
+        color: _yellow,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: _green,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.add_box_rounded, color: _yellow, size: 18),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ADD CONTAINER',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    color: _textDark,
+                    letterSpacing: 0.5,
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.green,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.add_box_rounded,
-                        color: AppColors.yellow,
-                        size: 18,
-                      ),
+                Text(
+                  'Fill in all required fields',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: _green,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Close X
+          _CloseBtn(onTap: () => Navigator.pop(context)),
+        ],
+      ),
+    );
+  }
+
+  // ── Form ────────────────────────────────────────────────────────────────────
+  Widget _buildForm() {
+    return Form(
+      key: _formKey,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Customer Name ──────────────────────────────────────────
+            _label('Customer Name', required: true),
+            const SizedBox(height: 6),
+            TextFormField(
+              controller: _customerNameCtrl,
+              onChanged: _onCustomerType,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Customer name is required'
+                  : null,
+              decoration: _inputDeco(hint: 'Enter customer name'),
+            ),
+            if (_showSuggestions) _suggestionList(),
+            const SizedBox(height: 16),
+
+            // ── Container No. ──────────────────────────────────────────
+            _label('Container No.', required: true),
+            const SizedBox(height: 6),
+            TextFormField(
+              controller: _containerNoCtrl,
+              textCapitalization: TextCapitalization.characters,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Container number is required'
+                  : null,
+              decoration: _inputDeco(hint: 'e.g. TEMU1234567'),
+            ),
+            const SizedBox(height: 16),
+
+            // ── Container Status ───────────────────────────────────────
+            _label('Container Status', required: true),
+            const SizedBox(height: 8),
+            _ToggleGroup(
+              options: const ['Empty', 'Laden'],
+              selected: _statusId == null
+                  ? null
+                  : _statusId == 2
+                  ? 'Empty'
+                  : 'Laden',
+              activeColor: _green,
+              onSelect: (v) => setState(() => _statusId = v == 'Empty' ? 2 : 1),
+              onDeselect: () => setState(() => _statusId = null),
+            ),
+            const SizedBox(height: 16),
+
+            // ── Container Size ─────────────────────────────────────────
+            _label('Container Size', required: true),
+            const SizedBox(height: 8),
+            _ToggleGroup(
+              options: const ['20ft', '40ft'],
+              selected: _sizeId == null
+                  ? null
+                  : _sizeId == 1
+                  ? '20ft'
+                  : '40ft',
+              activeColor: _green,
+              onSelect: (v) => setState(() => _sizeId = v == '20ft' ? 1 : 2),
+              onDeselect: () => setState(() => _sizeId = null),
+            ),
+            const SizedBox(height: 16),
+
+            // ── Container Type ─────────────────────────────────────────
+            _label('Container Type', required: true),
+            const SizedBox(height: 8),
+            _ToggleGroup(
+              options: const ['Food Grade', 'Non-Food Grade'],
+              selected: _containerType,
+              activeColor: _green,
+              onSelect: (v) => setState(() => _containerType = v),
+              onDeselect: () => setState(() => _containerType = null),
+            ),
+            const SizedBox(height: 16),
+
+            // ── Remarks ────────────────────────────────────────────────
+            _label('Remarks', required: false),
+            const SizedBox(height: 6),
+            TextFormField(
+              controller: _remarksCtrl,
+              maxLines: 3,
+              decoration: _inputDeco(hint: 'Additional notes (optional)'),
+            ),
+
+            // ── Error message ──────────────────────────────────────────
+            if (_errorMsg != null) ...[
+              const SizedBox(height: 12),
+              _ErrorBanner(message: _errorMsg!),
+            ],
+
+            const SizedBox(height: 20),
+
+            // ── Buttons ────────────────────────────────────────────────
+            Row(
+              children: [
+                // Close button
+                Expanded(
+                  child: _OutlineBtn(
+                    label: 'Close',
+                    onTap: _loading ? null : () => Navigator.pop(context),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Add Container button
+                Expanded(
+                  flex: 2,
+                  child: _PrimaryBtn(
+                    label: _loading ? 'Saving…' : 'Add Container',
+                    loading: _loading,
+                    onTap: _loading ? null : _submit,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Customer suggestion list ─────────────────────────────────────────────
+  Widget _suggestionList() {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 160),
+      margin: const EdgeInsets.only(top: 3),
+      decoration: BoxDecoration(
+        color: _white,
+        border: Border.all(color: _green.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.07),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ListView.builder(
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+        itemCount: _filtered.length,
+        itemBuilder: (_, i) {
+          final c = _filtered[i];
+          return _SuggestionTile(
+            name: c.fullName,
+            onTap: () => setState(() {
+              _selectedCustomer = c;
+              _customerNameCtrl.text = c.fullName;
+              _showSuggestions = false;
+            }),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Shared helpers ────────────────────────────────────────────────────────
+  Widget _label(String text, {required bool required}) => Row(
+    children: [
+      Text(
+        text,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: _textDark,
+        ),
+      ),
+      if (required)
+        const Text(
+          ' *',
+          style: TextStyle(
+            color: _red,
+            fontWeight: FontWeight.w900,
+            fontSize: 13,
+          ),
+        ),
+    ],
+  );
+
+  InputDecoration _inputDeco({required String hint}) => InputDecoration(
+    hintText: hint,
+    hintStyle: const TextStyle(color: _textGrey, fontSize: 13),
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: _green, width: 2),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: _red, width: 1.5),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: _red, width: 2),
+    ),
+    filled: true,
+    fillColor: Colors.white,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Toggle Group — same UI for Status / Size / Type
+//  Double-tap (tap selected) → deselects
+// ─────────────────────────────────────────────────────────────────────────────
+class _ToggleGroup extends StatefulWidget {
+  final List<String> options;
+  final String? selected;
+  final Color activeColor;
+  final ValueChanged<String> onSelect;
+  final VoidCallback onDeselect;
+
+  const _ToggleGroup({
+    required this.options,
+    required this.selected,
+    required this.activeColor,
+    required this.onSelect,
+    required this.onDeselect,
+  });
+
+  @override
+  State<_ToggleGroup> createState() => _ToggleGroupState();
+}
+
+class _ToggleGroupState extends State<_ToggleGroup> {
+  String? _hovered;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: widget.options.asMap().entries.map((e) {
+        final idx = e.key;
+        final label = e.value;
+        final isActive = widget.selected == label;
+        final isHovered = _hovered == label;
+
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: idx == 0 ? 0 : 5,
+              right: idx == widget.options.length - 1 ? 0 : 5,
+            ),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              onEnter: (_) => setState(() => _hovered = label),
+              onExit: (_) => setState(() => _hovered = null),
+              child: GestureDetector(
+                onTap: () {
+                  // Double-tap (tap current selection) → deselect
+                  if (isActive) {
+                    widget.onDeselect();
+                  } else {
+                    widget.onSelect(label);
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? widget.activeColor
+                        : isHovered
+                        ? widget.activeColor.withValues(alpha: 0.08)
+                        : const Color(0xFFF5F5F5),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isActive
+                          ? widget.activeColor
+                          : isHovered
+                          ? widget.activeColor.withValues(alpha: 0.5)
+                          : const Color(0xFFDDDDDD),
+                      width: isActive ? 2 : 1.5,
                     ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'ADD CONTAINER',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                              color: AppColors.textDark,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          Text(
-                            'Fill in the container details',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 11,
-                              color: AppColors.green,
-                            ),
-                          ),
-                        ],
-                      ),
+                  ),
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      color: isActive
+                          ? Colors.white
+                          : isHovered
+                          ? widget.activeColor
+                          : _textGrey,
                     ),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppColors.textDark.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.close_rounded,
-                          color: AppColors.textDark,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-              // ── Form ──────────────────────────────────────────────────
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Status selector
-                      _FieldLabel(
-                        icon: Icons.radio_button_checked_rounded,
-                        label: 'Container Status',
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          _StatusButton(
-                            label: 'Empty',
-                            selected: _statusId == 2,
-                            color: AppColors.empty,
-                            onTap: () => setState(() => _statusId = 2),
-                          ),
-                          const SizedBox(width: 10),
-                          _StatusButton(
-                            label: 'Laden',
-                            selected: _statusId == 1,
-                            color: AppColors.yellow,
-                            textColor: AppColors.textDark,
-                            onTap: () => setState(() => _statusId = 1),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      _FieldLabel(
-                        icon: Icons.straighten_rounded,
-                        label: 'Container Size',
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          _StatusButton(
-                            label: '20ft',
-                            selected: _sizeId == 1,
-                            color: AppColors.green,
-                            onTap: () => setState(() => _sizeId = 1),
-                          ),
-                          const SizedBox(width: 10),
-                          _StatusButton(
-                            label: '40ft',
-                            selected: _sizeId == 2,
-                            color: AppColors.green,
-                            onTap: () => setState(() => _sizeId = 2),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      // ── Container Type ──────────────────────────────
-                      _FieldLabel(
-                        icon: Icons.category_rounded,
-                        label: 'Container Type',
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _containerTypes.map((t) {
-                          final label = t['label'] as String;
-                          final icon = t['icon'] as IconData;
-                          final typeColor = t['color'] as Color;
-                          final selected = _containerType == label;
-                          return GestureDetector(
-                            onTap: () => setState(() => _containerType = label),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 160),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? typeColor
-                                    : typeColor.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: selected
-                                      ? typeColor
-                                      : typeColor.withValues(alpha: 0.35),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    icon,
-                                    size: 14,
-                                    color: selected ? Colors.white : typeColor,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    label,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: selected
-                                          ? Colors.white
-                                          : typeColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 18),
-                      _FieldLabel(
-                        icon: Icons.person_rounded,
-                        label: 'Customer (Optional)',
-                      ),
-                      const SizedBox(height: 8),
-                      // Customer search — dropdown stays inside scroll
-                      TextField(
-                        controller: _customerCtrl,
-                        onChanged: _onCustomerSearch,
-                        onTap: () {
-                          if (_customers.isNotEmpty &&
-                              _customerCtrl.text.isEmpty) {
-                            setState(() {
-                              _filtered = _customers;
-                              _showDropdown = true;
-                            });
-                          }
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'Search customer name…',
-                          hintStyle: const TextStyle(
-                            color: AppColors.textGrey,
-                            fontSize: 13,
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            color: AppColors.green,
-                            size: 18,
-                          ),
-                          suffixIcon: _selectedCustomer != null
-                              ? IconButton(
-                                  icon: const Icon(Icons.close, size: 16),
-                                  onPressed: () => setState(() {
-                                    _selectedCustomer = null;
-                                    _customerCtrl.clear();
-                                    _showDropdown = false;
-                                  }),
-                                )
-                              : null,
-                        ),
-                      ),
-                      if (_showDropdown)
-                        Container(
-                          constraints: const BoxConstraints(maxHeight: 180),
-                          margin: const EdgeInsets.only(top: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            border: Border.all(color: AppColors.yellow),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: _filtered.length,
-                            itemBuilder: (_, i) {
-                              final c = _filtered[i];
-                              return ListTile(
-                                dense: true,
-                                title: Text(
-                                  c.fullName,
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                                onTap: () => setState(() {
-                                  _selectedCustomer = c;
-                                  _customerCtrl.text = c.fullName;
-                                  _showDropdown = false;
-                                }),
-                              );
-                            },
-                          ),
-                        ),
-                      const SizedBox(height: 18),
-                      _FieldLabel(
-                        icon: Icons.notes_rounded,
-                        label: 'Additional Notes (Optional)',
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _descCtrl,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          hintText: 'Any extra notes…',
-                          hintStyle: TextStyle(
-                            color: AppColors.textGrey,
-                            fontSize: 13,
-                          ),
-                          alignLabelWithHint: true,
-                        ),
-                      ),
-                      if (_error != null) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.red.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: AppColors.red.withValues(alpha: 0.4),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.error_outline_rounded,
-                                color: AppColors.red,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _error!,
-                                  style: const TextStyle(
-                                    color: AppColors.red,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _loading ? null : _submit,
-                          icon: _loading
-                              ? const SizedBox(
-                                  height: 18,
-                                  width: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.add_rounded, size: 20),
-                          label: Text(
-                            _loading ? 'SAVING…' : 'ADD CONTAINER',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.green,
-                            foregroundColor: AppColors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                        ),
-                      ),
-                    ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Shared small widgets
+// ─────────────────────────────────────────────────────────────────────────────
+class _CloseBtn extends StatefulWidget {
+  final VoidCallback onTap;
+  const _CloseBtn({required this.onTap});
+  @override
+  State<_CloseBtn> createState() => _CloseBtnState();
+}
+
+class _CloseBtnState extends State<_CloseBtn> {
+  bool _h = false;
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _h = true),
+      onExit: (_) => setState(() => _h = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: _h
+                ? _textDark.withValues(alpha: 0.18)
+                : _textDark.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.close_rounded, color: _textDark, size: 18),
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionTile extends StatefulWidget {
+  final String name;
+  final VoidCallback onTap;
+  const _SuggestionTile({required this.name, required this.onTap});
+  @override
+  State<_SuggestionTile> createState() => _SuggestionTileState();
+}
+
+class _SuggestionTileState extends State<_SuggestionTile> {
+  bool _h = false;
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _h = true),
+      onExit: (_) => setState(() => _h = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            color: _h ? _green.withValues(alpha: 0.07) : Colors.transparent,
+            border: Border(
+              bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.1)),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.person_outline_rounded,
+                size: 15,
+                color: _textGrey,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.name,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: _h ? FontWeight.w700 : FontWeight.w500,
+                    color: _h ? _green : _textDark,
                   ),
                 ),
               ),
@@ -486,68 +616,135 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
   }
 }
 
-class _FieldLabel extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _FieldLabel({required this.icon, required this.label});
-
+class _ErrorBanner extends StatelessWidget {
+  final String message;
+  const _ErrorBanner({required this.message});
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.green, size: 16),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 13,
-            color: AppColors.textDark,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: _red.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _red.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline_rounded, color: _red, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: _red, fontSize: 12, height: 1.4),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-class _StatusButton extends StatelessWidget {
+class _PrimaryBtn extends StatefulWidget {
   final String label;
-  final bool selected;
-  final Color color;
-  final Color textColor;
-  final VoidCallback onTap;
+  final bool loading;
+  final VoidCallback? onTap;
+  const _PrimaryBtn({required this.label, required this.loading, this.onTap});
+  @override
+  State<_PrimaryBtn> createState() => _PrimaryBtnState();
+}
 
-  const _StatusButton({
-    required this.label,
-    required this.selected,
-    required this.color,
-    this.textColor = AppColors.white,
-    required this.onTap,
-  });
-
+class _PrimaryBtnState extends State<_PrimaryBtn> {
+  bool _h = false;
   @override
   Widget build(BuildContext context) {
-    return Expanded(
+    final enabled = widget.onTap != null;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
+      onEnter: (_) => setState(() => _h = true),
+      onExit: (_) => setState(() => _h = false),
       child: GestureDetector(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: selected ? color : Colors.grey[100],
+            color: enabled
+                ? (_h ? const Color(0xFF084A0A) : _green)
+                : Colors.grey[200],
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (widget.loading)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _white,
+                  ),
+                )
+              else
+                const Icon(Icons.add_rounded, size: 18, color: _white),
+              const SizedBox(width: 7),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  letterSpacing: 0.4,
+                  color: enabled ? _white : _textGrey,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OutlineBtn extends StatefulWidget {
+  final String label;
+  final VoidCallback? onTap;
+  const _OutlineBtn({required this.label, this.onTap});
+  @override
+  State<_OutlineBtn> createState() => _OutlineBtnState();
+}
+
+class _OutlineBtnState extends State<_OutlineBtn> {
+  bool _h = false;
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _h = true),
+      onExit: (_) => setState(() => _h = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: _h ? const Color(0xFFF5F5F5) : _white,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: selected ? color : Colors.grey[300]!,
-              width: 2,
+              color: _h
+                  ? _green.withValues(alpha: 0.6)
+                  : const Color(0xFFCCCCCC),
+              width: 1.5,
             ),
           ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 13,
-              color: selected ? textColor : AppColors.textGrey,
+          child: Center(
+            child: Text(
+              widget.label,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: _h ? _green : _textGrey,
+              ),
             ),
           ),
         ),

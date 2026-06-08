@@ -56,6 +56,17 @@ public class Container
 
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
 
+    // ── Extended fields (visible in DB) ──────────────────────────────────────
+    public int? ContainerStatusId { get; set; }   // FK to a ContainerStatuses lookup table
+    public int? ContainerTypeId   { get; set; }   // FK to a ContainerTypes lookup table
+    public int? ContainerBoundId  { get; set; }   // FK to a ContainerBounds lookup table
+    public string? Remarks        { get; set; }
+
+    public DateTime? CreateDttm   { get; set; }
+    public int?      CreateUserId { get; set; }
+    public DateTime? UpdateDttm   { get; set; }
+    public int?      UpdateUserId { get; set; }
+
     // Navigation properties removed to prevent circular references
     // Use separate DTOs or queries when you need related data
 }

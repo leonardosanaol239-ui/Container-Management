@@ -158,9 +158,14 @@ class ApiService {
     required int containerSizeId,
     required String desc,
     required int portId,
+    required String containerNumber,
     int? customerId,
+    int? containerStatusId,
+    int? containerTypeId,
+    int? containerBoundId,
+    String? remarks,
+    int? createUserId,
   }) async {
-    final now = DateTime.now().toUtc().toIso8601String();
     final res = await http.post(
       Uri.parse('$baseUrl/Containers'),
       headers: {'Content-Type': 'application/json'},
@@ -170,8 +175,13 @@ class ApiService {
         'containerSizeId': containerSizeId,
         'containerDesc': desc,
         'currentPortId': portId,
+        'containerNumber': containerNumber.trim().toUpperCase(),
         'customerId': ?customerId,
-        'createdDate': now,
+        'containerStatusId': ?containerStatusId,
+        'containerTypeId': ?containerTypeId,
+        'containerBoundId': ?containerBoundId,
+        'remarks': ?remarks,
+        'createUserId': ?createUserId,
       }),
     );
     _check(res);

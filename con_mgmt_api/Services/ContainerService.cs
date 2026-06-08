@@ -30,32 +30,53 @@ public class ContainerService : IContainerService
             throw new ArgumentException("Invalid StatusId");
         }
 
-        // Generate container number
-        var lastContainer = await _context.Containers
-            .OrderByDescending(c => c.ContainerId)
-            .FirstOrDefaultAsync();
-        
-        var nextNumber = 1;
-        if (lastContainer != null)
+        // Determine container number — use user-supplied value or auto-generate
+        string containerNumber;
+        if (!string.IsNullOrWhiteSpace(createDto.ContainerNumber))
         {
-            var lastNumberStr = lastContainer.ContainerNumber.Replace("CON-", "");
-            if (int.TryParse(lastNumberStr, out var lastNumber))
-            {
-                nextNumber = lastNumber + 1;
-            }
+            // Check uniqueness
+            var exists = await _context.Containers
+                .AnyAsync(c => c.ContainerNumber == createDto.ContainerNumber.Trim().ToUpper());
+            if (exists)
+                throw new ArgumentException($"Container number '{createDto.ContainerNumber}' already exists.");
+            containerNumber = createDto.ContainerNumber.Trim().ToUpper();
         }
+        else
+        {
+            // Auto-generate
+            var lastContainer = await _context.Containers
+                .OrderByDescending(c => c.ContainerId)
+                .FirstOrDefaultAsync();
+            var nextNumber = 1;
+            if (lastContainer != null)
+            {
+                var lastNumberStr = lastContainer.ContainerNumber.Replace("CON-", "");
+                if (int.TryParse(lastNumberStr, out var lastNumber))
+                    nextNumber = lastNumber + 1;
+            }
+            containerNumber = $"CON-{nextNumber}";
+        }
+
+        var now = DateTime.UtcNow.AddHours(8); // PHT
 
         var container = new Container
         {
-            ContainerNumber = $"CON-{nextNumber}",
-            StatusId = createDto.StatusId,
-            Type = createDto.Type,
-            ContainerDesc = createDto.ContainerDesc,
-            CurrentPortId = createDto.CurrentPortId,
-            ContainerSizeId = createDto.ContainerSizeId,
-            CustomerId      = createDto.CustomerId,
-            LocationStatusId = 4, // Holding Area
-            CreatedDate = DateTime.UtcNow.AddHours(8)
+            ContainerNumber   = containerNumber,
+            StatusId          = createDto.StatusId,
+            Type              = createDto.Type,
+            ContainerDesc     = createDto.ContainerDesc,
+            CurrentPortId     = createDto.CurrentPortId,
+            ContainerSizeId   = createDto.ContainerSizeId,
+            CustomerId        = createDto.CustomerId,
+            LocationStatusId  = 4, // Holding Area
+            // Extended fields
+            ContainerStatusId = createDto.ContainerStatusId,
+            ContainerTypeId   = createDto.ContainerTypeId,
+            ContainerBoundId  = createDto.ContainerBoundId,
+            Remarks           = createDto.Remarks,
+            CreateDttm        = now,
+            CreateUserId      = createDto.CreateUserId,
+            CreatedDate       = now,
         };
 
         _context.Containers.Add(container);

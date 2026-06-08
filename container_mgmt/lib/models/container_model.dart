@@ -25,6 +25,15 @@ class ContainerModel {
   final int? prevBayId;
   final int? prevRowId;
   final int? prevTier;
+  // Extended DB fields
+  final int? containerStatusId;
+  final int? containerTypeId;
+  final int? containerBoundId;
+  final String? remarks;
+  final String? createDttm;
+  final int? createUserId;
+  final String? updateDttm;
+  final int? updateUserId;
 
   ContainerModel({
     required this.containerId,
@@ -52,6 +61,14 @@ class ContainerModel {
     this.prevBayId,
     this.prevRowId,
     this.prevTier,
+    this.containerStatusId,
+    this.containerTypeId,
+    this.containerBoundId,
+    this.remarks,
+    this.createDttm,
+    this.createUserId,
+    this.updateDttm,
+    this.updateUserId,
   });
 
   bool get isInYard => yardId != null;
@@ -83,5 +100,13 @@ class ContainerModel {
     prevBayId: json['prevBayId'],
     prevRowId: json['prevRowId'],
     prevTier: json['prevTier'],
+    containerStatusId: json['containerStatusId'],
+    containerTypeId: json['containerTypeId'],
+    containerBoundId: json['containerBoundId'],
+    remarks: json['remarks'] as String?,
+    createDttm: json['createDttm'] as String?,
+    createUserId: json['createUserId'],
+    updateDttm: json['updateDttm'] as String?,
+    updateUserId: json['updateUserId'],
   );
 }

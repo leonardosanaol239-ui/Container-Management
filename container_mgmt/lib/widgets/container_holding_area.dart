@@ -4,6 +4,7 @@ import '../models/container_model.dart';
 import '../services/api_service.dart';
 import '../widgets/add_container_dialog.dart';
 import '../theme/app_theme.dart';
+import '../services/slot_allocation_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ContainerHoldingArea
@@ -21,6 +22,7 @@ class ContainerHoldingArea extends StatefulWidget {
   final int? yardId;
   final List<ContainerModel> containers;
   final VoidCallback onRefresh;
+  final Function(VacantSlot?)? onContainerAssigned;
 
   const ContainerHoldingArea({
     super.key,
@@ -28,6 +30,7 @@ class ContainerHoldingArea extends StatefulWidget {
     this.yardId,
     required this.containers,
     required this.onRefresh,
+    this.onContainerAssigned,
   });
 
   @override
@@ -216,8 +219,15 @@ class _ContainerHoldingAreaState extends State<ContainerHoldingArea> {
               onTap: () async {
                 await showDialog(
                   context: context,
-                  builder: (_) => AddContainerDialog(portId: widget.portId),
+                  builder: (_) => AddContainerDialog(
+                    portId: widget.portId,
+                    onContainerAssigned: (slot) {
+                      // Notify parent when container is auto-assigned
+                      widget.onContainerAssigned?.call(slot);
+                    },
+                  ),
                 );
+                // Refresh regardless of whether container was added or assigned
                 widget.onRefresh();
               },
               child: Container(

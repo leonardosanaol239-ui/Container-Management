@@ -14,6 +14,7 @@ import '../models/customer_model.dart';
 import '../models/orientation_model.dart';
 import '../models/truck.dart';
 import '../widgets/container_holding_area.dart';
+import '../widgets/tier_selection_dialog.dart';
 
 const double kContainerHeight = 8.0;
 const double k20ftWidth = 20.0;
@@ -409,9 +410,20 @@ class _YardScreenState extends State<YardScreen>
       }
       if (targetRow != null) break;
     }
-    if (existing.length >= (targetRow?.maxStack ?? 5)) return;
+    if (targetRow == null) return;
+    if (existing.length >= targetRow.maxStack) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This slot is at maximum capacity'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
     // Size match: container's sizeId must match the slot's sizeId
-    final slotSizeId = targetRow?.sizeId;
+    final slotSizeId = targetRow.sizeId;
     final containerSizeId = container.containerSizeId;
     if (slotSizeId != null &&
         containerSizeId != null &&
@@ -428,6 +440,21 @@ class _YardScreenState extends State<YardScreen>
       }
       return;
     }
+    
+    // Show tier selection dialog
+    final selectedTier = await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => TierSelectionDialog(
+        container: container,
+        row: targetRow!,
+        existingContainers: existing,
+        onConfirm: (tier) => tier,
+      ),
+    );
+    
+    if (selectedTier == null) return;
+    
     int? blockId, bayId;
     for (final e in _rowsByBay.entries) {
       for (final r in e.value) {
@@ -455,7 +482,7 @@ class _YardScreenState extends State<YardScreen>
         blockId: blockId,
         bayId: bayId,
         rowId: rowId,
-        tier: existing.length + 1,
+        tier: selectedTier,
         locationStatusId: 3,
       );
       // Explicitly set locationStatusId = 3 (Move Request) in case
@@ -1081,6 +1108,23 @@ class _YardScreenState extends State<YardScreen>
                                         yardId: widget.yard.yardId,
                                         containers: _containers,
                                         onRefresh: _refreshContainers,
+                                        onContainerAssigned: (slot) {
+                                          if (slot != null) {
+                                            setState(() {
+                                              _highlightedRowId = slot.rowId;
+                                            });
+                                            _blinkCtrl.repeat(reverse: true);
+                                            // Auto-dismiss highlight after 8 seconds
+                                            _notifTimer?.cancel();
+                                            _notifTimer = Timer(const Duration(seconds: 8), () {
+                                              if (mounted) {
+                                                setState(() => _highlightedRowId = null);
+                                                _blinkCtrl.stop();
+                                                _blinkCtrl.reset();
+                                              }
+                                            });
+                                          }
+                                        },
                                       ),
                                     ),
                               ),

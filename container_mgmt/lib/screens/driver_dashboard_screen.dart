@@ -5,6 +5,7 @@ import '../models/container_model.dart';
 import '../models/yard.dart';
 import '../services/api_service.dart';
 import '../widgets/nav_profile_btn.dart';
+import '../widgets/move_request_confirmation_dialog.dart';
 import 'driver_yard_screen.dart';
 import 'landing_screen.dart';
 import 'account_screen.dart';
@@ -230,58 +231,46 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen>
   }
 
   Future<void> _confirmMoveRequest(ContainerModel container) async {
-    try {
-      // Show loading dialog
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(color: _primaryGreen),
-        ),
-      );
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => MoveRequestConfirmationDialog(
+        container: container,
+        onConfirmed: () async {
+          // Reload data to refresh the list
+          await _loadData();
+          // Show success message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.check_circle, color: Colors.white, size: 18),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Operation confirmed for ${container.containerNumber}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: _successGreen,
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            );
+          }
+        },
+      ),
+    );
 
-      // Call API to confirm move request (sets locationStatusId to 1)
-      await _api.confirmMoveRequest(container.containerId);
-
-      // Close loading dialog
-      if (mounted) Navigator.of(context).pop();
-
-      // Reload data to refresh the list
-      await _loadData();
-
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Operation confirmed for ${container.containerNumber}',
-            ),
-            backgroundColor: _successGreen,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      // Close loading dialog if still open
-      if (mounted) Navigator.of(context).pop();
-
-      // Show error message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error confirming request: ${e.toString()}'),
-            backgroundColor: _warningRed,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-      }
+    if (result == true) {
+      // Dialog was confirmed and data was reloaded
     }
   }
 

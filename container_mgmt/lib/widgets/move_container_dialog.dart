@@ -5,6 +5,7 @@ import '../models/row_model.dart';
 import '../models/container_model.dart';
 import '../services/api_service.dart';
 import '../widgets/container_details_dialog.dart';
+import '../widgets/tier_selection_dialog.dart';
 
 class MoveContainerDialog extends StatefulWidget {
   final String portName;
@@ -202,8 +203,23 @@ class _SlotDropViewState extends State<_SlotDropView> {
 
   Future<void> _drop(ContainerModel container, int rowId) async {
     final existing = _localContainersByRow[rowId] ?? [];
-    if (existing.length >= 5) return;
-    final nextTier = existing.length + 1;
+    final row = widget.rows.firstWhere((r) => r.rowId == rowId);
+    
+    if (existing.length >= row.maxStack) return;
+    
+    // Show tier selection dialog
+    final selectedTier = await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => TierSelectionDialog(
+        container: container,
+        row: row,
+        existingContainers: existing,
+        onConfirm: (tier) => tier,
+      ),
+    );
+    
+    if (selectedTier == null) return;
 
     try {
       await _api.moveContainer(
@@ -212,11 +228,11 @@ class _SlotDropViewState extends State<_SlotDropView> {
         blockId: widget.block.blockId,
         bayId: widget.bay.bayId,
         rowId: rowId,
-        tier: nextTier,
+        tier: selectedTier,
       );
       setState(() {
         final updated = List<ContainerModel>.from(existing)
-          ..add(container.copyWith(tier: nextTier, rowId: rowId));
+          ..add(container.copyWith(tier: selectedTier, rowId: rowId));
         _localContainersByRow[rowId] = updated;
       });
       widget.onMoved();

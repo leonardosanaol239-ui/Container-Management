@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/customer_model.dart';
 import '../theme/app_theme.dart';
+import 'vacant_slot_allocation_dialog.dart';
+import '../services/slot_allocation_service.dart';
 
 // ── Brand tokens ──────────────────────────────────────────────────────────────
 const _green = AppColors.green;
@@ -13,7 +15,8 @@ const _textGrey = AppColors.textGrey;
 
 class AddContainerDialog extends StatefulWidget {
   final int portId;
-  const AddContainerDialog({super.key, required this.portId});
+  final Function(VacantSlot?)? onContainerAssigned;
+  const AddContainerDialog({super.key, required this.portId, this.onContainerAssigned});
 
   @override
   State<AddContainerDialog> createState() => _AddContainerDialogState();
@@ -111,7 +114,7 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
           ? _containerType!
           : '$_containerType — $remarks';
 
-      await _api.createContainer(
+      final createdContainer = await _api.createContainer(
         statusId: _statusId!,
         containerSizeId: _sizeId!,
         desc: desc,
@@ -122,7 +125,32 @@ class _AddContainerDialogState extends State<AddContainerDialog> {
         containerTypeId: containerTypeId,
         remarks: remarks.isEmpty ? null : remarks,
       );
-      if (mounted) Navigator.pop(context, true);
+      
+      if (mounted) {
+        // Close the add container dialog
+        Navigator.pop(context, true);
+        
+        // Show the vacant slot allocation dialog
+        if (createdContainer != null) {
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => VacantSlotAllocationDialog(
+              container: createdContainer,
+              portId: widget.portId,
+              onAssigned: (assignedSlot) {
+                // Container was auto-assigned to a slot
+                // Notify parent with the VacantSlot for highlighting
+                widget.onContainerAssigned?.call(assignedSlot);
+              },
+              onSkipped: () {
+                // User skipped auto-assignment, they will manually assign
+                // The parent widget will handle the refresh
+              },
+            ),
+          );
+        }
+      }
     } catch (e) {
       setState(() {
         _errorMsg = e.toString().replaceFirst('Exception: ', '');

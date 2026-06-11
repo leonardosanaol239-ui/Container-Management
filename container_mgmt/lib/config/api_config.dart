@@ -10,7 +10,7 @@ class ApiConfig {
 
   // Current active base URL
   // IMPORTANT: Change this if your backend is on a different port
-  static String get baseUrl => localhostUrl;
+  static String get baseUrl => gothongNetworkUrl;
 
   // Connection timeout in seconds
   static const int connectionTimeout = 15;

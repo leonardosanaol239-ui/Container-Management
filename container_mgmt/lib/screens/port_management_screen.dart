@@ -238,6 +238,11 @@ class _PortManagementScreenState extends State<PortManagementScreen>
                     portId: widget.portId,
                     containers: _containers,
                     onRefresh: _loadAll,
+                    onContainerAssigned: (slot) {
+                      // In port management screen, we don't have yard layout to highlight
+                      // Just refresh to show the container is no longer in holding area
+                      _loadAll();
+                    },
                   ),
                   const SizedBox(width: 16),
                   Expanded(child: _buildYardsPanel()),
